@@ -1,0 +1,28 @@
+# Upstream reference code (cloned locally, read-only, never committed)
+reference/
+
+# Machine-specific notes for Claude Code
+CLAUDE.local.md
+
+# Original Spanish draft of the spec (superseded by docs/SPEC.md)
+Vuelo a vela*.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+build/
+dist/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
