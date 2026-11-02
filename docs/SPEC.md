@@ -66,7 +66,7 @@ The plugin works in XP12: Juan Luis tested it and it produces usable thermals. M
 
 | # | Topic | Relevance |
 | --- | --- | --- |
-| 34 | Error on load (May 2025) | Review during baseline |
+| 34 | Error on load (May 2025) | No details in the issue. Likely cause: `world.py` crashes at import when `init_values.json` is not at `Resources/plugins/PythonPlugins/` (e.g. installed into a subfolder); *verify* in the baseline |
 | 32 | Terrain and environment considerations | Terrain triggers |
 | 31 | Thermal visibility ON/OFF does not work | UI bug |
 | 30 | Menu to enable only the effect, not the plugin | UX |
@@ -99,6 +99,8 @@ The plugin is slow and depends on calibration by design, not because it is writt
 **3. Geometry errors**
 
 - Wing tips are placed at `heading` and `heading + 180`, i.e. along the flight axis instead of perpendicular to it. The tail is at `heading + 90`. Everything looks rotated by 90°, consistent with issue #24 (x/y swap).
+  - *Verify* (second reading, 2026-11-02): with X-Plane's local frame (x east, z **south**) and the offsets `(cos h, sin h)` applied to (x, z), the "left" point lands on the aircraft's right side and the "right" point on its left, and the tail lands behind. That would mean the wing labels are swapped (and the roll sign swaps them back), not rotated. Test F in [baseline.md](baseline.md) decides.
+- `roll_factor` and `pitch_factor` are each applied twice (in `calc_thermalx` and again in the flight loop), so the moments scale with their square.
 - Pitch uses `(_lift_r - _lift_l)`: the difference between wings, not between wings and tail. The tail is computed but not used for pitch.
 - Total lift averages 4 samples by dividing by 3: a hidden 33% gain.
 - Wing tips use `wing_size * 3`, an empirical tweak to "feel the wing bump".
@@ -222,7 +224,12 @@ The plugin works *on top of* the native weather, never instead of it. Whether th
 - A Performance window shows microseconds per frame per plugin; it is the tool for the per-frame budget. ([performance](https://xppython3.readthedocs.io/en/latest/usage/performance.html))
 - Weather writes must be batched inside `beginWeatherUpdate()` / `endWeatherUpdate()`; `isIncremental=0` wipes everyone's injected weather; `radius_nm` and `max_altitude_msl_ft` come back as 0 from a read and must be set explicitly. ([weather](https://xppython3.readthedocs.io/en/latest/development/modules/weather.html))
 - Testing: the official `xp` stubs are type hints only, not executable. No official mock exists, which reinforces the rule that the engine never imports `xp`. ([stubs](https://xppython3.readthedocs.io/en/latest/development/stubs.html))
-- Third-party projects worth a look later: [xppython3-headless-dev](https://github.com/stu-speed/xppython3-headless-dev) (sim-less runner, new and unproven) and [xppython3-atmos](https://github.com/stu-speed/xppython3-atmos) (atmospheric modeling and weather injection; *verify* overlap with this project).
+- Third-party projects worth a look later: [xppython3-headless-dev](https://github.com/stu-speed/xppython3-headless-dev) (sim-less runner, new and unproven) and [xppython3-atmos](https://github.com/stu-speed/xppython3-atmos) (see below).
+- **xppython3-atmos (reviewed 2026-11-02):** a design-only repository, with Markdown specs and no code. It was created on 2026-07-01 and last pushed on 2026-07-02, has 0 stars, and is licensed AGPL-3.0. It plans a whole-weather engine (visibility, haze, fog, precipitation, synoptic, terrain and orographic wind, cloud dynamics, turbulence) fed by GFS/HRRR/METAR. It acts by *writing wind* into X-Plane, not forces.
+  - **Overlap:** its Terrain Wind (ridge, lee, rotor), Orographic Wind (mountain wave, rotor) and Cloud Dynamics (cumulus lift, thermal modulation by sun and shading) cover ground similar to our phases 2 and 4.
+  - **Nothing reusable as code:** there is none. Ideas worth keeping are the fixed 10-ray terrain-sampling box (up, down, 8 compass directions, ray length ∝ TAS) and the standard wavelength λ = 2πU/N for waves.
+  - **Its write path does not exist in XP 12.4.3:** it relies on `sim/weather/region/wind_vertical_mps[]` and writable `sim/weather/wind_now_*`, but `DataRefs.txt` has no vertical-wind dataref, and `wind_now_*` are read-only and marked replaced. This supports our force-based approach.
+  - **Coexistence:** if it is ever implemented and a user runs both, its wind and turbulence writes would stack with our lift. Check then, not now.
 
 ## System architecture
 
@@ -581,9 +588,13 @@ Multiplayer is left for later, but deterministic generation is designed from the
 Phases 1 to 3 alone would deliver something clearly better than what exists today for soaring in X-Plane. Each phase ends with a criterion verifiable by flying.
 
 0. **Baseline**
-   - Install XPPython3 and Alex's plugin, and fly a known glider. (Juan Luis already flew the plugin informally; XPPython3 is not installed in the current XP12 setup.)
+   - Install XPPython3 and Alex's plugin, and fly a known glider. (Juan Luis already flew the plugin informally.)
+     - [x] XPPython3 4.7.1 installed and verified (2026-11-02).
+     - [x] Alex's plugin (`082dd7d`) installed flat in `PythonPlugins/` (2026-11-02).
+     - [x] Per-frame flight logger and offline analyzer in `tools/flightlog/`; protocol and code-reading predictions in [baseline.md](baseline.md).
+     - [ ] Fly the protocol and fill in the results.
    - Measure climb rates, roll feel and FPS; review issue #34.
-   - *Done when:* there are written measurements to compare against later.
+   - *Done when:* there are written measurements to compare against later ([baseline.md](baseline.md)).
 1. **Thermal engine and correct physics**
    - New repository with the engine / adapter split.
    - Energy-based physics, per-frame flight loop, correct wing/tail geometry, spatial grid.
@@ -632,7 +643,7 @@ These questions do not have an answer yet; they are resolved in the phase indica
 - [ ] Does X-Plane reset the `_plug_acf` datarefs every flight-model cycle? (phase 1)
 - [ ] Best way to apply the energy-based force: along the flight path, vertical, or split? (phase 1)
 - [x] Which Python version does XPPython3 use, and can numpy be installed in it? **Python 3.12; numpy is auto-installed since v4.4.** Confirmed on 2026-11-02: XPPython3 4.7.1 bundles Python 3.12.2 and installed numpy 2.5.4 on first launch.
-- [ ] Does stu-speed/xppython3-atmos overlap with this project or offer something reusable? (phase 1)
+- [x] Does stu-speed/xppython3-atmos overlap with this project or offer something reusable? **Partly overlaps in scope (ridge, wave, cumulus lift), but it is design docs only, AGPL-3.0, and plans to write vertical wind datarefs that XP 12.4.3 does not have.** Nothing to reuse beyond ideas; details in the XPPython3 section.
 - [ ] How do XP12's native thermals behave and how can they be neutralized reliably? (phase 2)
 - [ ] Which method suits per-thermal cumulus? Alex's plugin draws an instanced 3D object at cloud base; the weather API is regional. (phase 2)
 - [ ] How well do XP12's native aerotow and winch work?
