@@ -169,6 +169,23 @@ The most important technical limit: XP12 does not allow injecting vertical air m
 - What a plugin writes with `setWeatherAtLocation` is added as one more sample to the simulated weather; `setWeatherAtAirport` replaces that airport's records. `eraseWeatherAtLocation` erases what the plugin itself injected. ([Laminar](https://developer.x-plane.com/sdk/XPLMSetWeatherAtAirport))
 - When writing clouds there is no way to say "keep the clouds as they are": the layers must be re-sent.
 - Uses in the project: **read** layered wind, temperature and dew point (cloud base, drift, strength of the day); **write** cumulus coverage and temperature layers consistent with the model; **neutralize** native thermals (`thermal_climb` set to zero) to avoid a double effect. *Verify* how XP12's native thermals behave today.
+- Native thermal datarefs in XP 12.4.3 (`DataRefs.txt`): `sim/weather/region/thermal_rate_ms` (writable, regional climb rate) and `sim/weather/aircraft/thermal_rate_ms` (read-only, what the aircraft experiences). The old `sim/weather/thermal_rate_ms` is marked as replaced.
+
+**Relationship with XP12's native weather**
+
+The plugin works *on top of* the native weather, never instead of it. Whether the user flies real weather or sets it manually, XP12 stays in charge of the large scale.
+
+| Element | Who owns it | What the plugin does |
+| --- | --- | --- |
+| Wind by layer, temperature, dew point, pressure, visibility | XP12 (real or manual weather) | Reads it as input: cloud base, thermal top, drift, strength of the day |
+| Frontal and layered clouds, rain | XP12 | Reads coverage for cloud shadow; does not touch them |
+| Native thermals | XP12 | Sets them to zero while active, so lift is not applied twice; restores them when disabled |
+| Local lift (thermal, ridge, wave) | Plugin | Applied as forces on the aircraft |
+| Cumulus marking each thermal | Plugin | Drawn by the plugin (method to be decided in phase 2) |
+
+- Everything the plugin writes must be undone when it is disabled or X-Plane closes (`eraseWeatherAtLocation`, restore the native thermal rate). Never use `endWeatherUpdate(isIncremental=0)`, which wipes everyone's injected weather.
+- The weather API works per region (tens of nautical miles), so it can tint the day (cumulus coverage, temperature profile), but it cannot place one specific cloud on top of one specific thermal. That is why per-thermal cumulus will probably be drawn objects, not weather.
+- *Verify* coexistence with third-party weather injectors, which may overwrite what the plugin writes.
 
 **Forces on the aircraft**
 
@@ -446,7 +463,7 @@ Thermals should be born where they would be in reality, computing their probabil
 
 What you see in the sky must be a consequence of the model, so the pilot learns to read the sky instead of looking for rings.
 
-- **Cumulus with a life cycle:** they form, mature and dissolve in sync with their thermal. A cumulus that frays warns that the thermal died, just like in real life. *Verify* how Alex's plugin draws clouds today (v0.4) and whether to follow that method or use the weather API (which is regional).
+- **Cumulus with a life cycle:** they form, mature and dissolve in sync with their thermal. A cumulus that frays warns that the thermal died, just like in real life. Alex's plugin (v0.4) does not use the weather API for this: it places a 3D object (`mt_scenery.obj`) at cloud base with the instance API (`draw_thermals.py`). *Verify* whether drawn objects can look like convincing cumulus next to XP12's volumetric clouds, and how to animate their life cycle.
 - **Cloud base marker** (issue #15).
 - **Optional thermal rings** for beginners, off by default in realistic mode; fix the toggle (issue #31).
 - **Birds or AI gliders circling** in thermals: a gaggle is the best indicator there is.
@@ -571,7 +588,7 @@ Phases 1 to 3 alone would deliver something clearly better than what exists toda
    - New repository with the engine / adapter split.
    - Energy-based physics, per-frame flight loop, correct wing/tail geometry, spatial grid.
    - Profile with sink ring, variation with height, life cycle without abrupt disappearances, deterministic generation with cos(lat).
-   - *Done when:* two different gliders climb ~w m/s above their sink rate without calibration, at different FPS.
+   - *Done when:* the Laminar ASK 21 climbs ~w m/s above its sink rate without calibration, at different FPS, and a second glider does the same with no changes.
 2. **XP12 atmosphere and coherent cumulus**
    - Reading of layered wind, temperature and dew point; cloud base and layered drift.
    - Native thermals neutralized; cumulus with a life cycle synchronized with their thermal; daily cycle and cloud shadow.
@@ -605,6 +622,7 @@ These questions do not have an answer yet; they are resolved in the phase indica
 - [ ] What is missed most from Condor when flying gliders in XP12? The answer decides where to start within each phase.
 - [ ] AI gliders: do they take off from an airfield or appear airborne? (phase 6)
 - [ ] Main use: full-size gliders, RC, or both?
+- [x] Reference glider: **the Laminar Schleicher ASK 21 that ships with XP12**. All tuning and measurements are done with it first; a second aircraft (for example the NHAdrian ASK 21) is only used to check that nothing depends on per-aircraft calibration.
 - [x] Repository and project name: **xp-gliding**.
 - [x] License and visibility: **GPL-3.0-or-later, public repository**.
 - [x] When to contact Alex Ferrer: **once something works**, not before.
@@ -613,10 +631,10 @@ These questions do not have an answer yet; they are resolved in the phase indica
 
 - [ ] Does X-Plane reset the `_plug_acf` datarefs every flight-model cycle? (phase 1)
 - [ ] Best way to apply the energy-based force: along the flight path, vertical, or split? (phase 1)
-- [x] Which Python version does XPPython3 use, and can numpy be installed in it? **Python 3.12; numpy is auto-installed since v4.4** (per the docs; confirm after installing in phase 0).
+- [x] Which Python version does XPPython3 use, and can numpy be installed in it? **Python 3.12; numpy is auto-installed since v4.4.** Confirmed on 2026-11-02: XPPython3 4.7.1 bundles Python 3.12.2 and installed numpy 2.5.4 on first launch.
 - [ ] Does stu-speed/xppython3-atmos overlap with this project or offer something reusable? (phase 1)
 - [ ] How do XP12's native thermals behave and how can they be neutralized reliably? (phase 2)
-- [ ] How does Alex's plugin draw clouds today, and which method suits per-thermal cumulus? (phase 2)
+- [ ] Which method suits per-thermal cumulus? Alex's plugin draws an instanced 3D object at cloud base; the weather API is regional. (phase 2)
 - [ ] How well do XP12's native aerotow and winch work?
 - [ ] Global land-cover and elevation data sources, and their licenses. (phase 5)
 - [ ] Can the .obj models of the gliders included with XP12 be reused? (phase 6)
