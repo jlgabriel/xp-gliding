@@ -9,8 +9,10 @@ plugins run their disable/stop code on the way out), waits for the process to
 end, launches `X-Plane.exe` again, waits for the web API (~50 s) and then a
 grace period (60 s by default): the API answers before X-Plane has finished
 loading airports and plugins, and a flight requested in that window can hang
-it (seen 2026-11-03). Start a flight afterwards with `airstart.py` or any
-mission (`POST /api/v3/flight` works from the main menu). Windows only.
+it (seen 2026-11-03). The API can take minutes: on 2026-11-03 the MOZA
+plugin alone took ~3.5 min to load, so the wait is up to 10 min. Start a
+flight afterwards with `airstart.py` or any mission (`POST /api/v3/flight`
+works from the main menu). Windows only.
 
 Arguments after `--` go to X-Plane. `--lock_fr` and `--fm_per_frame` are
 command-line options of X-Plane 12.4.3 (found as strings in X-Plane.exe next
@@ -50,7 +52,7 @@ def api_up(api):
     return True
 
 
-def restart(xplane_dir, quit_first=True, timeout_s=180.0, xplane_args=(), grace_s=60.0):
+def restart(xplane_dir, quit_first=True, timeout_s=600.0, xplane_args=(), grace_s=60.0):
     if quit_first and xplane_running():
         # The quit command exists only while a flight is loaded, not at the main menu.
         try:

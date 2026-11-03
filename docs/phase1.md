@@ -189,3 +189,26 @@ Flights 1 and 3 commanded 80 km/h, flight 4 90 km/h. Flight 2 was aborted early 
 - *Roll trim stuck after an orbit.* See the test pilot note under uniform lift: after ten turns at 45°, the frozen roll trim held the glider at −9° for 6 min while the approach to the next thermal commanded −20°.
 - *Pitch damping.* It used X-Plane's body pitch rate `Q`, which in a steady turn is g·sin²φ / (V cos φ) (read live: 4.1–4.9 deg/s at 25°, against 4.3–4.9 computed; ~16 deg/s at 45°), and answered it nose-down. It now uses `theta_dot`, the Euler pitch rate. The earlier missions flew with `Q`; their results are differences at matched conditions and do not change.
 - *Orbit radius.* It came from the TAS of the moment, which after a strong core can be 30% high; it now comes from the commanded IAS.
+
+### Other gliders (a short comparison)
+
+Flown 2026-11-03 (19:41–20:05 local) with `tools/testpilot/fly_compare.py`, at Juan Luis's request, to see whether the Laminar ASK 21's high circling sink is the aircraft or X-Plane: one air start per glider at 2300 m MSL over KHOB in calm air, the plugin's thermals off, and four stretches of 30–35 s (straight at 90 and 120 km/h, a 45° circle at 90 km/h, and 2 m/s of uniform lift at 90 km/h). The other gliders stay out of the project for now (decision of the same day); this only measures them.
+
+| Glider | Mass (kg) | Span (m) | Sink at 90 km/h (m/s) | L/D at 90 | Sink at 120 km/h (m/s) | L/D at 120 | 45° circle: sink (m/s), bank, IAS | Uniform 2 m/s: Δvs (m/s) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Laminar ASK 21 | 541 | 17.24 | 0.98 | 29 | 1.24 | 30 | 2.01, 46°, 90 km/h | +1.98 |
+| NHAdrian ASK 21 (B21) | 450 | 17.00 (default) | 0.86 | 33 | 1.58 | 24 | 2.26, 53°, 95 km/h | +1.92 |
+| STMA HpH 304S Shark | 569 | 17.62 | 0.62 | 45 | 0.74 | 51 | 1.11, 45°, 120 km/h | +1.99 |
+| STMA HpH 304S, "Claude" copy | 569 | 17.62 | 0.62 | 45 | 0.74 | 51 | 1.11, 45°, 120 km/h | +1.99 |
+
+Sinks are at 2300 m MSL (TAS ~12% above IAS), so they read ~12% higher than at sea level.
+
+**Reading.**
+- **The plugin needs nothing per aircraft.** Uniform lift gives Δvs = w within 0.02 m/s on the ASK 21 and the Shark, and within 0.08 on the NHAdrian ASK 21, whose geometry the plugin could not read (below).
+- **X-Plane can fly a good glider.** The Shark glides 45 at 90 km/h and 51 at 120 km/h, close to the real 18 m Shark (~50), and circles at 45° and 120 km/h sinking 1.11 m/s, about half of what the Laminar ASK 21 sinks at 45° and 90 km/h. So the Laminar ASK 21's high circling sink belongs to that aircraft's model, not to X-Plane's flight model.
+- **The two Sharks fly identically** (same numbers to 0.01): the "Claude" copy only changed instruments and scripts (vario, MacCready, transponder, volume), and its `.acf` is the same file.
+- **The NHAdrian ASK 21** sets its own payload from its weight script (450 kg here, one pilot), so it is not at the Laminar one's 541 kg. It glides better at 90 km/h (33 against 29) and worse at 120 (24 against 30), partly because it is lighter. Scaled from 53° to 45° with the n^1.5 model its circle would sink ~1.8 m/s, against the Laminar one's 2.0.
+
+**Not comparable, the test pilot's fault.** Its gains were tuned on the Laminar ASK 21. On the Shark it holds 90 km/h straight with a ±9° pitch oscillation, and in the 45° circle it stays at 120 km/h with the nose at −1° (it never slowed down; changing the order of the stretches did not help). On the NHAdrian ASK 21 the overbanking tendency at 45° pushes the bank beyond the bank integrator's 5° window, and it settles at 53°. A 45° circle at 90 km/h on these two needs gains per aircraft or a wider integrator window.
+
+**Found in passing: the plugin cannot read the NHAdrian ASK 21's wings.** It looks for the main wings in Plane Maker's slots 0–7, as Laminar uses them; this `.acf` has them in slots 8 and 9 (and the horizontal tail in 16 and 17), so the plugin falls back to its default geometry (the real ASK 21's, harmless here). Finding the wings by size instead of by slot would fix it.

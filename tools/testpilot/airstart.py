@@ -75,17 +75,19 @@ def calm_clear_weather(lat, lon, elev_m):
 
 
 def air_start(api, msl_m, kmh, heading, lat=KHOB[0], lon=KHOB[1], wx=None, hour=12.0,
-              day_of_year=DAY_OF_YEAR, thermal_ms=0.0, settle_s=15.0):
+              day_of_year=DAY_OF_YEAR, thermal_ms=0.0, settle_s=15.0, aircraft=ASK21,
+              payload_kg=PAYLOAD_KG):
     """Start the ASK 21 in the air. wx: weather() result or "use_real_weather"
     (default: calm and clear at KHOB). thermal_ms is written to the regional
     native thermal rate once the flight has loaded (None: left alone). Once the
     datarefs appear, the sim is paused for settle_s so scenery and plugins finish
     loading before anything else is asked of X-Plane; paused, the glider keeps
     its air-start state instead of flying on its own (seen 2026-11-03: 15 s
-    unpaused ended in a phugoid at 174 km/h)."""
+    unpaused ended in a phugoid at 174 km/h). aircraft: path relative to the
+    X-Plane folder; payload_kg: kg per payload station."""
     init = {
-        "aircraft": {"path": ASK21},
-        "weight": {"payload_weight_in_kilograms": PAYLOAD_KG,
+        "aircraft": {"path": aircraft},
+        "weight": {"payload_weight_in_kilograms": list(payload_kg),
                    "fueltank_weight_in_kilograms": [0] * 9},
         "lle_air_start": {"latitude": lat, "longitude": lon, "elevation_in_meters": msl_m,
                           "heading_true": heading, "speed_in_meters_per_second": kmh / 3.6},
