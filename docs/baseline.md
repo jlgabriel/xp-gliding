@@ -4,7 +4,7 @@ Measurements of Alex Ferrer's [xplane_thermals](https://github.com/alexferrer/xp
 
 **Done when:** every result table below is filled from a recorded flight log, the predictions section says which predictions held, and the native audit says what XP12 does for ridge, thermals and wave.
 
-**Status:** test A flown on 2026-11-02 (four of six speeds); tests B–J pending.
+**Status:** test A flown on 2026-11-02; tests B, C and the native audit H–J flown by the test pilot on 2026-11-03. Pending: D (frame rate), E (Alex's thermals), F (feel, by hand), G (performance), and a hand-flown look for native thermals under cloud centers.
 
 ## Setup
 
@@ -14,7 +14,7 @@ Measurements of Alex Ferrer's [xplane_thermals](https://github.com/alexferrer/xp
 | XPPython3 | 4.7.1, Python 3.12.2, numpy 2.5.4 |
 | Reference plugin | xplane_thermals `082dd7d`, installed 2026-11-02 |
 | Glider | Laminar Schleicher ASK 21 (ships with XP12) |
-| Logger | `tools/flightlog/PI_xpg_flightlog.py` 0.1.0 |
+| Logger | `tools/flightlog/PI_xpg_flightlog.py` 0.1.0; 0.2.0 from 2026-11-03 05:10 (same columns, plus the `alex_*` datarefs) |
 
 **Installing the reference plugin.** Its files go *flat* into `Resources/plugins/PythonPlugins/`, not in a subfolder (its `install_howto.txt` still names the old `PythonScripts` folder, which is wrong for XPPython3 v4). Runtime files copied: `PI_ThermalSim.py`, `UI_about.py`, `UI_config_glider.py`, `UI_load_kk7.py`, `UI_stats.py`, `UI_thermals.py`, `draw_thermals.py`, `imgui_thermals.py`, `thermal.py`, `thermal_model.py`, `world.py`, `init_values.json`, `t_ring_50.obj`, `t_ring_200.obj`, `t_ring_800.obj`, `mt_scenery.obj`, `mt_scenery.png`, `mt_scenery.pss`, `easteregg.obj`, `EasterEggBaseColor.png`. To remove it, delete exactly those files. Its module names (`world`, `thermal`, ...) are generic top-level names shared with every other Python plugin.
 
@@ -22,9 +22,11 @@ Measurements of Alex Ferrer's [xplane_thermals](https://github.com/alexferrer/xp
 
 ## Instruments
 
-- **Flight logger** (`tools/flightlog/PI_xpg_flightlog.py`, copy it into `PythonPlugins/`). Writes one CSV row per frame to `Output/xp-gliding/flightlogs/`. Commands to bind to joystick buttons: `xp_gliding/flightlog/toggle` (start/stop) and `xp_gliding/flightlog/mark` (advance the mark counter; X-Plane speaks the number). It also logs the `*_plug_acf` forces before and after the flight model, and, read-only, the reference plugin's internal state (calibration mode, the lift its model asked for, factors).
+- **Flight logger** (`tools/flightlog/PI_xpg_flightlog.py`, copy it into `PythonPlugins/`). Writes one CSV row per frame to `Output/xp-gliding/flightlogs/`. Commands to bind to joystick buttons: `xp_gliding/flightlog/toggle` (start/stop) and `xp_gliding/flightlog/mark` (advance the mark counter; X-Plane speaks the number). It also logs the `*_plug_acf` forces before and after the flight model, and the reference plugin's internal state (calibration mode, the lift its model asked for, factors). Since 0.2.0 (2026-11-03) it also exposes that state as datarefs, `xp_gliding/flightlog/alex_enabled`, `alex_cal_mode`, `alex_cal_ms`, `alex_lift_factor`, `alex_thrust_factor` (writable) and `alex_lift_ms`, `alex_dist_m` (read-only), so the test pilot can run the calibration tests from outside; writing them does not save Alex's preferences, but his plugin saves its current values when X-Plane closes.
 - **Analyzer** (`tools/flightlog/analyze_flightlog.py LOG.csv --markdown`). One row per mark: frame rate, IAS, bank, and vertical speed three ways. `vs_te` (fit of energy height h + TAS²/2g against time) is the figure to use: it is not fooled by small speed changes during a segment.
-- **Test pilot** (`tools/testpilot/`, added 2026-11-02), so Claude can fly the measurement segments instead of a human. It drives X-Plane from outside through the local web API (port 8086; WebSocket pushes at ~10 Hz, REST requests take ~50 ms each): `airstart.py` starts the ASK 21 in the air over KHOB in calm, clear weather through the Flight Initialization API; `hold.py` takes the stick through the joystick-override datarefs and holds an IAS with wings level, toggling the flight logger around the steady part, and gives the controls back on any anomaly. The control laws (`control.py`) are tested against a crude offline glider model. Not yet reachable from outside: the reference plugin's calibration mode, which lives in its Python module (a small addition to the logger plugin will expose it). Tests that need a human: F (feel) and the visual part of I.
+- **Test pilot** (`tools/testpilot/`, added 2026-11-02), so Claude can fly the measurement segments instead of a human. It drives X-Plane from outside through the local web API (port 8086; WebSocket pushes at ~10 Hz, REST requests take ~50 ms each): `airstart.py` starts the ASK 21 in the air over KHOB in calm, clear weather through the Flight Initialization API; `hold.py` takes the stick through the joystick-override datarefs and holds an IAS with wings level, toggling the flight logger around the steady part, and gives the controls back on any anomaly. The control laws (`control.py`) are tested against a crude offline glider model. `calibrate_alex.py` flies tests B and C through the logger's `alex_*` datarefs. Tests that need a human: F (feel) and the visual part of I.
+  - Since 2026-11-03 it also flies laterally (`control.py`): a bank command with an integral term, a rudder yaw damper on sideslip, and three guidances on top: hold a course over the ground, follow a straight line over the ground in a crosswind, or circle at a fixed bank. `pilot.py` is the shared runner (safety checks, logger toggling, a hook to switch guidance in flight); `hold.py` is its command line (`--course`, `--circle`); `airstart.py` takes wind layers, clouds and the native thermal setting, or real weather. First checks over KHOB in calm air at 90 km/h: a 90° course change settles within ±2° and ±0.2 km/h in about 25 s; circling at 35° holds the bank within 1° and the speed within 1 km/h, one turn every ~27 s at 2700 m MSL. Signs found: `sim/flightmodel/position/beta` is positive when the nose is right of the flight path (adverse yaw in a left turn), so the yaw damper needs a negative gain (−0.12 per degree brings the slip in a 35° turn from 2.4° to 0.5°).
+  - `audit_native.py` flies the native audit (tests H–J) as missions: each pass is its own air start upwind of a straight line, a settle, and a recorded stretch along the line, with one log per pass and a manifest (`Output/xp-gliding/audit/manifest.jsonl`) that maps logs to passes. `analyze_native.py` turns them into lift profiles: native lift per 5 s window is vs_te minus the test A polar (sea-level sink scaled by TAS/IAS, and by cos(bank)^−1.5 in turns), and X-Plane's own terrain under the glider is elevation minus AGL.
   - First controlled flight (2026-11-02, air start at 2800 m MSL over KHOB, target 90 km/h for 60 s): the yoke signs are as assumed (+ pitch is nose up). Taking over from the dive an untrimmed ASK 21 enters seconds after an air start, it was within 1 km/h of the target after ~35 s and held 90.0–90.3 km/h with wings level from 45 to 60 s, needing +0.25 of aft yoke with the elevator trim at 0. Sink in that stretch, 0.96–0.99 m/s at ~2400 m MSL, agrees with the hand-flown test A (0.99 m/s at 89 km/h). Gotchas found: right after an air start X-Plane reports a placeholder airspeed for a moment, and the glider noses over within seconds unless controlled at once; when the script lets go the untrimmed glider dives again.
 - **XPPython3 Performance window** for µs per frame of each Python plugin (read by eye).
 - **Reference plugin's Stats window** for a visual check of thermal strength and distance to center.
@@ -129,20 +131,26 @@ How long a segment needs to be: splitting each 60 s record, any 30 s window give
 
 ### B–D. Calibration mode
 
+Flown by the test pilot on 2026-11-03 (05:17–05:27 local), `calibrate_alex.py`: each segment is its own air start over KHOB at 2800 m MSL in calm, clear air (test A conditions, 541 kg), Alex's plugin enabled in calibration mode with the slider and factors of the row (set through the logger's `xp_gliding/flightlog/alex_*` datarefs, then restored), 40 s to settle, 35 s recorded at 2650–2700 m MSL. Δvs is measured against the test A polar at the same IAS and TAS. Alex's settings were read before and written back afterwards (enabled 0, factors 14 / 19).
+
 | Test | IAS (km/h) | Slider (m/s) | Lift / thrust factor | fps | vs_te (m/s) | Δvs vs A (m/s) |
 | --- | --- | --- | --- | --- | --- | --- |
-| B | 90 | 1 | 14 / 19 | | | |
-| B | 90 | 2 | 14 / 19 | | | |
-| B | 90 | 3 | 14 / 19 | | | |
-| B | 120 | 1 | 14 / 19 | | | |
-| B | 120 | 2 | 14 / 19 | | | |
-| B | 120 | 3 | 14 / 19 | | | |
-| C | 90 | 1 | 14 / 0 | | | |
-| C | 90 | 1 | 0 / 19 | | | |
-| D | 90 | 1 | 14 / 19 | ~30 | | |
-| D | 90 | 1 | 14 / 19 | max | | |
+| B | 90 | 1 | 14 / 19 | 60 | −0.02 | +0.98 |
+| B | 90 | 2 | 14 / 19 | 60 | +0.97 | +1.98 |
+| B | 90 | 3 | 14 / 19 | 60 | +1.97 | +2.98 |
+| B | 120 | 1 | 14 / 19 | 60 | +0.06 | +1.34 |
+| B | 120 | 2 | 14 / 19 | 60 | +1.41 | +2.70 |
+| B | 120 | 3 | 14 / 19 | 60 | +2.77 | +4.06 |
+| C | 90 | 1 | 14 / 0 | 60 | −1.06 | −0.06 |
+| C | 90 | 1 | 0 / 19 | 60 | +0.04 | +1.04 |
+| D | 90 | 1 | 14 / 19 | ~30 | | not flown |
+| D | 90 | 1 | 14 / 19 | max | | not flown: X-Plane runs at a steady 60 fps here (cap), and the test pilot cannot change the frame rate |
 
-Do the `*_plug_acf` datarefs reset every flight-model cycle (pre vs post columns)?
+**Reading.** The calibration is exact at the speed it was tuned for and wrong everywhere else, for the reason predicted from the code. At 90 km/h the gain is the slider value to within 0.02 m/s, linear from 1 to 3 m/s. At 120 km/h the same slider gives 1.35 times as much (1.34, 2.70, 4.06 m/s), and the TAS ratio between the two speeds is 1.33 (138 / 104 km/h), so the extra climb is a fixed force times speed. The decomposition confirms it: the 140 N normal force alone does nothing (−0.06 m/s, within noise), the 190 N forward force alone gives everything (+1.04 m/s; F·V / m·g = 190 × 28.9 / (541 × 9.81) = 1.03 m/s predicted).
+
+Do the `*_plug_acf` datarefs reset every flight-model cycle? **Effectively yes.** The measured gain matches exactly one application of the force per frame (an accumulating force would have grown without bound); Alex's code adds to the current value each callback, so without a reset it would run away. The logger's pre/post columns read 0 throughout, even while the force acted, so the order is: logger's before-FM loop, then Alex's legacy callback writes, then the flight model uses the force and X-Plane clears it before the logger's after-FM loop. Those columns cannot see another plugin's force; the energy measurement is the reliable check.
+
+Pitfall found on the way: after an X-Plane restart the Flight Initialization API loads the ASK 21 **empty** (360.6 kg, no pilot) unless the payload is given. The empty glider's CG is so far aft that it pitched up to 45° with full forward stick, which first looked like a problem with Alex's forces. `airstart.py` now always loads 90.2 kg on each of the two seat stations (541 kg total, the test A mass); with that, the 90 km/h sink is −1.00 m/s again, as in test A. Every test H–J flight before the restart was already at 541 kg.
 
 ### E. Thermals
 
@@ -169,55 +177,96 @@ Do the `*_plug_acf` datarefs reset every flight-model cycle (pre vs post columns
 
 ### H. Native ridge
 
-| Pass | Side | Height above crest (m) | Wind (kt) | IAS (km/h) | vs_te (m/s) | Native lift (m/s) | Note |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Windward | ~0 | | | | | |
-| 2 | Windward | 100–200 | | | | | |
-| 3 | Windward | 300–500 | | | | | |
-| 4 | Lee | ~0 | | | | | |
-| 5 | Windward, light wind | ~0 | | | | | |
+Flown by the test pilot on 2026-11-03 (02:55–03:36 local), reference plugin disabled (`alex_enabled` 0, all `*_plug_acf` forces 0), `audit_native.py ridge`. **Site:** a narrow, straight ridge in central Pennsylvania, from about 40.645 N 78.09 W to 40.745 N 77.80 W, bearing 063°, crest 550–700 m MSL (675 m where the crossings were flown, at 78.02 W), valleys about 320 m on both sides; picked from SRTM data (opentopodata.org), and X-Plane's own terrain under the glider, logged as elevation − AGL, matches it. **Weather:** manual, clear, wind from 333° (square onto the north-west face) at the same speed from 1500 to 12000 ft, no turbulence, no thermals. All passes at 90 km/h IAS, wings level, one air start each; the line-following guidance held the track within ~15 m.
+
+Two kinds of pass: **crossings**, flown downwind across the crest from 4 km windward to 3 km lee, which give the lift as a profile across the ridge; and the protocol's **beats** along the face, 600 m out from the crest line, which say whether the ridge can be soared. Lift is per 5 s window (`analyze_native.py`).
+
+| Pass | Side | Height above crest (m) | Wind (kt) | IAS (km/h) | Native lift (m/s) | Note |
+| --- | --- | --- | --- | --- | --- | --- |
+| `beat_0` | Windward, 600 m out | ~0 (+75 → +210) | 25 | 90 | +1.36 mean (−0.1 to +2.8) | 250–340 m AGL; climbed 134 m in 7 km |
+| `beat_150` | Windward, 600 m out | +150 | 25 | 90 | +1.25 mean (0 to +2.1) | 380–460 m AGL; climbed 110 m |
+| `beat_400` | Windward, 600 m out | +400 | 25 | 90 | +0.90 mean (+0.2 to +1.6) | 550–690 m AGL; held height |
+| `lee_0` | Lee, 600 m out | ~0 | 25 | 90 | −1.43 mean (down to −3.3) | lost 200 m in 1.6 km; aborted at 25 m AGL |
+| `beat_0_12kt` | Windward, 600 m out | ~0 | 12 | 90 | +0.71 mean (+0.1 to +1.4) | 90–270 m AGL; lost 53 m in 7 km |
+
+Crossings (lift per window against `wind × terrain slope` under the glider, the slope taken along the wind from the logged X-Plane terrain):
+
+| Pass | Height above crest (m) | Wind (kt) | Max lift (m/s) | Max sink (m/s) | Gain on wind × slope | Correlation r |
+| --- | --- | --- | --- | --- | --- | --- |
+| `cross_50` | +50 (33 m AGL at the crest) | 25 | +3.9 | −3.7 | 0.82 | 0.90 |
+| `cross_175` | +175 | 25 | +3.1 | −3.6 | 0.80 | 0.92 |
+| `cross_375` | +375 | 25 | +2.2 | −2.8 | 0.54 | 0.89 |
+| `cross_725` | +725 | 25 | +0.9 | −0.9 | 0.18 | 0.85 |
+| `cross_175_12kt` | +175 | 12 | +1.6 | −1.6 | 0.71 | 0.91 |
+
+The same gain, pooled over every crossing window with a slope term above 0.8 m/s and binned by height above the terrain directly below: 1.00 (0–150 m AGL), 0.73 (150–300), 0.68 (300–450), 0.50 (450–600), 0.23 (600–800), 0.13 (800–1100).
+
+**Reading.** XP12's ridge lift is a **local slope model**: the vertical air speed is close to *wind × slope of the ground directly under the aircraft*, scaled down with height above that ground (about 1 near the surface, 0.5 at 500 m, roughly gone by 1000–1100 m AGL), and it scales linearly with the wind (the 12 kt crossing has the same gain as the 25 kt ones within noise). Consequences, all visible in the plots (`plots/native/cross_*.png`):
+
+- Lift exists only **over the windward slope**. It starts where the ground starts rising (no lift band upwind of the foot of the slope) and stops at the crest; there is no lift above or ahead of the crest beyond what the slope underneath gives.
+- **Lee sink is the mirror image** of windward lift: as strong as the lift on a slope of the same steepness (−3.7 m/s at 25 kt just behind the crest), and it is still there at 600 m out. A crest-level beat on the lee side lost 200 m in 1.6 km.
+- **Any slope works the same way**: small bumps on the valley floor give their own lift and sink (+1 to +2 m/s over a 25 m rise in `cross_375` at 6.6 km), and the noise of the beats follows the gullies of the face.
+- **Smooth air:** no turbulence, no rotor, no gusts with turbulence set to 0; the glider flew lee passes as smoothly as windward ones.
+- **Soarable:** at crest level with 25 kt the ASK 21 gained ~130 m along 7 km of face; with 12 kt it slowly lost height.
+
+Against the real thing: real ridge lift peaks ahead of and above the crest, reaches a few hundred meters above it, and the lee holds sink plus rotor turbulence when the wind is strong. XP12 has the right order of magnitude where it matters for ridge running (close to the face), but the band in front of the face and above the crest is missing, and its lee is smooth sink without rotor. These are the candidate gaps for phase 4 (see the native audit conclusion).
 
 ### I. Native thermals
 
-Thermal slider value: ; weather mode:
+Flown by the test pilot on 2026-11-03 (03:38–04:40 local), reference plugin disabled, over KHOB at local noon on 2 November (sun ~38° high), wind 5 kt from 270°, `audit_native.py thermals`. The plan was to cruise, circle in every thermal met and measure it; no thermal was met, so the result is about the air between thermals. Lift per 5 s window as in test H.
 
-| Pass | Under cloud? | Bank (deg) | vs_te (m/s) | Native lift (m/s) | `native_thermal_ms` | Sink around? | Wing lifts on entry? | Note |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | | | | | | | | |
-| 2 | | | | | | | | |
-| 3 | | | | | | | | |
-| Real weather | | | | | | | | |
+| Run | Weather | Thermal setting | Height (m AGL) | Distance flown (km) | Native lift (m/s) |
+| --- | --- | --- | --- | --- | --- |
+| `thermals_0_straight` | Custom: cumulus 40%, base 9500 ft MSL (1780 m AGL), tops 13000 ft | 0 | 1450 → 1250 | 6 | −0.01, sd 0.00 |
+| `thermals_500_straight` | Same | 500 fpm (2.54 m/s) | 1440 → 1170 | 6 | −0.35, sd 0.02 |
+| `thermals_500` (hunt) | Same | 500 fpm | 1630 → 400 | 30 | −0.35, sd 0.06 (max −0.17) |
+| `thermals_500_2860` | Same, flown just below cloud base | 500 fpm | 1740 → 1090 | 15 | −0.36, sd 0.04 |
+| `thermals_vfr_scattered_500_2600` | Preset *vfr_scattered* (cumulus 37.5%, base 2880 m MSL) | 500 fpm | ~1500 → 1100 | 12 | −0.31, sd 0.04 |
+| `thermals_convective_500_2600` | Preset *convective* (cumulus and cumulonimbus 12.5%, base 1670 m MSL, i.e. below the glider) | 500 fpm | ~1500 → 1200 | 12.5 | +0.01, sd 0.18 (−0.56 to +0.41) |
+| Real weather | `use_real_weather` | 0.62 m/s regional (set by X-Plane) | — | — | not measured: the glider was upset (bank past 70°) within seconds of both air starts, in a ~40 kt real wind |
+
+A screenshot from the chase view during the custom runs (X-Plane's own `sim/operation/screenshot` command) shows a normal field of cumulus at the base height, with their shadows on the ground, so the clouds were there.
+
+**Reading.**
+
+- **No thermal was found** in about 75 km of straight flight under 40% cumulus cover (custom and preset), between 400 m AGL and just below cloud base. A real day like that has a usable thermal every few kilometers. Whatever XP12 does under its cumulus, a glider flying straight does not run into it; whether it exists at all, and how narrow it is, needs one hand-flown check aiming at cloud centers (the test pilot cannot see the clouds).
+- **Turning the thermals on adds a uniform sink everywhere**: −0.35 m/s at the 500 fpm setting (about 14% of the setting), constant to ±0.05 m/s over 30 km and from 400 m AGL up to cloud base, and absent (−0.01 m/s) with the setting at 0. It looks like a mass-balance sink spread over the whole region. That makes the setting worse than useless for a glider on such a day: it costs ~35% extra sink on the ASK 21 (0.86 → ~1.2 m/s at 90 km/h) with nothing found in return.
+- **`sim/weather/aircraft/thermal_rate_ms` is not a sensor.** It reads exactly the regional setting (2.54 m/s) everywhere, in or out of lift, so it cannot tell where native thermals are. The logger's `native_thermal_ms` column therefore says nothing about the aircraft's position. The test pilot now detects lift with the glider's own total-energy vario plus the test A polar (netto).
+- **Real weather does set a thermal rate** (0.62 m/s at KHOB that night), so the forum report that the slider stays at 0 with real weather did not hold here.
 
 ### J. Native wave
 
-| Pass | Distance downwind of crest (km) | Height (m MSL) | Wind (kt) | vs_te (m/s) | Native lift (m/s) | Smooth or turbulent | Note |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1–2 | | | | | | |
-| 2 | 4–6 | | | | | | |
-| 3 | 8–10 | | | | | | |
-| 4 | 1–2 | +1500 | | | | | |
-| 5 | 4–6 | +1500 | | | | | |
-| 6 | 8–10 | +1500 | | | | | |
+Flown by the test pilot on 2026-11-03 (04:36–05:08 local), reference plugin disabled, `audit_native.py wave`. **Site:** the Sierra Nevada near Bishop, CA. Crossing A starts at the crest at 37.35 N 118.66 W (3780 m on SRTM), where the escarpment drops to 1900 m within 5 km and the Owens Valley floor (1250 m) lies 15–27 km east of the crest; crossing B starts at the crest at 37.40 N 118.72 W (3650 m), which drops to 1970 m within 5 km. **Weather:** manual, clear, wind from 250° (square onto the range) increasing with height: 10 kt at 5000 ft, 26 kt at 11000, 32 kt at 13000, 38 kt at 16000, 44 kt at 20000, 50 kt at 25000 ft; no turbulence, no thermals, X-Plane's default (ISA, stable) temperature profile. Each crossing runs downwind at 90 km/h IAS from 4 km upwind of the crest to 28 km downwind, i.e. across the whole valley where a Sierra wave stands. The protocol's parallel passes were dropped after three crossings: the crossings already cover every distance from the crest, and they showed nothing to look for.
+
+| Pass | Distance downwind of crest (km) | Height (m MSL) | Wind (kt) | Native lift (m/s) | Smooth or turbulent | Note |
+| --- | --- | --- | --- | --- | --- | --- |
+| `wave_crossA_600` | −4 to 28 | 4380 → 3610 | 29–34 | +1.8 / −1.9 over the crest; **+0.11 ± 0.01 from 5 to 28 km** | Smooth | 2300–2550 m AGL over the valley |
+| `wave_crossA_2000` | −4 to 28 | 5780 → 5060 | 39–42 | **+0.14 ± 0.02 everywhere** (no crest effect either) | Smooth | 2500–4000 m AGL |
+| `wave_crossB_600` | −4 to 28 | 4250 → 3400 | 27–33 | +3.4 / −5.3 over the crest; **+0.10 ± 0.01 from 5 to 28 km** | Smooth | 1360–2430 m AGL over the valley |
+
+**Reading.** **XP12 does not model mountain waves.** Downwind of the Sierra, in a wind profile that gives classic wave days, the air over the Owens Valley is dead still: the lift is flat to ±0.02 m/s over 23 km at both heights, where a real wave would give bands of 1–5 m/s every 8–15 km, and there is no rotor or turbulence below either. The only vertical motion is the local slope effect found in test H, close over the crest and the lee slopes (up to +3.4 / −5.3 m/s at 300–650 m AGL), and it is gone 2000 m above the crest. The small constant +0.1 m/s is not air motion but the descent through the wind gradient (a glider sinking into weaker tailwind gains a little energy against the air); it is the same at every distance. Wave is entirely the plugin's job (phase 4), as the SPEC assumed.
 
 ### Native audit conclusion
 
 | Phenomenon | Modeled natively? | Good enough to keep? | Gaps found |
 | --- | --- | --- | --- |
-| Ridge | | | |
-| Thermals | | | |
-| Wave | | | |
+| Ridge | **Yes**: vertical air speed ≈ wind × slope of the ground directly below, fading with height above it (gain ~1 near the ground, ~0.5 at 500 m, ~0 by ~1100 m AGL), linear in wind speed, smooth | **Yes for ridge running** close to the face; real air moves, so the vario and the flight model see it | No lift band upwind of the foot of the slope or above and ahead of the crest; lee sink is the exact mirror of the windward lift and has no rotor or turbulence; every bump of the terrain makes its own lift and sink. AI gliders will need the same local-slope model to ridge-soar where the player does |
+| Thermals | **Not found** with the thermal setting on (custom and preset cumulus, ~75 km flown); the only measurable effect is a uniform sink of ~14% of the setting (−0.35 m/s at 500 fpm) | **No**: as measured, turning native thermals on only adds sink. Strategy C (modulate native thermals) has nothing to modulate | Everything. `sim/weather/aircraft/thermal_rate_ms` just repeats the regional setting, so native lift cannot even be located. One hand-flown check aiming at cloud centers is still worth doing before closing this |
+| Wave | **No**: dead still air over the Owens Valley downwind of the Sierra in a classic wave wind profile | — | Everything: wave (and rotor) is the plugin's |
+
+What this means for the plugin, for the SPEC to take up: ridge stays native (phase 4 adds only the gaps above, and only if they do not stack with the native lift); thermals point to strategy A (replace), with the native thermal setting kept at 0 so that its background sink does not add to ours; wave is ours.
 
 ### Predictions checked
 
 | # | Prediction | Result |
 | --- | --- | --- |
-| 1 | Only the thrust term adds energy | |
-| 2 | Calibration gain grows with speed | |
-| 3 | Lift depends on frame rate above 100 fps | |
+| 1 | Only the thrust term adds energy | **Held** (test C): normal force alone −0.06 m/s, forward force alone +1.04 m/s against 1.03 predicted |
+| 2 | Calibration gain grows with speed | **Held** (test B): ×1.35 from 90 to 120 km/h, TAS ratio ×1.33 |
+| 3 | Lift depends on frame rate above 100 fps | Not tested (60 fps cap). The force is applied once per frame and cleared, so above 100 fps the 0.01 s callback would skip frames and the gain would drop, as predicted |
 | 4 | Roll direction is right | |
 | 5 | Pitch follows the wing difference | |
 | 6 | Thermal lift is 4/3 × model × sun factor | |
-| 7 | Issue #34 is a missing `init_values.json` | |
+| 7 | Issue #34 is a missing `init_values.json` | Consistent so far: with the flat install it loads without errors (two X-Plane starts on 2026-11-02 and 2026-11-03); the failing install was not reproduced |
 | 8 | Log spam while paused | |
 
 ### Log sheet
@@ -225,9 +274,13 @@ Thermal slider value: ; weather mode:
 | Mark | Test | Note |
 | --- | --- | --- |
 | none | A | One log per speed instead of marks (2026-11-02) |
+| none | B, C | One log per segment, `flightlog_20261103_051702` to `_052614` (2026-11-03) |
+| none | H, I, J, E | One log per pass; `Output/xp-gliding/audit/manifest.jsonl` maps each log to its pass; in the thermal hunts odd marks are circles (2026-11-03) |
 
 ### Other observations
 
 - **Load (prediction 7):** with the flat install both Python plugins load and enable without errors (`XPPython3Log.txt`, 2026-11-02).
 - **Replaced datarefs:** at load, X-Plane reports that `sim/weather/wind_speed_kt[0]` and `sim/weather/wind_direction_degt[0]`, which the reference plugin uses for thermal drift, "have been replaced". Whether they still return the wind is to be checked in a test with wind.
+- **Restarting X-Plane from outside works (2026-11-03):** the web API's `sim/operation/quit` command closes X-Plane in ~16 s (Alex's plugin saves its settings on the way out), the web server is up ~50 s after relaunching `X-Plane.exe`, before the main menu is usable, and `POST /api/v3/flight` starts a flight straight from the main menu. So a plugin change no longer needs a human at the keyboard. Remember the payload (see tests B–D).
+- **Test E not done:** with Alex's plugin enabled in calm air over KHOB, the test pilot cruised 20 km without meeting a thermal. His random map puts 200 thermals on a 200 × 200 km grid (one per ~200 km²), and the logged `distance_from_center` stayed at 540–570 km, so the map was not around the glider (why is not known yet: it was first enabled over KHOB during test B; maybe that attribute is not what it seems). The map is only refreshed every 60 minutes or when it is empty. To fly E, disable and re-enable the plugin from its menu over the test site first (that clears the map), or expose a refresh to the test pilot.
 - **Native thermal control:** XP 12.4.3's manual weather screen calls the thermal setting "Climb Rate under Cumulus Clouds", in ft/min, which supports the reported link between native thermals and cumulus (test I).
