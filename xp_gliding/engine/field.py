@@ -257,6 +257,25 @@ class ThermalField:
     def environment_sink(self, z, wstar, zi):
         return updraft.environment_sink(z, zi, wstar, self._flux_density)
 
+    def nearest(self, e, n, t, max_m):
+        """Nearest thermal alive at t within max_m of (e, n): (thermal, distance) or (None, inf).
+
+        For instruments and test tools, not for the per-frame path.
+        """
+        cell_m = self.config.cell_m
+        k = math.ceil(max_m / cell_m)
+        cx = math.floor(e / cell_m)
+        cy = math.floor(n / cell_m)
+        best, best_r = None, math.inf
+        for ix in range(cx - k, cx + k + 1):
+            for iy in range(cy - k, cy + k + 1):
+                for th in self._grid.get((ix, iy), ()):
+                    if th.birth <= t < th.death:
+                        r = math.hypot(e - th.e, n - th.n)
+                        if r < best_r and r <= max_m:
+                            best, best_r = th, r
+        return best, best_r
+
     def lift_at(self, e, n, z, t, wstar, zi):
         """Vertical air velocity (m/s) at local (e, n), height z AGL, time t.
 

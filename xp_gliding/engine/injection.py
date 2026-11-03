@@ -125,6 +125,25 @@ class SampleGeometry:
         self.te, self.tn, self.tz = e - self.tail_arm * fe, n - self.tail_arm * fn, z_agl
 
 
+def helix_gradient(w_ms, yaw_rate_rad, tas_ms):
+    """Spanwise gradient (1/s) that undoes the climbing-turn artifact of the energy force.
+
+    In real rising air a circling glider still descends relative to the air:
+    its helix through the air is the one of still air. With the energy force
+    it climbs w faster relative to the air, so each wing station's angle of
+    attack drops by w / V(y). In a turn the stations' airspeeds differ,
+    V(y) = V - r y (r yaw rate, positive right; y toward the right wing), so
+    the drop is not uniform: it is a spanwise gradient equivalent to a vertical
+    air gradient of -w r / V, which makes the outer wing lift more and the
+    glider overbank (seen in flight, 2026-11-03: with 2 m/s of uniform lift
+    the test pilot's 35 deg circle ran away to 46 deg). Adding this gradient to
+    the roll moment's dw/dy cancels it.
+    """
+    if tas_ms < MIN_TAS_MS:
+        return 0.0
+    return w_ms * yaw_rate_rad / tas_ms
+
+
 def span_average(w_left, w_centre, w_right):
     """Simpson's rule over the span: exact for a quadratic distribution of w."""
     return (w_left + 4.0 * w_centre + w_right) / 6.0

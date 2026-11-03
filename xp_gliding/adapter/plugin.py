@@ -1,0 +1,253 @@
+"""The XPPython3 plugin: flight loop, menu, commands and xp-gliding's own datarefs.
+
+`PI_xp_gliding.py` (installed next to the `xp_gliding` package in
+`Resources/plugins/PythonPlugins/`) only re-exports `PythonInterface` from here.
+
+One flight loop runs every frame, before the flight model. While the plugin is
+active (enabled, and the user's aircraft is a glider unless `gliders_only` is
+off) and the sim is neither paused nor in replay, it reads the aircraft state,
+asks the engine for the lift, and adds the forces (see `core` and `xpio`).
+About once a second it keeps the thermal field loaded around the aircraft and
+re-checks the native thermal setting.
+
+Commands (also in the Plugins > xp-gliding menu):
+  xp_gliding/toggle            plugin effect on / off
+  xp_gliding/thermals/toggle   our thermals on / off, the plugin stays loaded (issue #30)
+
+Datarefs (`xp_gliding/...`, see DATAREFS): settings and debug modes are
+writable, so the flight logger and the test pilot can read what the adapter
+applied and drive the measurements from outside. A plugin reading the
+`*_plug_acf` datarefs after the flight model sees 0 (X-Plane clears them), so
+these are the way to observe the force.
+"""
+
+import math
+import os
+import time
+import traceback
+
+import xp
+
+from .. import __version__
+from .aircraft import DEFAULT_GEOMETRY, read_acf_geometry
+from .config import load_settings
+from .core import AircraftState, Injection, Injector, NativeThermalGuard
+from .xpio import XPlaneIO
+
+SLOW_PERIOD_S = 1.0
+TAG = "[xp-gliding]"
+
+# (name under xp_gliding/, holder, attribute, type, writable). holder names an
+# attribute of the plugin object; the attribute may be dotted.
+DATAREFS = (
+    ("enabled", "settings", "enabled", "i", 1),
+    ("thermals_enabled", "settings", "thermals_enabled", "i", 1),
+    ("roll_enabled", "settings", "roll_enabled", "i", 1),
+    ("helix_enabled", "settings", "helix_enabled", "i", 1),
+    ("seed", "settings", "seed", "i", 1),
+    ("wstar_ms", "settings", "wstar_ms", "f", 1),
+    ("zi_m", "settings", "zi_m", "f", 1),
+    ("debug/uniform_ms", "injector", "uniform_ms", "f", 1),
+    ("debug/dw_dy", "injector", "debug_dwdy", "f", 1),
+    ("active", "status", "active", "i", 0),
+    ("frame_us", "status", "frame_us", "f", 0),
+    ("lift_ms", "out", "w_span", "f", 0),
+    ("lift_centre_ms", "out", "w_centre", "f", 0),
+    ("lift_left_ms", "out", "w_left", "f", 0),
+    ("lift_right_ms", "out", "w_right", "f", 0),
+    ("lift_tail_ms", "out", "w_tail", "f", 0),
+    ("dw_dy", "out", "dw_dy", "f", 0),
+    ("dw_dy_helix", "out", "dw_dy_helix", "f", 0),
+    ("force_n", "out", "force_n", "f", 0),
+    ("roll_nm", "out", "roll_nm", "f", 0),
+    ("nearest/distance_m", "injector", "nearest.distance_m", "f", 0),
+    ("nearest/bearing_deg", "injector", "nearest.bearing_deg", "f", 0),
+    ("nearest/core_ms", "injector", "nearest.core_ms", "f", 0),
+    ("thermals_alive", "injector", "nearest.alive", "i", 0),
+    ("native_saved_ms", "guard", "saved", "f", 0),
+    ("span_m", "injector", "geometry.span_m", "f", 0),
+    ("area_m2", "injector", "geometry.area_m2", "f", 0),
+)
+
+
+class Status:
+    __slots__ = ("active", "frame_us")
+
+    def __init__(self):
+        self.active = 0
+        self.frame_us = 0.0
+
+
+def _resolve(refcon):
+    obj, path = refcon
+    *parents, attr = path.split(".")
+    for name in parents:
+        obj = getattr(obj, name)
+    return obj, attr
+
+
+def _read_int(refcon):
+    obj, attr = _resolve(refcon)
+    return int(getattr(obj, attr))
+
+
+def _write_int(refcon, value):
+    obj, attr = _resolve(refcon)
+    old = getattr(obj, attr)
+    setattr(obj, attr, bool(value) if isinstance(old, bool) else int(value))
+
+
+def _read_float(refcon):
+    obj, attr = _resolve(refcon)
+    return float(getattr(obj, attr))
+
+
+def _write_float(refcon, value):
+    obj, attr = _resolve(refcon)
+    value = float(value)
+    if math.isfinite(value):
+        setattr(obj, attr, value)
+
+
+class PythonInterface:
+    def XPluginStart(self):
+        self.Name = "xp-gliding"
+        self.Sig = "jlgabriel.xp_gliding"
+        self.Desc = "Soaring layer for X-Plane 12: thermals as energy-based forces."
+
+        folder = os.path.join(xp.getSystemPath(), "Output", "xp-gliding")
+        os.makedirs(folder, exist_ok=True)
+        self.settings, how = load_settings(os.path.join(folder, "config.json"))
+        print(f"{TAG} {__version__} starting; settings {how}")
+
+        self.io = XPlaneIO()
+        self.injector = Injector(self.settings, DEFAULT_GEOMETRY)
+        self.guard = NativeThermalGuard(self.io.read_native_thermals,
+                                        self.io.write_native_thermals)
+        self.state = AircraftState()
+        self.out = Injection()
+        self.status = Status()
+        self.eligible = False
+        self.failed = False
+        self.next_slow = 0.0
+
+        self.datarefs = []
+        for name, holder, attr, kind, writable in DATAREFS:
+            refcon = (getattr(self, holder), attr)
+            if kind == "i":
+                ref = xp.registerDataAccessor(
+                    "xp_gliding/" + name, xp.Type_Int, writable, readInt=_read_int,
+                    writeInt=_write_int if writable else None,
+                    readRefCon=refcon, writeRefCon=refcon)
+            else:
+                ref = xp.registerDataAccessor(
+                    "xp_gliding/" + name, xp.Type_Float, writable, readFloat=_read_float,
+                    writeFloat=_write_float if writable else None,
+                    readRefCon=refcon, writeRefCon=refcon)
+            self.datarefs.append(ref)
+
+        self.commands = (
+            (xp.createCommand("xp_gliding/toggle", "xp-gliding: plugin effect on/off"),
+             self.on_toggle, "enabled", "Enabled"),
+            (xp.createCommand("xp_gliding/thermals/toggle", "xp-gliding: thermals on/off"),
+             self.on_toggle, "thermals_enabled", "Thermals"),
+        )
+        self.menu_item = xp.appendMenuItem(xp.findPluginsMenu(), "xp-gliding", 0)
+        self.menu = xp.createMenu("xp-gliding", xp.findPluginsMenu(), self.menu_item, None, None)
+        for cmd, handler, attr, label in self.commands:
+            xp.registerCommandHandler(cmd, handler, 1, attr)
+            xp.appendMenuItemWithCommand(self.menu, label, cmd)
+        self.refresh_menu()
+
+        self.loop = xp.createFlightLoop(self.flight_loop, xp.FlightLoop_Phase_BeforeFlightModel, None)
+        return self.Name, self.Sig, self.Desc
+
+    def XPluginStop(self):
+        xp.destroyFlightLoop(self.loop)
+        for cmd, handler, attr, _ in self.commands:
+            xp.unregisterCommandHandler(cmd, handler, 1, attr)
+        xp.destroyMenu(self.menu)
+        xp.removeMenuItem(xp.findPluginsMenu(), self.menu_item)
+        for ref in self.datarefs:
+            xp.unregisterDataAccessor(ref)
+
+    def XPluginEnable(self):
+        self.load_aircraft()
+        xp.scheduleFlightLoop(self.loop, -1, 1)
+        return 1
+
+    def XPluginDisable(self):
+        xp.scheduleFlightLoop(self.loop, 0, 1)
+        self.guard.release()
+        self.status.active = 0
+        self.out.clear()
+
+    def XPluginReceiveMessage(self, inFromWho, inMessage, inParam):
+        if inMessage == xp.MSG_PLANE_LOADED and inParam == 0:
+            self.load_aircraft()
+
+    # --- aircraft -----------------------------------------------------------
+
+    def load_aircraft(self):
+        path = self.io.user_aircraft_path()
+        geometry = read_acf_geometry(path) if path else None
+        self.injector.set_geometry(geometry or DEFAULT_GEOMETRY)
+        engines = self.io.engine_count()
+        # At the main menu the "aircraft" is X-Plane's own folder: stay inert until
+        # a real aircraft is loaded (a plane-loaded message follows).
+        loaded = path.lower().endswith(".acf")
+        self.eligible = loaded and (engines == 0 or not self.settings.gliders_only)
+        print(f"{TAG} aircraft {path or '(none)'}: {engines} engines, "
+              f"{'eligible' if self.eligible else 'not a glider, inactive'}; "
+              f"{self.injector.geometry}")
+
+    # --- commands and menu ----------------------------------------------------
+
+    def on_toggle(self, commandRef, phase, attr):
+        if phase == xp.CommandBegin:
+            setattr(self.settings, attr, not getattr(self.settings, attr))
+            self.refresh_menu()
+            print(f"{TAG} {attr} = {getattr(self.settings, attr)}")
+        return 1
+
+    def refresh_menu(self):
+        for index, (_, _, attr, _) in enumerate(self.commands):
+            check = xp.Menu_Checked if getattr(self.settings, attr) else xp.Menu_Unchecked
+            xp.checkMenuItem(self.menu, index, check)
+
+    # --- per frame -------------------------------------------------------------
+
+    def flight_loop(self, sinceLast, elapsedTime, counter, refCon):
+        try:
+            return self.step()
+        except Exception:
+            # Never leave a half-working force behind, and never log every frame.
+            print(f"{TAG} error in the flight loop; plugin effect stopped:\n"
+                  + traceback.format_exc())
+            self.failed = True
+            self.status.active = 0
+            self.out.clear()
+            self.guard.release()
+            return 0
+
+    def step(self):
+        st = self.settings
+        now = time.monotonic()
+        active = st.enabled and self.eligible
+        self.guard.want(active and st.thermals_enabled, now)
+        if not active or self.io.frozen():
+            self.status.active = 0
+            self.out.clear()
+            return -1
+        t0 = time.perf_counter()
+        s = self.io.read_state(self.state)
+        if now >= self.next_slow:
+            self.next_slow = now + SLOW_PERIOD_S
+            self.injector.slow_update(s)
+            self.refresh_menu()
+        self.injector.step(s, self.out)
+        self.io.apply(self.out)
+        self.status.active = 1
+        us = (time.perf_counter() - t0) * 1e6
+        self.status.frame_us += 0.02 * (us - self.status.frame_us)
+        return -1

@@ -92,3 +92,13 @@ def test_bank_attenuates_the_gradient_through_geometry():
 def test_span_average():
     assert inj.span_average(1.0, 1.0, 1.0) == 1.0
     assert inj.span_average(0.0, 3.0, 0.0) == 2.0
+
+
+def test_helix_gradient_is_the_spanwise_change_of_w_over_v():
+    # A station at y sees its angle of attack drop by w / V(y), V(y) = V - r y;
+    # the gradient of that drop at y = 0, times V, is -w r / V: the correction is +w r / V.
+    w, r, v, dy = 2.0, 0.25, 28.0, 1e-3
+    drop = lambda y: w / (v - r * y)  # noqa: E731
+    artifact = -(drop(dy) - drop(-dy)) / (2 * dy) * v
+    assert inj.helix_gradient(w, r, v) == pytest.approx(-artifact, rel=1e-6)
+    assert inj.helix_gradient(w, r, 5.0) == 0.0

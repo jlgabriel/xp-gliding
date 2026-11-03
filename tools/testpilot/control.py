@@ -28,11 +28,11 @@ def clamp(x, lim):
 
 class Gains:
     __slots__ = ("kv", "ki", "kth", "kti", "kq", "kphi", "kphi_i", "kp", "kbeta", "pitch_limit",
-                 "roll_limit", "yaw_limit", "theta_span")
+                 "roll_limit", "yaw_limit", "theta_span", "phi_i_window")
 
     def __init__(self, kv=0.5, ki=0.05, kth=0.05, kti=0.03, kq=0.02, kphi=0.02, kphi_i=0.004,
                  kp=0.01, kbeta=-0.12, pitch_limit=0.8, roll_limit=0.3, yaw_limit=0.5,
-                 theta_span=12.0):
+                 theta_span=12.0, phi_i_window=5.0):
         self.kv = kv  # deg of pitch per km/h of speed error
         self.ki = ki  # deg per (km/h * s)
         self.kth = kth  # yoke per deg of pitch error
@@ -46,6 +46,7 @@ class Gains:
         self.roll_limit = roll_limit
         self.yaw_limit = yaw_limit
         self.theta_span = theta_span  # theta_cmd within theta_ref +/- this
+        self.phi_i_window = phi_i_window  # deg: the bank integrator runs only this close
 
 
 class SpeedHold:
@@ -86,7 +87,7 @@ class SpeedHold:
         pitch = clamp(raw, g.pitch_limit)
         e_phi = self.phi_cmd - phi
         raw = g.kphi * e_phi - g.kp * p + self.roll_trim
-        if abs(raw) < g.roll_limit and abs(e_phi) < 5.0:  # only near the command
+        if abs(raw) < g.roll_limit and abs(e_phi) < g.phi_i_window:  # only near the command
             self.roll_trim += g.kphi_i * e_phi * dt
         roll = clamp(raw, g.roll_limit)
         yaw = clamp(g.kbeta * beta, g.yaw_limit)

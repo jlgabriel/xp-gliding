@@ -26,6 +26,10 @@ Alex's preferences, but his plugin saves its current settings when X-Plane
 closes, so restore them before quitting. Phase 0 only; remove all of this when
 the reference plugin goes.
 
+Since 0.3.0, if the xp-gliding plugin is loaded, its own datarefs are logged
+("xpg_" columns, see XPG_DATAREFS): the lift at each sample point, the force
+and roll moment it applied, its debug modes and its cost per frame.
+
 License: GPL-3.0-or-later.
 """
 
@@ -35,7 +39,7 @@ import time
 
 import xp
 
-LOGGER_VERSION = "0.2.0"
+LOGGER_VERSION = "0.3.0"
 FLUSH_EVERY_ROWS = 300
 
 # (column, dataref, type) read after the flight model
@@ -65,6 +69,7 @@ STATE_DATAREFS = (
     ("wind_dir_deg", "sim/weather/aircraft/wind_now_direction_degt", "f"),
     ("native_thermal_ms", "sim/weather/aircraft/thermal_rate_ms", "f"),
     ("sun_pitch_deg", "sim/graphics/scenery/sun_pitch_degrees", "f"),
+    ("beta_deg", "sim/flightmodel/position/beta", "f"),
 )
 
 FORCE_DATAREFS = (
@@ -102,12 +107,33 @@ ALEX_CONTROLS = (
     ("alex_dist_m", "distance_from_center", "f", 0),
 )
 
+# (column, xp-gliding plugin dataref, type): what our own plugin applied, since
+# the *_plug_acf datarefs read 0 after the flight model. Empty if not loaded.
+XPG_DATAREFS = (
+    ("xpg_active", "xp_gliding/active", "i"),
+    ("xpg_lift_ms", "xp_gliding/lift_ms", "f"),
+    ("xpg_lift_centre_ms", "xp_gliding/lift_centre_ms", "f"),
+    ("xpg_lift_left_ms", "xp_gliding/lift_left_ms", "f"),
+    ("xpg_lift_right_ms", "xp_gliding/lift_right_ms", "f"),
+    ("xpg_lift_tail_ms", "xp_gliding/lift_tail_ms", "f"),
+    ("xpg_force_n", "xp_gliding/force_n", "f"),
+    ("xpg_roll_nm", "xp_gliding/roll_nm", "f"),
+    ("xpg_dw_dy", "xp_gliding/dw_dy", "f"),
+    ("xpg_dw_dy_helix", "xp_gliding/dw_dy_helix", "f"),
+    ("xpg_uniform_ms", "xp_gliding/debug/uniform_ms", "f"),
+    ("xpg_debug_dw_dy", "xp_gliding/debug/dw_dy", "f"),
+    ("xpg_nearest_m", "xp_gliding/nearest/distance_m", "f"),
+    ("xpg_nearest_core_ms", "xp_gliding/nearest/core_ms", "f"),
+    ("xpg_frame_us", "xp_gliding/frame_us", "f"),
+)
+
 COLUMNS = (
     [c for c, _, _ in STATE_DATAREFS]
     + ["pre_" + c for c, _ in FORCE_DATAREFS]
     + ["post_" + c for c, _ in FORCE_DATAREFS]
     + ["mark"]
     + [c for c, _ in ALEX_FIELDS]
+    + [c for c, _, _ in XPG_DATAREFS]
 )
 
 
@@ -164,6 +190,8 @@ class PythonInterface:
         self.force_refs = [xp.findDataRef(name) for _, name in FORCE_DATAREFS]
         self.pre_forces = [0.0] * len(self.force_refs)
 
+        self.getters = getters
+        self.xpg_refs = []
         self.file = None
         self.buffer = []
         self.mark = 0
@@ -248,6 +276,9 @@ class PythonInterface:
         self.file.write(f"# aircraft={acf_file}\n")
         self.file.write(f"# aircraft_path={acf_path}\n")
         self.file.write(f"# alex_plugin_loaded={int(_alex_world() is not None)}\n")
+        # Looked up here, not at start: the xp-gliding plugin may load after this one.
+        self.xpg_refs = [(self.getters[kind], xp.findDataRef(name)) for _, name, kind in XPG_DATAREFS]
+        self.file.write(f"# xp_gliding_loaded={int(self.xpg_refs[0][1] is not None)}\n")
         self.file.write(",".join(COLUMNS) + "\n")
         xp.scheduleFlightLoop(self.pre_loop, -1, 1)
         xp.scheduleFlightLoop(self.post_loop, -1, 1)
@@ -287,6 +318,7 @@ class PythonInterface:
             values += [""] * len(ALEX_FIELDS)
         else:
             values += [_fmt(getattr(world, attr, None)) for _, attr in ALEX_FIELDS]
+        values += [_fmt(get(ref)) if ref is not None else "" for get, ref in self.xpg_refs]
         self.buffer.append(",".join(values) + "\n")
         if len(self.buffer) >= FLUSH_EVERY_ROWS:
             self.flush()
