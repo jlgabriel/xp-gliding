@@ -75,10 +75,14 @@ def calm_clear_weather(lat, lon, elev_m):
 
 
 def air_start(api, msl_m, kmh, heading, lat=KHOB[0], lon=KHOB[1], wx=None, hour=12.0,
-              day_of_year=DAY_OF_YEAR, thermal_ms=0.0):
+              day_of_year=DAY_OF_YEAR, thermal_ms=0.0, settle_s=15.0):
     """Start the ASK 21 in the air. wx: weather() result or "use_real_weather"
     (default: calm and clear at KHOB). thermal_ms is written to the regional
-    native thermal rate once the flight has loaded (None: left alone)."""
+    native thermal rate once the flight has loaded (None: left alone). Once the
+    datarefs appear, the sim is paused for settle_s so scenery and plugins finish
+    loading before anything else is asked of X-Plane; paused, the glider keeps
+    its air-start state instead of flying on its own (seen 2026-11-03: 15 s
+    unpaused ended in a phugoid at 174 km/h)."""
     init = {
         "aircraft": {"path": ASK21},
         "weight": {"payload_weight_in_kilograms": PAYLOAD_KG,
@@ -97,9 +101,13 @@ def air_start(api, msl_m, kmh, heading, lat=KHOB[0], lon=KHOB[1], wx=None, hour=
                 api.get("sim/weather/region/thermal_rate_ms")
             else:
                 api.set("sim/weather/region/thermal_rate_ms", thermal_ms)
-            return
         except (RuntimeError, KeyError, OSError):
             continue
+        if settle_s > 0.0:
+            api.command("sim/operation/pause_on")
+            time.sleep(settle_s)
+            api.command("sim/operation/pause_off")
+        return
     raise TimeoutError("flight did not load within 60 s")
 
 

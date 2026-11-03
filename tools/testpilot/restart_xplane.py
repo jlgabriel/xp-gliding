@@ -6,8 +6,10 @@ Usage:
 
 Sends `sim/operation/quit` through the web API (X-Plane closes in ~16 s and
 plugins run their disable/stop code on the way out), waits for the process to
-end, launches `X-Plane.exe` again and waits for the web API (~50 s; before the
-main menu is usable). Start a flight afterwards with `airstart.py` or any
+end, launches `X-Plane.exe` again, waits for the web API (~50 s) and then a
+grace period (60 s by default): the API answers before X-Plane has finished
+loading airports and plugins, and a flight requested in that window can hang
+it (seen 2026-11-03). Start a flight afterwards with `airstart.py` or any
 mission (`POST /api/v3/flight` works from the main menu). Windows only.
 
 Arguments after `--` go to X-Plane. `--lock_fr` and `--fm_per_frame` are
@@ -48,7 +50,7 @@ def api_up(api):
     return True
 
 
-def restart(xplane_dir, quit_first=True, timeout_s=180.0, xplane_args=()):
+def restart(xplane_dir, quit_first=True, timeout_s=180.0, xplane_args=(), grace_s=60.0):
     if quit_first and xplane_running():
         # The quit command exists only while a flight is loaded, not at the main menu.
         try:
@@ -73,16 +75,21 @@ def restart(xplane_dir, quit_first=True, timeout_s=180.0, xplane_args=()):
             break
         if time.monotonic() - t0 > timeout_s:
             raise SystemExit(f"web API not up within {timeout_s:.0f} s")
-    print(f"X-Plane web API up after {time.monotonic() - t0:.0f} s", flush=True)
+    print(f"X-Plane web API up after {time.monotonic() - t0:.0f} s; waiting {grace_s:.0f} s more",
+          flush=True)
+    time.sleep(grace_s)
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Quit and relaunch X-Plane")
     parser.add_argument("--xplane", default=DEFAULT_DIR, help="X-Plane 12 folder")
     parser.add_argument("--no-quit", action="store_true", help="only launch and wait")
+    parser.add_argument("--grace", type=float, default=60.0,
+                        help="seconds to wait after the web API is up")
     parser.add_argument("xplane_args", nargs="*", help="arguments for X-Plane, after --")
     args = parser.parse_args(argv)
-    restart(args.xplane, quit_first=not args.no_quit, xplane_args=args.xplane_args)
+    restart(args.xplane, quit_first=not args.no_quit, xplane_args=args.xplane_args,
+            grace_s=args.grace)
 
 
 if __name__ == "__main__":

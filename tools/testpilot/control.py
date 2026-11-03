@@ -28,11 +28,11 @@ def clamp(x, lim):
 
 class Gains:
     __slots__ = ("kv", "ki", "kth", "kti", "kq", "kphi", "kphi_i", "kp", "kbeta", "pitch_limit",
-                 "roll_limit", "yaw_limit", "theta_span", "phi_i_window")
+                 "roll_limit", "yaw_limit", "theta_span", "phi_i_window", "roll_trim_leak_s")
 
     def __init__(self, kv=0.5, ki=0.05, kth=0.05, kti=0.03, kq=0.02, kphi=0.02, kphi_i=0.004,
                  kp=0.01, kbeta=-0.12, pitch_limit=0.8, roll_limit=0.3, yaw_limit=0.5,
-                 theta_span=12.0, phi_i_window=5.0):
+                 theta_span=12.0, phi_i_window=5.0, roll_trim_leak_s=5.0):
         self.kv = kv  # deg of pitch per km/h of speed error
         self.ki = ki  # deg per (km/h * s)
         self.kth = kth  # yoke per deg of pitch error
@@ -47,6 +47,10 @@ class Gains:
         self.yaw_limit = yaw_limit
         self.theta_span = theta_span  # theta_cmd within theta_ref +/- this
         self.phi_i_window = phi_i_window  # deg: the bank integrator runs only this close
+        # s: farther than that, the roll trim decays with this time constant, so the
+        # trim of a steep circle cannot hold the glider short of a new bank (seen
+        # 2026-11-03: 6 min at -9 deg after an orbit, with -20 commanded)
+        self.roll_trim_leak_s = roll_trim_leak_s
 
 
 class SpeedHold:
@@ -87,7 +91,9 @@ class SpeedHold:
         pitch = clamp(raw, g.pitch_limit)
         e_phi = self.phi_cmd - phi
         raw = g.kphi * e_phi - g.kp * p + self.roll_trim
-        if abs(raw) < g.roll_limit and abs(e_phi) < g.phi_i_window:  # only near the command
+        if abs(e_phi) >= g.phi_i_window:
+            self.roll_trim -= self.roll_trim * dt / g.roll_trim_leak_s
+        elif abs(raw) < g.roll_limit:  # only near the command, and not saturated
             self.roll_trim += g.kphi_i * e_phi * dt
         roll = clamp(raw, g.roll_limit)
         yaw = clamp(g.kbeta * beta, g.yaw_limit)
@@ -143,3 +149,35 @@ class Circle:
 
     def bank(self, track_deg=0.0, east_m=0.0, north_m=0.0):
         return self.bank_deg
+
+
+class OrbitHold:
+    """Circle a fixed point of the local east-north frame at a set radius.
+
+    The bank that flies that radius at this TAS in still air is the feed-
+    forward; on top, the course to hold is the circle's tangent turned towards
+    the centre by atan(k_r * radius error), and the bank corrects the track
+    error like HeadingHold, within +/- max_trim of the feed-forward. Farther
+    than `approach` radii it flies straight at the centre instead.
+    direction: -1 turns left (anticlockwise seen from above), +1 right."""
+
+    def __init__(self, centre_en, radius_m, tas_ms, direction=-1, k_r=1.0 / 60.0, k=0.7,
+                 max_trim=15.0, approach=2.0, max_bank=20.0):
+        self.ce, self.cn = centre_en
+        self.radius, self.direction = radius_m, direction
+        self.ff = math.degrees(math.atan(tas_ms * tas_ms / (9.80665 * radius_m)))
+        self.k_r, self.k, self.max_trim = k_r, k, max_trim
+        self.approach, self.max_bank = approach, max_bank
+
+    def distance(self, east_m, north_m):
+        return math.hypot(self.ce - east_m, self.cn - north_m)
+
+    def bank(self, track_deg, east_m, north_m):
+        d = self.distance(east_m, north_m)
+        to_centre = math.degrees(math.atan2(self.ce - east_m, self.cn - north_m))
+        if d > self.approach * self.radius:
+            return clamp(self.k * wrap180(to_centre - track_deg), self.max_bank)
+        course = (to_centre - 90.0 * self.direction
+                  + self.direction * math.degrees(math.atan(self.k_r * (d - self.radius))))
+        trim = clamp(self.k * wrap180(course - track_deg), self.max_trim)
+        return self.direction * self.ff + trim

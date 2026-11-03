@@ -49,7 +49,10 @@ PAUSED = "sim/time/paused"
 IAS = "sim/flightmodel/position/indicated_airspeed"
 THETA = "sim/flightmodel/position/theta"
 PHI = "sim/flightmodel/position/phi"
-Q = "sim/flightmodel/position/Q"
+# Pitch damping uses the Euler pitch rate, not the body rate Q: in a steady turn
+# Q = g sin^2(bank) / (V cos(bank)) (~16 deg/s at 45 deg), which the damper took
+# for a pitch-up and answered nose-down (checked live 2026-11-03).
+Q = "sim/flightmodel/position/theta_dot"
 P = "sim/flightmodel/position/P"
 BETA = "sim/flightmodel/position/beta"
 VS = "sim/flightmodel/position/vh_ind"

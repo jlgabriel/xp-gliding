@@ -7,7 +7,7 @@ WebSocket pushes, while the model integrates at 200 Hz.
 import math
 import statistics
 
-from control import Circle, Gains, HeadingHold, LineHold, SpeedHold, wrap180
+from control import Circle, Gains, HeadingHold, LineHold, OrbitHold, SpeedHold, wrap180
 from glider_model import GliderModel
 
 DT_MODEL = 0.005
@@ -113,3 +113,16 @@ def test_circles_at_a_steady_bank_and_speed():
     bank = window(trace, 60, 120, 2)
     assert abs(statistics.fmean(bank) + 35.0) < 1.0
     assert abs(statistics.fmean(window(trace, 60, 120, 1)) - 90.0) < 1.0
+
+
+def test_orbits_a_point_at_the_set_radius():
+    # Start 300 m south of the centre, flying north: the orbit has to be found first.
+    m = GliderModel()
+    centre = (m.east - 80.0, m.north + 300.0)
+    orbit = OrbitHold(centre, 60.0, 80.0 / 3.6, direction=-1)
+    trace = fly(80.0, 150.0, model=m, guidance=orbit)
+    d = [orbit.distance(e, n) for e, n in zip(window(trace, 90, 150, 7),
+                                              window(trace, 90, 150, 8))]
+    assert abs(statistics.fmean(d) - 60.0) < 5.0
+    assert max(d) - min(d) < 15.0
+    assert statistics.fmean(window(trace, 90, 150, 2)) < -30.0  # turning left
