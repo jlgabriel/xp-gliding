@@ -2,9 +2,9 @@
 
 First flights of the xp-gliding plugin (the engine of `xp_gliding/engine/` flown in X-Plane through `xp_gliding/adapter/`), with thermal strategy A: our thermals replace the native ones, whose setting is held at 0. Measured by the test pilot (`tools/testpilot/fly_phase1.py`) with the Laminar ASK 21 at 541 kg over KHOB, in the conditions of test A in [baseline.md](baseline.md), so every Δvs is against that polar. See the roadmap in [SPEC.md](SPEC.md).
 
-**Done when** (SPEC, phase 1): the ASK 21 climbs ~w m/s above its sink rate without calibration, at different frame rates; it can circle and climb in the engine's thermals; a second glider does the same with no changes (not flown yet: only the Laminar ASK 21 is in use).
+**Done when** (SPEC, phase 1): the ASK 21 climbs ~w m/s above its sink rate without calibration, at different frame rates; it can circle and climb in the engine's thermals. A second glider doing the same with no changes is **deferred** (Juan Luis, 2026-11-03): everything is made complete with the Laminar ASK 21 first, and other gliders come much later. The physics has no per-aircraft constant (the force is m·g·w / V_TAS and the geometry comes from the `.acf`), so nothing is expected to depend on the aircraft.
 
-**Status (2026-11-03):** the plugin loads and flies; uniform lift gives Δvs = w within 0.01 m/s at 90 and 120 km/h, straight and circling, and at 60, 30 and 20 fps. Still open: the thermal hunt in the engine's field (`fly_phase1.py thermals` is ready; X-Plane kept hanging or closing while starting up, which Juan Luis says it already did before these tests), the plugin's cost per frame with the thermal field sampled, and a second glider.
+**Status (2026-11-03, evening):** the plugin loads and flies; uniform lift gives Δvs = w within 0.01 m/s at 90 and 120 km/h, straight and circling, and at 60, 30 and 20 fps. In the engine's own thermals, orbited by the test pilot, the measured netto matches the engine's lift at the glider within 0.02 m/s where the orbit matched the reference circle's bank and speed, and within 0.4 m/s elsewhere, the rest being the sink model (see [Thermals of the engine](#thermals-of-the-engine)). With the field sampled the plugin costs ~120–130 µs per frame. Still open: test F (feel, by hand). The finding of the day is about the sky, not the physics: Allen's mean-day thermals are narrow for an ASK 21.
 
 ## The plugin
 
@@ -42,7 +42,7 @@ X-Plane 12.4.3 loads the plugin without errors (`XPPython3Log.txt`). On first st
 
 Over KHOB at noon on 2 November, with the defaults, about 2800 thermals are alive within the 10 km loaded around the glider, and the native thermal setting reads 0 while the plugin is active.
 
-**Cost per frame** (the plugin's own `frame_us`, averaged over ~1 s, from the logs): 37–43 µs at 60 fps with the field loaded but not sampled (thermals off or uniform mode), against the SPEC's budget of 500 µs. The same work reads 66 µs at 30 fps and ~88 µs at 20 fps, so part of it is the machine rather than the plugin (presumably the CPU clocking down between slower frames). The cost with the field sampled at four points every frame is still to be logged in a thermal hunt; the offline estimate is ~40 µs more. The first load of the field takes ~40 ms, once, when the flight starts.
+**Cost per frame** (the plugin's own `frame_us`, averaged over ~1 s, from the logs): 37–43 µs at 60 fps with the field loaded but not sampled (thermals off or uniform mode), against the SPEC's budget of 500 µs. The same work reads 66 µs at 30 fps and ~88 µs at 20 fps, so part of it is the machine rather than the plugin (presumably the CPU clocking down between slower frames). With the field sampled at four points every frame (thermal hunt and orbits, 2026-11-03, 60 fps): median 118–132 µs, 99th percentile 150–190 µs, against 42 µs with the field loaded but thermals off in the same flights. The four `lift_at` calls cost ~80–90 µs, about twice the offline estimate of ~40 µs; still well inside the budget, and the first place to look if it ever matters (the four samples share z, the environment sink and the cell search). The first load of the field takes ~40 ms, once, when the flight starts.
 
 **Startup.** With no aircraft loaded (main menu) X-Plane reports its own folder as the user's aircraft. Since the second build the plugin stays inert until a real `.acf` is loaded, so it never touches the native thermal setting at the main menu.
 
@@ -96,7 +96,7 @@ It was measured with the test pilot's roll trim: the steady stick needed to hold
 
 The artifact asks for 0.052 more stick, and the correction removes ~63% of it: right sign, a bit short in size. The likely reason is that the generic strip-theory roll damping (C_lp from aspect ratio and taper) is smaller than what Laminar's model uses. It is left as is for now: a scale factor would be a calibration constant, so it is better revisited with test F (feel), by hand. The climb is not affected (Δvs +1.97 without the correction, +1.99 with it).
 
-**Test pilot note.** Its bank integrator only works within 5° of the commanded bank (`control.Gains.phi_i_window`, now a parameter). After a roll-in that overshoots beyond that, it can stay stuck at a steeper bank. The circles above use 20°.
+**Test pilot note.** Its bank integrator only works within 5° of the commanded bank (`control.Gains.phi_i_window`, now a parameter). After a roll-in that overshoots beyond that, it can stay stuck at a steeper bank. The circles above use 20°. Since the orbits below, the roll trim decays (5 s) when the bank is farther than that from the command (`roll_trim_leak_s`), so it can no longer hold the glider away from a new bank.
 
 ### Frame rate
 
@@ -117,16 +117,75 @@ X-Plane runs at 60 fps here. **`--lock_fr=N` on X-Plane's command line fixes a l
 
 ### Thermals of the engine
 
-Not flown yet. `fly_phase1.py thermals` is ready:
-- air start over KHOB at 2300 m MSL (1180 m AGL, z/zi = 0.6 with the defaults) and cruise east at 90 km/h;
-- circle at 35° when the total-energy netto passes 0.8 m/s, centre with the rule of thumb, and leave when the last turn averaged under 0.4 m/s;
-- `report` then compares, circle by circle, the measured netto with the engine's lift at the glider (`xpg_lift_ms`).
+Flown 2026-11-03 (17:25–19:22 local), w* 3 m/s, zi 2000 m AGL, seed 1, 2 November, ~19 h zulu (noon at KHOB), native thermals at 0, calm air.
 
-Two attempts on 2026-11-03 ended with X-Plane hanging or closing during start-up (once right after loading the MOZA plugin), before any flight. Juan Luis had already seen the same before these tests.
+**Rule-of-thumb hunt** (`fly_phase1.py thermals`, 35°, 90 km/h): air start at 1180 m AGL, cruise east, circle when the total-energy netto passes 0.8 m/s. It found **no climbable thermal**: after 10 min it was down to 400 m AGL (the abort height) after three circles, all in sink.
 
-**What to expect,** from the engine offline (seed 1, 2 November, noon, w* 3 m/s, zi 2000 m):
-- **Density:** about 4.5 thermals alive per km².
-- **Strength:** the lift at the centre of the thermals alive near KHOB has a median of +2.3 m/s at 800 m AGL and +1.6 m/s at 1200 m (90th percentile +3.4 and +2.4; strongest +7.1 and +4.9).
-- **Size:** the mean outer radius is 135–146 m.
+| Circle | AGL (m) | Netto, measured circle sink (m/s) | Engine lift (m/s) | Difference (m/s) |
+| --- | --- | --- | --- | --- |
+| 1 | 968 | −0.34 | −0.27 | −0.07 |
+| 2 | 617 | −0.31 | −0.25 | −0.06 |
+| 3 | 498 | −0.28 | −0.23 | −0.05 |
 
-At that height, the ASK 21 at 35° and 90 km/h flies a circle of ~110 m radius, so it meets only part of the core: on the strongest thermal at 1200 m, the lift averaged over a 100 m circle is +1.7 m/s, against +4.9 at the centre. Circling slower or steeper (`--kmh`, `--bank`) will matter. Whether Allen's mean-day thermals are wide enough for an ASK 21 is one of the SPEC's open questions.
+The physics held (the measured netto follows the engine's environment sink), but the hunt never got into a core. The log says why:
+- **The density is right.** The nearest thermal had a median distance of 243 m; for 4.5 thermals per km² placed at random the expected value is 236 m.
+- **The cores are narrow and the hunter is slow.** With the defaults, the outer radius r2 is ~135 m at this height, and the strong core (r1 ≈ 0.29 r2) is only ~40 m. The hunter's netto is smoothed over ~2 s (50 m of flight), so by the time it says "lift" the glider is leaving the core, and it then always turns left on a ~110 m circle.
+- **Between thermals the air sinks** −0.26 m/s (Allen's mass-conservation environment sink, Eq. 21), which the glider met ~90% of the time.
+
+**Can an ASK 21 climb in them at all?** `tools/engine_plots/circle_climb.py` answers offline with perfect centring: for every thermal alive within 5 km, the lift averaged over a circle centred on it, minus the glider's circling sink (the test A polar's n^1.5 turn model plus the 0.18 m/s it fell short at 35°).
+
+| AGL (m) | Bank, IAS | Radius (m) | Sink (m/s) | Centre lift, median (m/s) | Climb, median (m/s) | Climb, p90 (m/s) | Climbable (> 0) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 800 | 35°, 90 km/h | 110 | 1.45 | +2.25 | −1.18 | +0.05 | 10% |
+| 800 | 40°, 85 km/h | 82 | 1.59 | +2.25 | −0.70 | +0.85 | 25% |
+| 800 | 45°, 80 km/h | 61 | 1.77 | +2.25 | −0.29 | +1.31 | 39% |
+| 800 | 50°, 80 km/h | 51 | 2.01 | +2.25 | −0.31 | +1.33 | 40% |
+| 1100 | 45°, 80 km/h | 63 | 1.79 | +1.75 | −0.58 | +0.69 | 27% |
+| 1400 | 45°, 80 km/h | 65 | 1.82 | +1.06 | −1.05 | −0.30 | 5% |
+
+At 35° only one thermal in ten can be climbed even perfectly centred; at 45° and 80 km/h about four in ten, best around 500–800 m AGL, and almost none above 0.7 zi (Allen's thermals weaken well before zi). On what is a good day by its numbers (w* 3 m/s), the best 10% of thermals give the ASK 21 ~1.3 m/s. That answers the SPEC's open question on thermal width: *barely, and only circling tight*.
+
+**Orbits** (`fly_phase1.py orbit`). To measure the physics inside thermals anyway, the test pilot became an oracle: it builds the plugin's own field (same seed, X-Plane's date and zulu time; the distance to the nearest thermal matched the plugin's within 3 m every time), picks the best thermal within 2.5 km, flies to it and orbits its centre at the radius of the commanded bank and speed (`control.OrbitHold`). A first circle with the thermals off measures the glider's own circling sink, and each circle's netto is vs_te plus the turn model at that circle's IAS, TAS and bank, scaled to match the reference exactly.
+
+The ASK 21 cannot fly 45° at 80 km/h: read live, the test pilot's pitch yoke sat at its 0.8 limit with α ≈ 11.5° (in a 45° turn the stall speed rises by √1.41 ≈ 1.19). It circled at 90–105 km/h instead (partly for another reason, see *Why the orbits ran fast*), so the orbits came out steeper than the reference.
+
+| Flight | Thermal | Turns | Bank (deg) | IAS (km/h) | AGL (m) | vs_te (m/s) | Netto, measured (m/s) | Engine lift (m/s) | Difference (m/s) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | ref | 3.0 | 46 | 93 | 992 | −2.02 | | 0 | |
+| 1 | 1 | 7.9 | 43 | 90 | 901 | +0.53 | +2.38 | +2.39 | −0.01 |
+| 1 | 2 | 9.1 | 44 | 92 | 990 | +2.01 | +3.96 | +3.80 | +0.16 |
+| 1 | 3 | 10.9 | 51 | 101 | 1123 | +0.69 | +3.20 | +3.16 | +0.04 |
+| 1 | 4 | 10.0 | 47 | 91 | 1237 | +0.25 | +2.36 | +2.38 | −0.02 |
+| 1 | 5 | 2.8 | 46 | 91 | 865 | +0.05 | +2.06 | +2.08 | −0.02 |
+| 1 | 6 | 3.7 | 41 | 91 | 851 | +0.68 | +2.47 | +2.78 | −0.31 |
+| 3 | ref | 2.8 | 47 | 91 | 1052 | −2.11 | | 0 | |
+| 3 | 1 | 5.2 | 52 | 101 | 876 | +0.40 | +2.95 | +2.68 | +0.27 |
+| 3 | 2 | 9.0 | 48 | 97 | 901 | +1.03 | +3.23 | +3.25 | −0.02 |
+| 3 | 3 | 9.9 | 51 | 99 | 966 | +0.70 | +3.13 | +3.02 | +0.11 |
+| 3 | 4 | 10.0 | 52 | 102 | 1057 | +0.72 | +3.36 | +3.24 | +0.12 |
+| 3 | 5 | 3.5 | 46 | 95 | 1035 | +0.10 | +2.19 | +2.12 | +0.07 |
+| 3 | 6 | 3.2 | 52 | 100 | 952 | −0.14 | +2.43 | +2.27 | +0.16 |
+| 3 | 7 | 3.1 | 52 | 103 | 931 | −0.27 | +2.39 | +2.25 | +0.15 |
+| 3 | 8 | 3.2 | 52 | 102 | 845 | −0.42 | +2.21 | +2.15 | +0.06 |
+| 4 (90 km/h) | ref | 3.1 | 46 | 91 | 1055 | −2.05 | | 0 | |
+| 4 | 1 | 5.7 | 52 | 103 | 898 | +0.27 | +2.92 | +2.61 | +0.31 |
+| 4 | 2 | 11.3 | 53 | 105 | 925 | +1.09 | +3.81 | +3.43 | +0.38 |
+| 4 | 3 | 5.7 | 52 | 104 | 1085 | +0.54 | +3.22 | +2.97 | +0.25 |
+| 4 | 4 | 10.8 | 52 | 103 | 1053 | +0.57 | +3.18 | +2.98 | +0.20 |
+| 4 | 5 | 11.1 | 52 | 103 | 1069 | +0.25 | +2.89 | +2.71 | +0.18 |
+| 4 | 6 | 4.8 | 52 | 101 | 1015 | −0.35 | +2.25 | +2.02 | +0.23 |
+| 4 | 7 | 3.4 | 53 | 104 | 937 | −0.83 | +1.94 | +1.91 | +0.02 |
+| 4 | 8 | 3.4 | 52 | 103 | 918 | −0.28 | +2.30 | +2.14 | +0.15 |
+| 4 | 9 | 3.4 | 53 | 104 | 757 | −1.25 | +1.49 | +1.44 | +0.05 |
+
+Flights 1 and 3 commanded 80 km/h, flight 4 90 km/h. Flight 2 was aborted early (bank limit, see below). Flight 1's thermal 6 was cut by the end of the run in the middle of its entry.
+
+**Reading.** In real, non-uniform thermals the climb matches the engine's lift at the glider. Where an orbit was flown at the reference's bank and speed (within ~3° and ~2 km/h: flight 1's thermals 1, 4 and 5, flight 3's thermal 2) the difference is −0.01 to −0.02 m/s, as good as uniform lift. The rest (but for flight 1's truncated thermal 6) read high by up to +0.38 m/s, and the error grows with the distance from the reference: flights 3 and 4 orbited ~6° steeper and 10–12 km/h faster, and averaged +0.11 and +0.20. That residual is the measurement, not the physics: away from the reference, the sink comes from the turn model, which is only exact there. The engine's lift itself is the span average over the real wing positions, so the gust roll and the helix correction were active all along, and the glider stayed controllable in cores of +3 to +4 m/s.
+
+**Why the orbits ran fast.** The test pilot holds speed with pitch attitude, within θ_ref ± 12° (`Gains.theta_span`), and θ_ref is the attitude at the start clamped to 0–5°. Climbing at w in a turn needs about w/V (7° at 3 m/s) more nose-up than circling in still air. Flight 1 started at θ +32° (the unpaused settle, below), so θ_ref was 5° and the cap 17°: its orbits reached θ 22° and held the reference's 93 km/h. Flights 3 and 4 started nose-down, so θ_ref was 0° and the cap 12°: the attitude sat at the cap in the cores (90th percentile 14°) and the speed ran to 100–105 km/h. To fix before the next orbits: a fixed θ_ref and a wider span, or a reference circle per orbit at its own bank and speed.
+
+**Test pilot fixes found by these flights:**
+- *Air-start settle.* `restart_xplane.py` now waits 60 s after the web API is up (X-Plane goes on loading airports and plugins for ~30 s after it answers), and `air_start()` holds the sim paused for 15 s once the flight has loaded. Unpaused, the glider flew those 15 s alone into a phugoid (174 km/h, θ +32° when the pilot took over).
+- *Roll trim stuck after an orbit.* See the test pilot note under uniform lift: after ten turns at 45°, the frozen roll trim held the glider at −9° for 6 min while the approach to the next thermal commanded −20°.
+- *Pitch damping.* It used X-Plane's body pitch rate `Q`, which in a steady turn is g·sin²φ / (V cos φ) (read live: 4.1–4.9 deg/s at 25°, against 4.3–4.9 computed; ~16 deg/s at 45°), and answered it nose-down. It now uses `theta_dot`, the Euler pitch rate. The earlier missions flew with `Q`; their results are differences at matched conditions and do not change.
+- *Orbit radius.* It came from the TAS of the moment, which after a strong core can be 30% high; it now comes from the commanded IAS.
