@@ -20,9 +20,16 @@ The goal is to turn X-Plane 12 into a Condor 3–style soaring simulator, leavin
 
 Practical consequences of this principle:
 
-- Every source of lift (thermal, ridge, wave, convergence) comes from a single atmospheric model, never from isolated effects.
+- There is a single atmosphere, and it is XP12's. Our model refines it and never contradicts it: wind, temperature, cloud base and clouds come from XP12, and every source of lift we add (thermal, wave, convergence) is derived from that air, never from isolated effects.
 - What you see (cumulus, circling gliders, dust) must be a consequence of the model, not independent decoration.
 - AI gliders and the player feel exactly the same air at the same point.
+
+**Second principle: native first (complement, do not compete).** XP12's weather is good, and it already models some soaring lift. The project adds to it instead of replacing it (decided 2026-11-02):
+
+- Whatever XP12 does well natively, we use as it is. The plugin only adds what is missing.
+- Native effects are better physics than ours: XP12 moves the air itself, so the flight model, and the aircraft's vario, TE and netto, see a real vertical air current. Ours can only be a force on the aircraft (see injection physics). A force is the fallback for what XP12 cannot do, not the default.
+- No effect is ever applied twice: each lift source is either native or ours, decided per phenomenon and recorded in [Native soaring in XP12](#native-soaring-in-xp12).
+- Decisions about what to keep native are made with measurements (phase 0), not with forum reports.
 
 **Differentiator versus Condor:** Condor only has the regions someone built; XP12 has the whole world. The long-term goal is "Condor anywhere in the world", with thermals that are born where they should be according to the real terrain.
 
@@ -145,12 +152,14 @@ The plugin is slow and depends on calibration by design, not because it is writt
 
 ## Gap between Condor and XP12
 
-Almost everything that defines Condor can be built in XP12 with a plugin; the exception is glider polars, which depend on each aircraft.
+Almost everything that defines Condor can be built in XP12 with a plugin; the exception is glider polars, which depend on each aircraft. The second column is what XP12 does natively; see the next section for details and the phase 0 audit that measures it.
 
 | Condor pillar | State in XP12 today | Possible with a plugin? |
 | --- | --- | --- |
-| Coherent thermals (life cycle, cumulus, drift) | Very basic | Yes, it is the core of the project |
-| Ridge, wave, convergence | Does not exist | Yes, with terrain probes and wind |
+| Coherent thermals (life cycle, cumulus, drift) | Native thermals tied to cumulus, reported unreliable (*verify*) | Yes, it is the core of the project |
+| Ridge | Native, reported good (*verify*) | Use native; add only measured gaps |
+| Wave | No evidence it is modeled (*verify*) | Yes, from XP12's wind and stability over the terrain |
+| Convergence | No | Yes |
 | Triggers by ground type | No | Yes, with data preprocessed offline |
 | Aerotow and winch | Exist natively | *Verify* how well they work |
 | TE/netto vario and flight computer | Depends on each aircraft | Yes: own vario + XCSoar via NMEA |
@@ -158,6 +167,36 @@ Almost everything that defines Condor can be built in XP12 with a plugin; the ex
 | Weather briefing, IGC, replay | No | Yes |
 | Accurate polars | Depends on each aircraft | Partial: can be measured and validated, not corrected |
 | Multiplayer | Weak for soaring | Yes, with a shared seed (later) |
+
+## Native soaring in XP12
+
+XP12 already models some soaring lift. Following the native-first principle, this section records what it does, who owns each phenomenon, and what is still unknown. Everything here comes from Laminar's documentation and forum reports, so it is *verify* until the phase 0 native audit (tests H–J in [baseline.md](baseline.md)) measures it.
+
+**What is reported (checked 2026-11-02)**
+
+- **Thermals.** Laminar's [flight model report](https://developer.x-plane.com/article/x-plane-12-flight-model-report/) says thermals are tied to cumulus clouds so gliders can find them, rise to the cloud tops, and fade out below ~100 m AGL. They are switched on in *Customize Weather*. Forum users report that not every cumulus has lift, that thermals are unreliable, and (disputed) that with real weather the thermal slider stays at 0. Nothing is reported about a sink ring, a life cycle, a daily cycle or blue thermals.
+- **Ridge.** Laminar calls the ridge model good, and the [manual](https://www.x-plane.com/manuals/desktop/) describes riding a windward slope to 10,000 ft with a 25 kt wind. Juan Luis flew it and it works. Forum reports are mixed: one user measured more than 1300 ft/min in 25 kt, another found only sink on slopes, and one notes that lift depends only on the local slope angle, with no venturi or chimney effect.
+- **Wave.** No source confirms that XP12 models lee waves or rotor; an older forum post says it does not.
+
+**Who owns what**
+
+| Phenomenon | Owner | Reason |
+| --- | --- | --- |
+| Wind, temperature, dew point, clouds, cloud base | XP12 | It is the atmosphere; we read it |
+| Ridge lift | **XP12** | Native air motion, reported good. We only measure it, and add lee sink, rotor or other gaps only if the audit shows they are missing and they do not stack with native lift |
+| Thermals | **To be decided in phase 1** | See the thermal strategy below |
+| Wave | **Plugin** | Not modeled natively (*verify* in test J) |
+| Convergence, streets | Plugin | Not modeled natively |
+
+**Thermal strategy (open decision)**
+
+Thermals are where the project adds the most. There are three ways to combine ours with XP12's:
+
+- **A. Replace.** Set native thermals to zero and apply our own, with the strength of the day and cloud base taken from XP12. Full control: bell profile, sink ring, life cycle, blue thermals, terrain triggers, and AI gliders that share the same air. Cost: the link to XP12's own cumulus is lost unless we draw our own.
+- **B. Anchor to XP12's clouds.** Keep XP12's cumulus as the truth and place our thermals under them. The most coherent option, but only possible if a plugin can learn where XP12 draws each cumulus, which the SDK probably does not expose (*verify*).
+- **C. Modulate native thermals.** Only drive the regional `sim/weather/region/thermal_rate_ms` (for example with a daily cycle). Minimal work, but it adds no structure (profile, sink ring, life cycle).
+
+Consequence for AI gliders: our AI cannot know where native lift is, because the SDK reports it only for the user's aircraft (`sim/weather/aircraft/thermal_rate_ms`) and per region. With native thermals (B or C) the AI could not circle in them and the gaggle would stop being a reliable indicator. The same applies to native ridge: AI gliders that ridge-soar need an approximate ridge model of ours that matches what native ridge gives the player. This argues for A for thermals, but the decision is made with the audit's data.
 
 ## XP12 SDK capabilities and limits
 
@@ -170,7 +209,7 @@ The most important technical limit: XP12 does not allow injecting vertical air m
 - Returns 13 wind layers by height, temperature and dew point per layer, up to 3 cloud layers (type, coverage, base, top) and a `thermal_climb` field (climb rate due to thermals, m/s).
 - What a plugin writes with `setWeatherAtLocation` is added as one more sample to the simulated weather; `setWeatherAtAirport` replaces that airport's records. `eraseWeatherAtLocation` erases what the plugin itself injected. ([Laminar](https://developer.x-plane.com/sdk/XPLMSetWeatherAtAirport))
 - When writing clouds there is no way to say "keep the clouds as they are": the layers must be re-sent.
-- Uses in the project: **read** layered wind, temperature and dew point (cloud base, drift, strength of the day); **write** cumulus coverage and temperature layers consistent with the model; **neutralize** native thermals (`thermal_climb` set to zero) to avoid a double effect. *Verify* how XP12's native thermals behave today.
+- Uses in the project: **read** layered wind, temperature and dew point (cloud base, drift, strength of the day); **write** as little as possible (native first), for example cumulus coverage if our thermals need it; **neutralize** native thermals (`thermal_climb` set to zero) only if the thermal strategy is A. *Verify* how XP12's native thermals behave today (test I).
 - Native thermal datarefs in XP 12.4.3 (`DataRefs.txt`): `sim/weather/region/thermal_rate_ms` (writable, regional climb rate) and `sim/weather/aircraft/thermal_rate_ms` (read-only, what the aircraft experiences). The old `sim/weather/thermal_rate_ms` is marked as replaced.
 
 **Relationship with XP12's native weather**
@@ -181,8 +220,9 @@ The plugin works *on top of* the native weather, never instead of it. Whether th
 | --- | --- | --- |
 | Wind by layer, temperature, dew point, pressure, visibility | XP12 (real or manual weather) | Reads it as input: cloud base, thermal top, drift, strength of the day |
 | Frontal and layered clouds, rain | XP12 | Reads coverage for cloud shadow; does not touch them |
-| Native thermals | XP12 | Sets them to zero while active, so lift is not applied twice; restores them when disabled |
-| Local lift (thermal, ridge, wave) | Plugin | Applied as forces on the aircraft |
+| Native thermals | XP12 | Depends on the thermal strategy: with A, sets them to zero while active and restores them when disabled; with B or C, keeps or modulates them |
+| Ridge lift | XP12 | Uses it as is; adds only measured gaps |
+| Local lift we add (thermal, wave, convergence) | Plugin | Applied as forces on the aircraft |
 | Cumulus marking each thermal | Plugin | Drawn by the plugin (method to be decided in phase 2) |
 
 - Everything the plugin writes must be undone when it is disabled or X-Plane closes (`eraseWeatherAtLocation`, restore the native thermal rate). Never use `endWeatherUpdate(isIncremental=0)`, which wipes everyone's injected weather.
@@ -359,12 +399,14 @@ F = \frac{m \, g \, w}{V_{TAS}}
 - Explicit, documented coordinate system (for example east-north-up in meters relative to a local origin), with correct lat/lon conversion including cos(lat).
 - Sample points: center, left and right wing tips (perpendicular to heading, at the real or configured span) and tail (behind, on the longitudinal axis).
 - **Roll:** proportional to the lift difference between wing tips, attenuated by the current bank angle (shorter lever arm). *Verify* whether it should depend inversely on airspeed.
+  - Resolved by analysis (2026-11-02, `xp_gliding/engine/injection.py`): a vertical air velocity that varies linearly along the span, w(y) = g·y, changes each wing station's angle of attack exactly as a roll rate p = g does. The rolling moment is therefore the aircraft's own roll damping applied to that rate, L = ¼ ρ V S b² C_lp g, with C_lp from the wing's aspect ratio (Helmbold lift slope) and a generic taper correction. It grows with airspeed, not inversely, and needs only span and wing area, which the adapter reads from the aircraft. Bank attenuation comes out of the geometry: the tips are sampled at their real 3D positions, so a banked wing spans less horizontal distance. *Verify* the feel in test F terms once the adapter exists.
+  - The energy uses the span average of the three wing samples (Simpson's rule). Pitch from the tail sample and the transient load factor when entering lift ("the seat kick") are not modeled yet: the energy force gives the right climb but a softer entry. Both are to be measured in phase 1.
 - **Pitch:** proportional to the difference between lift at the wings/center and at the tail.
 - **Total lift:** correct average of the samples (without the hidden 4/3 factor).
 
 **Neutralize double effects**
 
-- Set X-Plane's native thermals to zero (`thermal_climb` in the weather API) while the plugin is active.
+- Never stack our lift on top of a native effect of the same kind. With thermal strategy A, set X-Plane's native thermals to zero (`thermal_climb` in the weather API) while the plugin is active. Native ridge is left alone, so any ridge correction of ours must be designed as a difference from it, not a second ridge.
 - Option to enable or disable only the thermal effect without disabling the plugin (issue #30).
 
 **Known limitation**
@@ -379,7 +421,20 @@ Thermals move from static cones to objects with a realistic profile, a life cycl
 
 - Bell-shaped core, not a linear cone.
 - **Sink ring** around the core (Allen / Lenschow model). This is what teaches centering.
+  - Finding (2026-11-02, from the paper): in Allen's model the ring exists only above z/zi = 0.5 and is weak, about −0.1 m/s on a mean day; lower down the only sink is the uniform environment sink (about −0.13 m/s). That is probably too gentle to teach centering. Whether to strengthen it is decided by flying, as a documented deviation from the paper.
 - Turbulence and gusts at the edge: the physical cue a pilot uses to know they entered or left.
+
+**Engine implementation (phase 1, started 2026-11-02)**
+
+The engine's thermal model lives in `xp_gliding/engine/` and is tested outside the simulator (`tests/`, run with the Python 3.12 venv made from XPPython3's own interpreter) and plotted with `tools/engine_plots/plot_engine.py`. It does not depend on the thermal strategy as long as it is A or B; under C it would not be needed.
+
+- **Profile: Allen (2006)**, "Updraft Model for Development of Autonomous Soaring Uninhabited Air Vehicles" (AIAA 2006-1510, NASA NTRS 20060004052), in `updraft.py`. It gives the outer radius r2 and mean updraft from w*, zi and z (Lenschow and Stephens 1980), a bell shape fitted to Konovalov's measured profiles, the toroidal downdraft and the environment sink from conservation of mass. The transcription reproduces the paper's check case (its Fig. 12) and Fig. 10 within reading accuracy; tests pin both.
+  - The paper's Table 3 prints a k4 column that its own code does not use; the code's column is the one that makes the bell reach zero near r2, and it is the one implemented.
+  - The mean updraft peaks at 0.45 w* at z/zi = 1/4.4 and turns negative above z/zi = 1/1.1, so thermals stop about 10% below zi. Mapping zi to XP12's cloud base must take that into account (phase 2).
+  - With mean-day numbers the outer radius is ~80–110 m at mid heights, about an ASK 21's turn radius at 35–45° of bank. Real-world experience says that is narrow but flyable; to check by flying.
+- **Two deviations from the paper,** both to avoid lift jumps the pilot would feel, each switchable to reproduce the paper exactly: the shape table is blended between rows instead of picking the nearest row (the paper's rule jumps ~0.2 m/s at about 60 m AGL on a mean day as r2 grows with height), and the stretch toward the environment sink is applied at every radius instead of only outside the core.
+- **Field** (`field.py`): thermals are generated per tile of a global 0.02° lat/lon grid and per time slot, each with its own random stream keyed by (seed, day, tile, slot), using a portable splitmix64 generator (`rng.py`). The same inputs give the same sky whatever the player's path or the local origin. Births are a Poisson process with Allen's density (Eq. 20 at z/zi = 0.4: 4.5 thermals/km² for zi = 1400 m) and lifetimes of 5–30 min (Allen). A life-cycle envelope grows each thermal from narrow and weak to full size and fades it out, so nothing appears or vanishes abruptly. Lift is the environment sink plus the sum of nearby thermals' perturbations (Allen uses only the nearest updraft, which jumps where two overlap).
+- **Cost in XPPython3's Python 3.12:** 5–10 µs per sample point, so ~40 µs per frame for 4 points; first load of a 10 km radius (~9000 thermals over two slots) 42 ms; crossing into a new row of tiles ~3 ms.
 
 **Vertical profile**
 
@@ -433,18 +488,19 @@ Thermals move from static cones to objects with a realistic profile, a life cycl
 
 ## Ridge, wave and convergence
 
-Ridge and wave open types of flying that do not exist in X-Plane today; together with the XCSoar output and cumulus with a life cycle, they are the three highest-impact ideas.
+Wave opens a type of flying that, as far as we know, does not exist in X-Plane today; together with the XCSoar output and cumulus with a life cycle, it is one of the three highest-impact ideas. Ridge is already native (see [Native soaring in XP12](#native-soaring-in-xp12)).
 
 **Ridge lift**
 
-- With XP12's layered wind and terrain sampled with terrain probes, compute the wind component hitting the slope and turn it into lift.
-- Include lee-side sink.
-- Implementation: a few probes per frame, or a precomputed terrain grid around the aircraft refreshed every few seconds.
+- Native first: the player flies XP12's own ridge lift. Test H measures it (strength against wind and slope, lee-side sink).
+- Only if the audit shows gaps (for example no lee sink, no rotor, no venturi), add them as a correction on top of native ridge, never as a second ridge.
+- AI gliders still need an approximate ridge model of ours to ridge-soar, tuned so that it matches what native ridge gives the player (from test H). Same method as before: XP12's layered wind against terrain sampled with probes, or a precomputed terrain grid refreshed every few seconds.
 
 **Mountain waves**
 
 - Standing waves downwind of mountain ranges: smooth, huge lift above, turbulent rotor below.
-- Almost no simulator models them well outside Condor; in areas with large ranges it is spectacular.
+- Almost no simulator models them well outside Condor; in areas with large ranges it is spectacular. Test J checks that XP12 does not model them already.
+- Inputs come from XP12: wind by layer and stability (temperature profile).
 - Implementation: linear mountain-wave theory over the terrain grid (FFT with numpy), recomputed every few minutes, never per frame.
 
 **Convergence lines**
@@ -503,7 +559,7 @@ A glider enters a thermal by chance or because of what it sees; it leaves on rea
 
 **Architecture**
 
-- Inside the same plugin, not a separate plugin: the AI shares the thermal list and climbs at exactly the rate the player would climb at that point. That makes the gaggle a reliable indicator.
+- Inside the same plugin, not a separate plugin: the AI shares the thermal list and climbs at exactly the rate the player would climb at that point. That makes the gaggle a reliable indicator. This only holds for lift our model knows about; native lift is invisible to the AI (see the thermal strategy).
 - Kinematic puppets drawn with the instance API, with simplified glide physics: polar (sink rate vs. speed) plus the model's lift where they are.
 - Between 10 and 20 gliders; minimum version with 5. The per-frame computation in Python is trivial.
 - Visible on TCAS via TCAS override; release control if another traffic plugin needs it.
@@ -592,24 +648,29 @@ Phases 1 to 3 alone would deliver something clearly better than what exists toda
      - [x] XPPython3 4.7.1 installed and verified (2026-11-02).
      - [x] Alex's plugin (`082dd7d`) installed flat in `PythonPlugins/` (2026-11-02).
      - [x] Per-frame flight logger and offline analyzer in `tools/flightlog/`; protocol and code-reading predictions in [baseline.md](baseline.md).
-     - [ ] Fly the protocol and fill in the results.
+     - [ ] Fly the protocol and fill in the results. Test A (still-air polar) done at KHOB on 2026-11-02, by hand and then by the automatic test pilot (`tools/testpilot/`, flies through X-Plane's local web API), which agree within ~0.02 m/s: Laminar's ASK 21 sinks ~0.86 m/s at sea level from 77 to 90 km/h and has a best glide of ~31 at 100 km/h, worse than the real glider at low speed (details in [baseline.md](baseline.md)).
+     - [ ] Native audit (tests H–J): XP12's own ridge, thermals and (possible) wave, with the reference plugin disabled.
    - Measure climb rates, roll feel and FPS; review issue #34.
-   - *Done when:* there are written measurements to compare against later ([baseline.md](baseline.md)).
+   - *Done when:* there are written measurements to compare against later ([baseline.md](baseline.md)), including what XP12 does natively.
 1. **Thermal engine and correct physics**
+   - Decide the thermal strategy (A, B or C) with the data from tests I and the AI-glider consequence.
    - New repository with the engine / adapter split.
    - Energy-based physics, per-frame flight loop, correct wing/tail geometry, spatial grid.
    - Profile with sink ring, variation with height, life cycle without abrupt disappearances, deterministic generation with cos(lat).
+     - [x] Engine, offline only (2026-11-02): ENU frame with WGS84 radii, Allen profile reproducing the paper's check case, deterministic tiled field with life cycle and spatial grid, energy-force and gust-roll math. 41 tests. Valid for thermal strategies A and B. See [Engine implementation](#thermal-model).
+     - [ ] XP12 adapter (`PI_xp_gliding.py`): datarefs, per-frame flight loop, forces, enable/disable, native thermals per the strategy.
+     - [ ] First flight with the engine, compared against the phase 0 baseline.
    - *Done when:* the Laminar ASK 21 climbs ~w m/s above its sink rate without calibration, at different FPS, and a second glider does the same with no changes.
 2. **XP12 atmosphere and coherent cumulus**
    - Reading of layered wind, temperature and dew point; cloud base and layered drift.
-   - Native thermals neutralized; cumulus with a life cycle synchronized with their thermal; daily cycle and cloud shadow.
+   - Native thermals neutralized or kept, per the thermal strategy; cumulus with a life cycle synchronized with their thermal; daily cycle and cloud shadow.
    - *Done when:* a thermal can be found just by looking at the clouds.
 3. **Instrumentation**
    - Own audio vario (TE and netto), NMEA output to XCSoar.
    - *Done when:* XCSoar on a tablet shows position and vario in real time.
-4. **Ridge and wave**
-   - Ridge lift with lee-side sink; wave with rotor.
-   - *Done when:* a ridge can be flown with perpendicular wind and wave can be climbed downwind of a range.
+4. **Wave, and ridge gaps**
+   - Wave with rotor. Ridge stays native; add only the gaps measured in test H (for example lee-side sink), plus the AI glider's approximate ridge model.
+   - *Done when:* wave can be climbed downwind of a range, and native ridge flying is unchanged or better with the plugin on.
 5. **Terrain triggers**
    - Offline tool for probability maps and loading them in the engine.
    - *Done when:* thermals appear preferentially over dry ground and sunlit slopes.
@@ -633,6 +694,8 @@ These questions do not have an answer yet; they are resolved in the phase indica
 - [ ] What is missed most from Condor when flying gliders in XP12? The answer decides where to start within each phase.
 - [ ] AI gliders: do they take off from an airfield or appear airborne? (phase 6)
 - [ ] Main use: full-size gliders, RC, or both?
+- [ ] Thermal strategy: replace, anchor to XP12's clouds, or modulate native thermals (A, B or C)? (phase 1, after test I)
+- [x] Relationship with XP12's weather: **native first, complement instead of compete** (2026-11-02). See the second principle in the vision.
 - [x] Reference glider: **the Laminar Schleicher ASK 21 that ships with XP12**. All tuning and measurements are done with it first; a second aircraft (for example the NHAdrian ASK 21) is only used to check that nothing depends on per-aircraft calibration.
 - [x] Repository and project name: **xp-gliding**.
 - [x] License and visibility: **GPL-3.0-or-later, public repository**.
@@ -641,10 +704,17 @@ These questions do not have an answer yet; they are resolved in the phase indica
 **Technical verifications**
 
 - [ ] Does X-Plane reset the `_plug_acf` datarefs every flight-model cycle? (phase 1)
-- [ ] Best way to apply the energy-based force: along the flight path, vertical, or split? (phase 1)
+- [ ] Best way to apply the energy-based force: along the flight path, vertical, or split? (phase 1) The engine applies it along the air-relative velocity (split into body axes with α and β); the signs of β and of each `*_plug_acf` axis must be checked in the simulator.
+- [ ] Do results change with X-Plane's number of flight-model runs per frame? (raised by Juan Luis, 2026-11-02) It may affect the glider's own polar and, more likely, plugin forces written per frame (see prediction 3 in [baseline.md](baseline.md)). Some day, repeat test A and a calibration segment with the test pilot at two settings and compare; record the setting used in every measurement from now on.
+- [ ] Is Allen's sink ring (about −0.1 m/s, only above 0.5 zi) enough to teach centering, or does it need strengthening? (phase 1, by flying)
+- [ ] How does zi relate to XP12's cloud base, given that Allen's thermals stop about 10% below zi? (phase 2)
+- [ ] Are Allen's mean-day thermal radii (~80–110 m) wide enough to circle an ASK 21 in? (phase 1, by flying)
 - [x] Which Python version does XPPython3 use, and can numpy be installed in it? **Python 3.12; numpy is auto-installed since v4.4.** Confirmed on 2026-11-02: XPPython3 4.7.1 bundles Python 3.12.2 and installed numpy 2.5.4 on first launch.
 - [x] Does stu-speed/xppython3-atmos overlap with this project or offer something reusable? **Partly overlaps in scope (ridge, wave, cumulus lift), but it is design docs only, AGPL-3.0, and plans to write vertical wind datarefs that XP 12.4.3 does not have.** Nothing to reuse beyond ideas; details in the XPPython3 section.
-- [ ] How do XP12's native thermals behave and how can they be neutralized reliably? (phase 2)
+- [ ] How do XP12's native thermals behave and how can they be neutralized reliably? (test I, phase 0)
+- [ ] How good is XP12's native ridge lift: strength against wind and slope, lee-side sink, rotor? (test H, phase 0)
+- [ ] Does XP12 model mountain waves at all? (test J, phase 0)
+- [ ] Can a plugin learn where XP12 draws each cumulus (needed for thermal strategy B)? (phase 1)
 - [ ] Which method suits per-thermal cumulus? Alex's plugin draws an instanced 3D object at cloud base; the weather API is regional. (phase 2)
 - [ ] How well do XP12's native aerotow and winch work?
 - [ ] Global land-cover and elevation data sources, and their licenses. (phase 5)
@@ -658,6 +728,8 @@ These questions do not have an answer yet; they are resolved in the phase indica
 - [thermal_model.py](https://github.com/alexferrer/xplane_thermals/blob/master/thermal_model.py)
 - [Plugin open issues](https://github.com/alexferrer/xplane_thermals/issues)
 - [thermal.kk7.ch — thermal hotspots](https://thermal.kk7.ch/)
+- [Allen, M. J., "Updraft Model for Development of Autonomous Soaring Uninhabited Air Vehicles", AIAA 2006-1510 (NASA NTRS 20060004052)](https://ntrs.nasa.gov/citations/20060004052)
+- Lenschow, D. H. and Stephens, P. L., "The Role of Thermals in the Convective Boundary Layer", Boundary-Layer Meteorology 19, 1980, pp. 509–532 (source of Allen's radius, strength and spacing laws)
 - [XPPython3 — XPLMWeather](https://xppython3.readthedocs.io/en/beta/development/modules/weather.html)
 - [XPPython3 — weather data structure](https://xppython3.readthedocs.io/en/latest/development/modules/weather.html)
 - [XPPython3 — XPLMPlanes](https://xppython3.readthedocs.io/en/latest/development/modules/planes.html)
@@ -667,3 +739,6 @@ These questions do not have an answer yet; they are resolved in the phase indica
 - [Laminar — Overriding TCAS and providing traffic information](https://developer.x-plane.com/article/overriding-tcas-and-providing-traffic-information/)
 - [Laminar — TCAS resolution advisories and plugin traffic (12.4.1)](https://developer.x-plane.com/?p=41277)
 - [TwinFan/XPPlanes (XPMP2)](https://github.com/TwinFan/XPPlanes)
+- [Laminar — X-Plane 12 flight model report](https://developer.x-plane.com/article/x-plane-12-flight-model-report/)
+- [X-Plane 12 desktop manual](https://www.x-plane.com/manuals/desktop/)
+- X-Plane.org forum, XP12 Gliding: [Gliding in X-Plane 12](https://forums.x-plane.org/forums/topic/271830-gliding-in-x-plane-12/), [Automatic thermals?](https://forums.x-plane.org/forums/topic/276240-automatic-thermals/), [Personal thoughts and FAQ suggestions for gliding in XP12](https://forums.x-plane.org/forums/topic/306594-personal-thoughts-and-faq-suggestions-for-gliding-in-xp12/), [Gliding is broken in 12.0.9](https://forums.x-plane.org/forums/topic/302753-gliding-is-broken-doesnt-work-in-1209/)
