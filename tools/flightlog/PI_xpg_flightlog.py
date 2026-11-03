@@ -18,8 +18,13 @@ everything else and the same forces again ("post_" columns) and writes the row.
 Comparing pre/post shows whether X-Plane resets those datarefs every cycle.
 
 If Alex Ferrer's xplane_thermals plugin is loaded, its shared `world` module
-is read (never written) to log what its thermal model asked for ("alex_"
-columns). Phase 0 only; remove those columns when the reference plugin goes.
+is read to log what its thermal model asked for ("alex_" columns). So that the
+test pilot can run the calibration tests from outside, a few of its settings
+are also exposed as datarefs (`xp_gliding/flightlog/alex_*`, see
+ALEX_CONTROLS; the last two are read-only); nothing writes them unless asked. Writing them does not save
+Alex's preferences, but his plugin saves its current settings when X-Plane
+closes, so restore them before quitting. Phase 0 only; remove all of this when
+the reference plugin goes.
 
 License: GPL-3.0-or-later.
 """
@@ -30,7 +35,7 @@ import time
 
 import xp
 
-LOGGER_VERSION = "0.1.0"
+LOGGER_VERSION = "0.2.0"
 FLUSH_EVERY_ROWS = 300
 
 # (column, dataref, type) read after the flight model
@@ -85,6 +90,18 @@ ALEX_FIELDS = (
     ("alex_pitch_factor", "pitch_factor"),
 )
 
+# (dataref suffix, attribute of Alex's `world` module, X-Plane type, writable)
+# exposed as xp_gliding/flightlog/<suffix>
+ALEX_CONTROLS = (
+    ("alex_enabled", "PLUGIN_ENABLED", "i", 1),
+    ("alex_cal_mode", "CALIBRATE_MODE", "i", 1),
+    ("alex_cal_ms", "calibrate_factor_ms", "f", 1),
+    ("alex_lift_factor", "lift_factor", "f", 1),
+    ("alex_thrust_factor", "thrust_factor", "f", 1),
+    ("alex_lift_ms", "cal_lift_force", "f", 0),
+    ("alex_dist_m", "distance_from_center", "f", 0),
+)
+
 COLUMNS = (
     [c for c, _, _ in STATE_DATAREFS]
     + ["pre_" + c for c, _ in FORCE_DATAREFS]
@@ -100,6 +117,30 @@ def _alex_world():
     if world is not None and hasattr(world, "lift_factor") and hasattr(world, "CALIBRATE_MODE"):
         return world
     return None
+
+
+def _read_alex_int(attr):
+    world = _alex_world()
+    return int(bool(getattr(world, attr, 0))) if world is not None else -1
+
+
+def _write_alex_int(attr, value):
+    world = _alex_world()
+    if world is not None:
+        setattr(world, attr, bool(value))
+
+
+def _read_alex_float(attr):
+    world = _alex_world()
+    return float(getattr(world, attr, 0.0)) if world is not None else -1.0
+
+
+def _write_alex_float(attr, value):
+    world = _alex_world()
+    if world is not None:
+        old = getattr(world, attr, 0.0)
+        # Keep ints as ints: Alex's sliders are imgui int sliders.
+        setattr(world, attr, int(round(value)) if isinstance(old, int) else float(value))
 
 
 def _fmt(value):
@@ -137,6 +178,21 @@ class PythonInterface:
         xp.appendMenuItemWithCommand(self.menu, "Start / stop recording", self.toggle_cmd)
         xp.appendMenuItemWithCommand(self.menu, "Next mark", self.mark_cmd)
 
+        self.alex_refs = []
+        for suffix, attr, kind, writable in ALEX_CONTROLS:
+            name = "xp_gliding/flightlog/" + suffix
+            if kind == "i":
+                ref = xp.registerDataAccessor(name, xp.Type_Int, writable,
+                                              readInt=_read_alex_int,
+                                              writeInt=_write_alex_int if writable else None,
+                                              readRefCon=attr, writeRefCon=attr)
+            else:
+                ref = xp.registerDataAccessor(name, xp.Type_Float, writable,
+                                              readFloat=_read_alex_float,
+                                              writeFloat=_write_alex_float if writable else None,
+                                              readRefCon=attr, writeRefCon=attr)
+            self.alex_refs.append(ref)
+
         self.pre_loop = xp.createFlightLoop(self.before_fm, xp.FlightLoop_Phase_BeforeFlightModel, None)
         self.post_loop = xp.createFlightLoop(self.after_fm, xp.FlightLoop_Phase_AfterFlightModel, None)
         return self.Name, self.Sig, self.Desc
@@ -145,6 +201,8 @@ class PythonInterface:
         self.stop_recording()
         xp.destroyFlightLoop(self.pre_loop)
         xp.destroyFlightLoop(self.post_loop)
+        for ref in self.alex_refs:
+            xp.unregisterDataAccessor(ref)
         xp.unregisterCommandHandler(self.toggle_cmd, self.on_toggle, 1, None)
         xp.unregisterCommandHandler(self.mark_cmd, self.on_mark, 1, None)
         xp.destroyMenu(self.menu)

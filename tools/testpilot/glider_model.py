@@ -1,7 +1,7 @@
 """Crude glider model to exercise the test pilot offline (not a flight model).
 
-Point mass in the vertical plane plus a second-order short-period mode and a
-first-order roll mode, with ASK 21-like numbers (540 kg, 17.95 m2, aspect
+Point mass in the vertical plane plus a second-order short-period mode, a
+first-order roll mode and a coordinated turn over flat ground, with ASK 21-like numbers (540 kg, 17.95 m2, aspect
 ratio 16.1, best glide ~31). It only has to react to the yoke the way a glider
 roughly does (pitch attitude first, then speed over the phugoid) so that the
 control laws, their signs and their sample rate can be checked before flying
@@ -30,6 +30,8 @@ class GliderModel:
         self.v, self.gamma, self.theta, self.q = v, gamma, gamma + self.alpha0, 0.0
         self.phi, self.p = 0.0, 0.0
         self.h = 0.0
+        self.psi, self.east, self.north = 0.0, 0.0, 0.0  # heading (rad), position (m)
+        self.wind_en = (0.0, 0.0)  # wind velocity towards east, north (m/s)
         self.yoke_pitch = self.yoke_roll = 0.0
 
     def step(self, dt):
@@ -47,6 +49,10 @@ class GliderModel:
         self.h += self.v * math.sin(self.gamma) * dt
         self.p += (-self.lp * self.p + self.lda * self.yoke_roll + self.spiral * self.phi) * dt
         self.phi += self.p * dt
+        self.psi += G * math.tan(self.phi) / self.v * dt
+        vh = self.v * math.cos(self.gamma)
+        self.east += (vh * math.sin(self.psi) + self.wind_en[0]) * dt
+        self.north += (vh * math.cos(self.psi) + self.wind_en[1]) * dt
 
     # Readings in the units X-Plane's datarefs use.
     def ias_kmh(self):
@@ -63,6 +69,12 @@ class GliderModel:
 
     def p_dps(self):
         return math.degrees(self.p)
+
+    def track_deg(self):
+        vh = self.v * math.cos(self.gamma)
+        ve = vh * math.sin(self.psi) + self.wind_en[0]
+        vn = vh * math.cos(self.psi) + self.wind_en[1]
+        return math.degrees(math.atan2(ve, vn)) % 360.0
 
     def vs_ms(self):
         return self.v * math.sin(self.gamma)
