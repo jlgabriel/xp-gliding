@@ -1,0 +1,10 @@
+[project]
+name = "xp-gliding"
+description = "A soaring layer for X-Plane 12"
+license = "GPL-3.0-or-later"
+requires-python = ">=3.12"
+dynamic = ["version"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests", "tools"]
