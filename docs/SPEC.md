@@ -33,7 +33,7 @@ Practical consequences of this principle:
 
 **Differentiator versus Condor:** Condor only has the regions someone built; XP12 has the whole world. The long-term goal is "Condor anywhere in the world", with thermals that are born where they should be according to the real terrain.
 
-**Use cases:** full-size gliders and also RC gliders in X-Plane (RC thermal soaring). A thermal indicator on an RC HUD would be a natural add-on.
+**Use cases:** full-size gliders, starting with the Laminar ASK 21 that ships with XP12 (decided 2026-11-03). RC gliders in X-Plane (RC thermal soaring, with a thermal indicator on an RC HUD) were considered and are out of scope for now.
 
 ## Starting point: xplane_thermals
 
@@ -194,7 +194,7 @@ XP12 already models some soaring lift. Following the native-first principle, thi
 | Wave | **Plugin** | Not modeled natively (test J) |
 | Convergence, streets | Plugin | Not modeled natively |
 
-**Thermal strategy (open decision)**
+**Thermal strategy (decided 2026-11-03: A)**
 
 Thermals are where the project adds the most. There are three ways to combine ours with XP12's:
 
@@ -397,7 +397,8 @@ F = \frac{m \, g \, w}{V_{TAS}}
 **Per-frame execution**
 
 - Flight loop every frame (`return -1`), ideally synchronized with the flight model, so the force does not depend on FPS.
-- *Verify* whether the `_plug_acf` datarefs are reset every flight-model cycle, and document the behavior.
+- The `_plug_acf` datarefs are effectively reset every frame (test B, 2026-11-03): a force written before the flight model acts once and is cleared. DataRefs.txt says to *add* to them, so the adapter adds its force once per frame, from a before-flight-model flight loop, to the value read in that same frame. Because X-Plane clears them, that can never accumulate across frames, and it keeps any force another plugin wrote earlier in the frame. A plugin reading them after the flight model sees 0, so the adapter publishes the force and lift it applied in datarefs of its own, for logging and the test pilot.
+- Frame-rate independence measured (phase 1, 2026-11-03, [phase1.md](phase1.md)): with 1 m/s of uniform lift the climb gain is w within 0.002 m/s at 60, 30 and 20 fps (X-Plane's `--lock_fr=N` command-line option fixes a rate below the 60 fps cap). X-Plane integrates the per-frame force over each frame's time step.
 - Respect pause and replay; do not write to the log on every paused cycle.
 
 **Sampling geometry**
@@ -407,6 +408,8 @@ F = \frac{m \, g \, w}{V_{TAS}}
 - **Roll:** proportional to the lift difference between wing tips, attenuated by the current bank angle (shorter lever arm). *Verify* whether it should depend inversely on airspeed.
   - Resolved by analysis (2026-11-02, `xp_gliding/engine/injection.py`): a vertical air velocity that varies linearly along the span, w(y) = g·y, changes each wing station's angle of attack exactly as a roll rate p = g does. The rolling moment is therefore the aircraft's own roll damping applied to that rate, L = ¼ ρ V S b² C_lp g, with C_lp from the wing's aspect ratio (Helmbold lift slope) and a generic taper correction. It grows with airspeed, not inversely, and needs only span and wing area, which the adapter reads from the aircraft. Bank attenuation comes out of the geometry: the tips are sampled at their real 3D positions, so a banked wing spans less horizontal distance. *Verify* the feel in test F terms once the adapter exists.
   - The energy uses the span average of the three wing samples (Simpson's rule). Pitch from the tail sample and the transient load factor when entering lift ("the seat kick") are not modeled yet: the energy force gives the right climb but a softer entry. Both are to be measured in phase 1.
+  - Roll sign checked in flight (2026-11-03): more lift under the right wing rolls the glider left. The adapter reads span, wing area, taper and tail arm from the aircraft's `.acf` (Plane Maker's wing parts), because the SDK does not expose the parts' positions.
+  - **Climbing-turn overbanking (found in flight, 2026-11-03).** A force makes the glider climb *relative to the air*, while in real rising air it still descends relative to it. In a turn each wing station has a different airspeed V(y), so the climb lowers each station's angle of attack by a different w / V(y), equivalent to a spanwise gradient of −w·r / V (r yaw rate). That makes the outer wing lift more, and the glider overbanks: a 35° circle in 2 m/s ran away to 46°. The adapter adds +w·r / V to the roll moment's gradient (`helix_gradient`), which removes ~63% of the extra stick the artifact asks for. Revisit the size with test F (feel).
 - **Pitch:** proportional to the difference between lift at the wings/center and at the tail.
 - **Total lift:** correct average of the samples (without the hidden 4/3 factor).
 
@@ -613,7 +616,7 @@ The most laborious part is not programming it but tuning the behavior so it look
 
 The NMEA output to XCSoar is the integration with the best effort-to-value ratio: it reuses an existing, excellent real flight computer.
 
-- **Own audio vario** with TE and netto modes, because many XP12 gliders have poor varios and force-based injection can confuse the netto of the aircraft's instruments.
+- **Own audio vario** with TE and netto modes, because many XP12 gliders have poor varios and force-based injection can confuse the netto of the aircraft's instruments. Optional since 2026-11-03: the vario will come from XCSoar, fed through the NMEA output below (XCSoar computes it from the aircraft's energy, which includes our injected lift).
 - **NMEA output to XCSoar** on a tablet or PC: position and vario, so XCSoar works as a flight computer with thermal assistant and planning.
 - **FLARM traffic to XCSoar:** emit the AI gliders with the FLARM protocol (traffic sentences) so XCSoar shows them as real traffic, even marking which ones are circling and how fast they climb.
 - **IGC recorder** for XP12, to analyze flights in SeeYou or WeGlide. There is prior experience with an IGC recorder for Aerofly FS4.
@@ -657,24 +660,27 @@ Phases 1 to 3 alone would deliver something clearly better than what exists toda
      - [ ] Fly the protocol and fill in the results. Test A (still-air polar) done at KHOB on 2026-11-02, by hand and then by the automatic test pilot (`tools/testpilot/`, flies through X-Plane's local web API), which agree within ~0.02 m/s: Laminar's ASK 21 sinks ~0.86 m/s at sea level from 77 to 90 km/h and has a best glide of ~31 at 100 km/h, worse than the real glider at low speed (details in [baseline.md](baseline.md)).
      - [x] Native audit (tests H–J), flown by the test pilot on 2026-11-03: native ridge is a local slope model (wind × slope under the aircraft, fading with height), soarable close to the face; native thermals were not found and the setting only adds a uniform sink; no wave. See [Native soaring in XP12](#native-soaring-in-xp12).
      - [x] Tests B and C (Alex's calibration mode), 2026-11-03: exact at 90 km/h, 1.35× at 120 km/h; all the energy comes from the forward force (predictions 1 and 2 held).
-     - [ ] Still open: D (frame rate, needs a way to change it), E (Alex's thermals: his random map was generated far from the glider), F (feel, by hand), G (performance), and one hand-flown look for native thermals under cloud centers.
+     - [ ] Still open: D (frame rate; X-Plane's `--lock_fr=N` command-line option now makes it possible, and our plugin already passed it in phase 1), E (Alex's thermals: his random map was generated far from the glider), F (feel, by hand), G (performance), and one hand-flown look for native thermals under cloud centers.
    - Measure climb rates, roll feel and FPS; review issue #34.
    - *Done when:* there are written measurements to compare against later ([baseline.md](baseline.md)), including what XP12 does natively.
 1. **Thermal engine and correct physics**
-   - Decide the thermal strategy (A, B or C) with the data from tests I and the AI-glider consequence.
+   - [x] Decide the thermal strategy: **A, replace** (2026-11-03, from test I and the AI-glider consequence).
    - New repository with the engine / adapter split.
    - Energy-based physics, per-frame flight loop, correct wing/tail geometry, spatial grid.
    - Profile with sink ring, variation with height, life cycle without abrupt disappearances, deterministic generation with cos(lat).
      - [x] Engine, offline only (2026-11-02): ENU frame with WGS84 radii, Allen profile reproducing the paper's check case, deterministic tiled field with life cycle and spatial grid, energy-force and gust-roll math. 41 tests. Valid for thermal strategies A and B. See [Engine implementation](#thermal-model).
-     - [ ] XP12 adapter (`PI_xp_gliding.py`): datarefs, per-frame flight loop, forces, enable/disable, native thermals per the strategy.
-     - [ ] First flight with the engine, compared against the phase 0 baseline.
+     - [x] XP12 adapter (`PI_xp_gliding.py` + `xp_gliding/adapter/`, 2026-11-03): datarefs looked up once, before-flight-model loop every frame, energy force and gust roll moment with the climbing-turn correction, pause and replay respected, native thermals held at 0 and restored, menu and commands for the plugin and for the thermals alone (issue #30), its own datarefs for logging and the test pilot, settings in `Output/xp-gliding/config.json`. Installed with `tools/install_plugin.py`. See [phase1.md](phase1.md).
+     - [x] Uniform lift with the test pilot (test B with our physics, 2026-11-03): Δvs = w within 0.01 m/s at 90 and 120 km/h, from 1 to 3 m/s, straight and in a 35° circle, and at 60, 30 and 20 fps (Alex's plugin: 1.35 w at 120 km/h).
+     - [ ] Thermal hunt in the engine's field, comparing the measured climb with the engine's lift at the glider (`fly_phase1.py thermals`, ready; X-Plane kept hanging at start-up on 2026-11-03).
+     - [ ] A second glider, with no changes.
+     - [ ] Cost per frame with the field sampled (37–43 µs measured without sampling).
    - *Done when:* the Laminar ASK 21 climbs ~w m/s above its sink rate without calibration, at different FPS, and a second glider does the same with no changes.
 2. **XP12 atmosphere and coherent cumulus**
    - Reading of layered wind, temperature and dew point; cloud base and layered drift.
    - Native thermals neutralized or kept, per the thermal strategy; cumulus with a life cycle synchronized with their thermal; daily cycle and cloud shadow.
    - *Done when:* a thermal can be found just by looking at the clouds.
 3. **Instrumentation**
-   - Own audio vario (TE and netto), NMEA output to XCSoar.
+   - NMEA output to XCSoar; the vario comes from XCSoar (decided 2026-11-03), so an own audio vario is optional.
    - *Done when:* XCSoar on a tablet shows position and vario in real time.
 4. **Wave, and ridge gaps**
    - Wave with rotor. Ridge stays native; add only the gaps measured in test H (for example lee-side sink), plus the AI glider's approximate ridge model.
@@ -682,7 +688,7 @@ Phases 1 to 3 alone would deliver something clearly better than what exists toda
 5. **Terrain triggers**
    - Offline tool for probability maps and loading them in the engine.
    - *Done when:* thermals appear preferentially over dry ground and sunlit slopes.
-6. **AI gliders**
+6. **AI gliders** (moved to the very end, after phases 7 and 8; decided 2026-11-03)
    - Minimum version, then social behavior, cruise intelligence and FLARM traffic.
    - *Done when:* a gaggle forms by itself in a thermal discovered by an AI glider.
 7. **Briefing, IGC and replay**
@@ -699,10 +705,10 @@ These questions do not have an answer yet; they are resolved in the phase indica
 
 **Decisions for Juan Luis**
 
-- [ ] What is missed most from Condor when flying gliders in XP12? The answer decides where to start within each phase.
-- [ ] AI gliders: do they take off from an airfield or appear airborne? (phase 6)
-- [ ] Main use: full-size gliders, RC, or both?
-- [ ] Thermal strategy: replace, anchor to XP12's clouds, or modulate native thermals (A, B or C)? (phase 1, after test I)
+- [x] What is missed most from Condor when flying gliders in XP12? **Finding thermals by looking at the clouds** (2026-11-03). That makes coherent cumulus (phase 2) the priority right after the phase 1 physics. The vario is not a priority of its own: it will come from XCSoar through the NMEA integration (phase 3).
+- [ ] AI gliders: do they take off from an airfield or appear airborne? **Deferred** (2026-11-03): AI gliders go to the very end of the roadmap, after everything else.
+- [x] Main use: **full-size gliders only, and only the Laminar ASK 21 that ships with XP12 for now** (2026-11-03). RC is out of scope until further notice.
+- [x] Thermal strategy: **A, replace** (2026-11-03, after test I). Native thermals were not found and their setting only adds a uniform sink, so the plugin owns thermals and keeps the native setting at 0 while it is active. Until phase 2 draws its own cumulus, XP12's clouds will not match our thermals (fly it as a blue day).
 - [x] Relationship with XP12's weather: **native first, complement instead of compete** (2026-11-02). See the second principle in the vision.
 - [x] Reference glider: **the Laminar Schleicher ASK 21 that ships with XP12**. All tuning and measurements are done with it first; a second aircraft (for example the NHAdrian ASK 21) is only used to check that nothing depends on per-aircraft calibration.
 - [x] Repository and project name: **xp-gliding**.
@@ -712,8 +718,8 @@ These questions do not have an answer yet; they are resolved in the phase indica
 **Technical verifications**
 
 - [x] Does X-Plane reset the `_plug_acf` datarefs every flight-model cycle? **Effectively yes** (test B, 2026-11-03): Alex's add-to-current-value force gives exactly one application per frame; it would run away otherwise. A plugin reading them after the flight model sees 0, so they cannot be used to observe another plugin's force.
-- [ ] Best way to apply the energy-based force: along the flight path, vertical, or split? (phase 1) The engine applies it along the air-relative velocity (split into body axes with α and β); the signs of β and of each `*_plug_acf` axis must be checked in the simulator.
-- [ ] Do results change with X-Plane's number of flight-model runs per frame? (raised by Juan Luis, 2026-11-02) It may affect the glider's own polar and, more likely, plugin forces written per frame (see prediction 3 in [baseline.md](baseline.md)). Some day, repeat test A and a calibration segment with the test pilot at two settings and compare; record the setting used in every measurement from now on.
+- [x] Best way to apply the energy-based force: along the flight path, vertical, or split? **Along the air-relative velocity, split into body axes with α and β** (2026-11-03): it gives Δvs = w at every speed and bank tried ([phase1.md](phase1.md)). Signs, from DataRefs.txt and checked in flight: `faxil_plug_acf` positive pushes backward, `fside_plug_acf` right, `fnrml_plug_acf` up, `L_plug_acf` positive rolls right; X-Plane's β is positive with the nose right of the flight path.
+- [ ] Do results change with X-Plane's number of flight-model runs per frame? (raised by Juan Luis, 2026-11-02) Partly answered (2026-11-03): with `--lock_fr` the frame rate itself does not matter (20–60 fps give the same still-air sink and the same lift gain). `--fm_per_frame=4`, another command-line option found in `X-Plane.exe`, changed nothing at 20 fps, but no dataref confirms that it took effect.
 - [ ] Is Allen's sink ring (about −0.1 m/s, only above 0.5 zi) enough to teach centering, or does it need strengthening? (phase 1, by flying)
 - [ ] How does zi relate to XP12's cloud base, given that Allen's thermals stop about 10% below zi? (phase 2)
 - [ ] Are Allen's mean-day thermal radii (~80–110 m) wide enough to circle an ASK 21 in? (phase 1, by flying)
