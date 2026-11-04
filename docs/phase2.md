@@ -25,7 +25,7 @@ Off by default. For each marked thermal:
 - **At least 1.5 m/s at the core,** at the glider's height.
 - **At most 20,** the best by core lift minus a small cost of distance (0.5 m/s for 2.5 km, the same trade as the oracle in `fly_phase1.py`).
 
-A marker already shown stays with a margin (3.3 km, 1.2 m/s) and gets a ranking bonus, and one within 500 m of the glider cannot be ranked out, so the thermal being circled keeps its marker until it fades. The core is the thermal's own lift, without its neighbours, so where thermals overlap the air is stronger than the colour says.
+A marker already shown stays with a margin (3.3 km, 1.2 m/s) and gets a ranking bonus, and one within 500 m of the glider cannot be ranked out, so the thermal being circled keeps its marker until its core falls under 1.2 m/s (flown, see [Birth, death and popping](#birth-death-and-popping)). The core is the thermal's own lift, without its neighbours, so where thermals overlap the air is stronger than the colour says.
 
 **Controls.** Menu *Plugins → xp-gliding → Training markers*, command `xp_gliding/markers/toggle`, `markers_enabled` in `Output/xp-gliding/config.json`, and the writable dataref `xp_gliding/markers_enabled`. Read-only under `xp_gliding/markers/`: `count`, `created`, `destroyed`, `swapped`, `update_us`, `update_us_max`, `select_us` and the `probe_*` values of the marker nearest the glider; `light` is writable.
 
@@ -104,7 +104,20 @@ A marker appears and goes as a whole, since instances have no fade, but every ca
 | Circling in place at 800 m, climbing 1 m/s | 4.3 | 6.8 | 125 | 22 ranked out, 1 faded |
 | Circling in place at 1000 m, level | 4.3 | 3.2 | 170 | 22 ranked out, 1 faded |
 
-In flight: 140 created and 67 variant changes in 14 minutes of orbits, the count holding at 20. With so many thermals in reach, the limit of 20 decides most departures: a strong new thermal displaces a weaker one that is still alive, somewhere in the distance. Few reach the point of fading while shown. Near the glider that can no longer happen (see the protection above). That protection came from this table, is covered by a test, and has **not been flown yet**.
+In flight: 140 created and 67 variant changes in 14 minutes of orbits, the count holding at 20. With so many thermals in reach, the limit of 20 decides most departures: a strong new thermal displaces a weaker one that is still alive, somewhere in the distance. Few reach the point of fading while shown. Near the glider that can no longer happen (see the protection above). That protection came from this table.
+
+**The thermal being circled keeps its marker** (flown 2026-11-04, `fly_markers.py keep`, plugin at `2d9f2bc`, same air and start as above, 1287 m AGL). The test pilot circled, for 8 minutes at 84 m radius, a marked thermal 486 m from the start, with a 1.9 m/s core and 336 s left to live. Every 5 s the mission asked whether the nearest marker was that thermal, by distance and core.
+
+| Time from the start (s) | What happened |
+| --- | --- |
+| 0–204 | The nearest marker was the target at all 41 checks; its core went from 1.9 up to 2.2 and back down to about 1.2 m/s |
+| 158 | Without the protection it would have left here: a replay of the selection along the flown track, with `protect_m = 0` |
+| 204–209 | The marker went, as the core fell through the 1.2 m/s limit for a shown marker |
+| 335 | The thermal's life ended |
+
+So the protection did act in this flight, and gave the marker 46 s more. The marker then left on the lift limit, with the thermal still alive but too weak to help: under 1.2 m/s against the ASK 21's ~2 m/s of sink. The 158 s comes from the replay, not from a flight without the protection, and the replay chooses at the mission's 5 s checks rather than at the plugin's own moments. It gave 204 s with the protection, the same as the flight.
+
+It does not act often. An offline search from this start found no case in 270 (thermals within 2.5 km, heights from 600 to 1400 m, level or at 1 m/s up or down, circling at the thermal's centre), so whether it fires depends on the height and the moment. Being close already helps a thermal's rank, since distance has a cost.
 
 ## What X-Plane taught (for the cumulus)
 
