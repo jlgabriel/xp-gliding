@@ -8,11 +8,13 @@ active (enabled, and the user's aircraft is a glider unless `gliders_only` is
 off) and the sim is neither paused nor in replay, it reads the aircraft state,
 asks the engine for the lift, and adds the forces (see `core` and `xpio`).
 About once a second it keeps the thermal field loaded around the aircraft and
-re-checks the native thermal setting.
+re-checks the native thermal setting, and, half a second apart so that the two
+never share a frame, updates the training markers if they are on (`markers`).
 
 Commands (also in the Plugins > xp-gliding menu):
   xp_gliding/toggle            plugin effect on / off
   xp_gliding/thermals/toggle   our thermals on / off, the plugin stays loaded (issue #30)
+  xp_gliding/markers/toggle    training markers on / off (off by default)
 
 Datarefs (`xp_gliding/...`, see DATAREFS): settings and debug modes are
 writable, so the flight logger and the test pilot can read what the adapter
@@ -32,7 +34,8 @@ from .. import __version__
 from .aircraft import DEFAULT_GEOMETRY, read_acf_geometry
 from .config import load_settings
 from .core import AircraftState, Injection, Injector, NativeThermalGuard
-from .xpio import XPlaneIO
+from .markers import TrainingMarkers
+from .xpio import SkyObjects, XPlaneIO
 
 SLOW_PERIOD_S = 1.0
 TAG = "[xp-gliding]"
@@ -44,6 +47,7 @@ DATAREFS = (
     ("thermals_enabled", "settings", "thermals_enabled", "i", 1),
     ("roll_enabled", "settings", "roll_enabled", "i", 1),
     ("helix_enabled", "settings", "helix_enabled", "i", 1),
+    ("markers_enabled", "settings", "markers_enabled", "i", 1),
     ("seed", "settings", "seed", "i", 1),
     ("wstar_ms", "settings", "wstar_ms", "f", 1),
     ("zi_m", "settings", "zi_m", "f", 1),
@@ -67,6 +71,21 @@ DATAREFS = (
     ("native_saved_ms", "guard", "saved", "f", 0),
     ("span_m", "injector", "geometry.span_m", "f", 0),
     ("area_m2", "injector", "geometry.area_m2", "f", 0),
+    ("markers/light", "markers", "status.light", "f", 1),
+    ("markers/count", "markers", "status.count", "i", 0),
+    ("markers/created", "markers", "status.created", "i", 0),
+    ("markers/destroyed", "markers", "status.destroyed", "i", 0),
+    ("markers/swapped", "markers", "status.swapped", "i", 0),
+    ("markers/update_us", "markers", "status.update_us", "f", 0),
+    ("markers/update_us_max", "markers", "status.update_us_max", "f", 0),
+    ("markers/select_us", "markers", "status.select_us", "f", 0),
+    ("markers/probe_distance_m", "markers", "status.probe_distance_m", "f", 0),
+    ("markers/probe_local_distance_m", "markers", "status.probe_local_distance_m", "f", 0),
+    ("markers/probe_dy_m", "markers", "status.probe_dy_m", "f", 0),
+    ("markers/probe_core_ms", "markers", "status.probe_core_ms", "f", 0),
+    ("markers/probe_r1_m", "markers", "status.probe_r1_m", "f", 0),
+    ("markers/probe_size_m", "markers", "status.probe_size_m", "f", 0),
+    ("markers/probe_strength", "markers", "status.probe_strength", "i", 0),
 )
 
 
@@ -127,9 +146,11 @@ class PythonInterface:
         self.state = AircraftState()
         self.out = Injection()
         self.status = Status()
+        self.markers = TrainingMarkers(SkyObjects(), lambda text: print(f"{TAG} {text}"))
         self.eligible = False
         self.failed = False
         self.next_slow = 0.0
+        self.next_markers = 0.0
 
         self.datarefs = []
         for name, holder, attr, kind, writable in DATAREFS:
@@ -151,6 +172,8 @@ class PythonInterface:
              self.on_toggle, "enabled", "Enabled"),
             (xp.createCommand("xp_gliding/thermals/toggle", "xp-gliding: thermals on/off"),
              self.on_toggle, "thermals_enabled", "Thermals"),
+            (xp.createCommand("xp_gliding/markers/toggle", "xp-gliding: training markers on/off"),
+             self.on_toggle, "markers_enabled", "Training markers"),
         )
         self.menu_item = xp.appendMenuItem(xp.findPluginsMenu(), "xp-gliding", 0)
         self.menu = xp.createMenu("xp-gliding", xp.findPluginsMenu(), self.menu_item, None, None)
@@ -179,6 +202,7 @@ class PythonInterface:
     def XPluginDisable(self):
         xp.scheduleFlightLoop(self.loop, 0, 1)
         self.guard.release()
+        self.markers.shutdown()
         self.status.active = 0
         self.out.clear()
 
@@ -228,6 +252,7 @@ class PythonInterface:
             self.status.active = 0
             self.out.clear()
             self.guard.release()
+            self.markers.clear()
             return 0
 
     def step(self):
@@ -235,6 +260,9 @@ class PythonInterface:
         now = time.monotonic()
         active = st.enabled and self.eligible
         self.guard.want(active and st.thermals_enabled, now)
+        markers = active and st.thermals_enabled and st.markers_enabled
+        if not markers and self.markers.shown:
+            self.markers.clear()
         if not active or self.io.frozen():
             self.status.active = 0
             self.out.clear()
@@ -243,8 +271,13 @@ class PythonInterface:
         s = self.io.read_state(self.state)
         if now >= self.next_slow:
             self.next_slow = now + SLOW_PERIOD_S
+            self.next_markers = now + 0.5 * SLOW_PERIOD_S
             self.injector.slow_update(s)
             self.refresh_menu()
+        elif markers and now >= self.next_markers and self.injector.field is not None:
+            self.next_markers = now + SLOW_PERIOD_S
+            self.markers.update(self.injector.field, self.injector.frame, s, self.io.elevation_m(),
+                                self.io.local_position(), st.wstar_ms, st.zi_m, now)
         self.injector.step(s, self.out)
         self.io.apply(self.out)
         self.status.active = 1

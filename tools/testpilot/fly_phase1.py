@@ -71,8 +71,8 @@ from xpweb import XPlaneWebAPI  # noqa: E402
 
 G = 9.80665
 PREFIX = "xp_gliding/"
-SETTINGS = ("enabled", "thermals_enabled", "roll_enabled", "helix_enabled", "wstar_ms", "zi_m",
-            "seed", "debug/uniform_ms", "debug/dw_dy")
+SETTINGS = ("enabled", "thermals_enabled", "roll_enabled", "helix_enabled", "markers_enabled",
+            "wstar_ms", "zi_m", "seed", "debug/uniform_ms", "debug/dw_dy")
 
 # (name, IAS km/h, uniform w m/s, thermals on, bank deg, helix correction on)
 UNIFORM = (

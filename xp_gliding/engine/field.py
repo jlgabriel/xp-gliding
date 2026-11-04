@@ -276,6 +276,25 @@ class ThermalField:
                             best, best_r = th, r
         return best, best_r
 
+    def alive_within(self, e, n, t, max_m):
+        """(thermal, distance) of every thermal alive at t within max_m of (e, n).
+
+        For the training markers and test tools, not for the per-frame path.
+        """
+        cell_m = self.config.cell_m
+        k = math.ceil(max_m / cell_m)
+        cx = math.floor(e / cell_m)
+        cy = math.floor(n / cell_m)
+        found = []
+        for ix in range(cx - k, cx + k + 1):
+            for iy in range(cy - k, cy + k + 1):
+                for th in self._grid.get((ix, iy), ()):
+                    if th.birth <= t < th.death:
+                        r = math.hypot(e - th.e, n - th.n)
+                        if r <= max_m:
+                            found.append((th, r))
+        return found
+
     def lift_at(self, e, n, z, t, wstar, zi):
         """Vertical air velocity (m/s) at local (e, n), height z AGL, time t.
 

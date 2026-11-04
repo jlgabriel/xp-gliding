@@ -170,6 +170,14 @@ def updraft_velocity(r, z, zi, wstar, wgain=1.0, rgain=1.0, we=0.0,
     return w2
 
 
+def core_radii(z, zi, rgain=1.0):
+    """Core radius r1 and outer radius r2 (m) of an updraft at height z; (0, 0) outside the layer."""
+    if zi <= 0.0 or z <= 0.0 or z >= zi:
+        return 0.0, 0.0
+    r2 = max(MIN_OUTER_RADIUS_M, mean_outer_radius(z / zi, zi) * rgain)
+    return core_ratio(r2) * r2, r2
+
+
 def influence_radius(z, zi, rgain=1.0):
     """Distance (m) beyond which an updraft only contributes the environment sink."""
     if zi <= 0.0 or z <= 0.0 or z >= zi:

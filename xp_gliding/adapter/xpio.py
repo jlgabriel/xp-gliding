@@ -1,4 +1,4 @@
-"""X-Plane datarefs the adapter reads and writes. The only adapter module with `xp`.
+"""X-Plane datarefs and objects of the adapter. With `plugin`, the only modules with `xp`.
 
 Every dataref is looked up once, when the plugin starts. Per frame the adapter
 makes 13 reads of the aircraft state and reads and writes the four force
@@ -10,6 +10,8 @@ value applies its force exactly once per frame). So the adapter reads each
 one and adds its own force once per frame from its before-flight-model loop,
 which keeps any other plugin's force written earlier in the same frame.
 """
+
+import os
 
 import xp
 
@@ -42,6 +44,8 @@ class XPlaneIO:
         self._roll = xp.findDataRef("sim/flightmodel/forces/L_plug_acf")
         self._native = xp.findDataRef("sim/weather/region/thermal_rate_ms")
         self._engines = xp.findDataRef("sim/aircraft/engine/acf_num_engines")
+        self._elevation = xp.findDataRef("sim/flightmodel/position/elevation")
+        self._local = tuple(xp.findDataRef("sim/flightmodel/position/local_" + c) for c in "xyz")
 
     def frozen(self):
         """True while paused or in replay: no force is applied then."""
@@ -65,6 +69,14 @@ class XPlaneIO:
     def write_native_thermals(self, value):
         xp.setDataf(self._native, value)
 
+    def elevation_m(self):
+        """Aircraft height MSL (m). Not part of the state: only the slow path needs it."""
+        return xp.getDatad(self._elevation)
+
+    def local_position(self):
+        """Aircraft (x, y, z) in X-Plane's local coordinates. Only the slow path needs it."""
+        return tuple(xp.getDatad(ref) for ref in self._local)
+
     def engine_count(self):
         return xp.getDatai(self._engines)
 
@@ -72,3 +84,37 @@ class XPlaneIO:
     def user_aircraft_path():
         _, path = xp.getNthAircraftModel(0)
         return path
+
+
+class SkyObjects:
+    """The SDK calls behind the training markers (see `markers.py`): never per frame."""
+
+    def __init__(self):
+        assets = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                              "assets", "markers")
+        # XPLMLoadObject wants a path relative to X-Plane's folder.
+        self.folder = os.path.relpath(assets, xp.getSystemPath()).replace(os.sep, "/")
+
+    def load_async(self, name, loaded):
+        """Load in the background; later, on the main thread, loaded(reference or None, name)."""
+        xp.loadObjectAsync(f"{self.folder}/{name}.obj", loaded, name)
+
+    @staticmethod
+    def unload(obj):
+        xp.unloadObject(obj)
+
+    @staticmethod
+    def create(obj):
+        return xp.createInstance(obj)
+
+    @staticmethod
+    def destroy(instance):
+        xp.destroyInstance(instance)
+
+    @staticmethod
+    def world_to_local(lat, lon, msl_m):
+        return xp.worldToLocal(lat, lon, msl_m)
+
+    @staticmethod
+    def set_position(instance, x, y, z):
+        xp.instanceSetPosition(instance, (x, y, z, 0.0, 0.0, 0.0))

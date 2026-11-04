@@ -10,9 +10,12 @@ end, launches `X-Plane.exe` again, waits for the web API (~50 s) and then a
 grace period (60 s by default): the API answers before X-Plane has finished
 loading airports and plugins, and a flight requested in that window can hang
 it (seen 2026-11-03). The API can take minutes: on 2026-11-03 the MOZA
-plugin alone took ~3.5 min to load, so the wait is up to 10 min. Start a
-flight afterwards with `airstart.py` or any mission (`POST /api/v3/flight`
-works from the main menu). Windows only.
+plugin alone took ~3.5 min to load, so the wait is up to 10 min. A slow start
+can also be X-Plane's Safe Mode dialog waiting for someone to answer it: it
+comes up by itself on the start after some crashes (Juan Luis, 2026-11-03), and
+must be answered "No Thanks", because "Plugins" would leave xp-gliding unloaded.
+Start a flight afterwards with `airstart.py` or any mission
+(`POST /api/v3/flight` works from the main menu). Windows only.
 
 Arguments after `--` go to X-Plane. `--lock_fr` and `--fm_per_frame` are
 command-line options of X-Plane 12.4.3 (found as strings in X-Plane.exe next

@@ -20,6 +20,7 @@ DEFAULTS = {
     "thermals_enabled": True,  # our thermals (issue #30: off keeps the plugin loaded)
     "roll_enabled": True,  # gust roll moment from the spanwise lift gradient
     "helix_enabled": True,  # cancel the climbing-turn overbanking of the energy force
+    "markers_enabled": False,  # training mode: draw a ring and a column over nearby thermals
     "gliders_only": True,  # only act on aircraft without engines
     "wstar_ms": 3.0,  # convective velocity scale w* (m/s)
     "zi_m": 2000.0,  # convective layer depth zi (m AGL)
