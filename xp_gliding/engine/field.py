@@ -7,9 +7,10 @@ a global lat/lon grid and per *time slot*, each (tile, slot) pair with its own
 random stream keyed by (seed, day, tile, slot). Positions are stored as
 lat/lon and converted to the current local frame only for lookup.
 
-Time t is seconds since 00:00 UTC of `day` (the adapter passes X-Plane's zulu
-time); `day` is any integer that identifies the date, e.g. days since
-2000-01-01.
+Time t is seconds since 00:00 UTC of `day`, and `day` is any integer that identifies
+the date, e.g. days since 2000-01-01. The adapter passes the local date with
+`sky_time`, so t runs past 24 h (or starts below 0) rather than wrap at zulu midnight
+in the middle of a local day.
 
 Births are a Poisson process in space and time: in each slot of length
 `lifetime_max_s`, a tile gets Poisson(density * area * slot / mean lifetime)
@@ -52,6 +53,15 @@ RADIUS_START = 0.6
 # Clamp the per-thermal gains so a lognormal tail cannot make giants.
 WGAIN_RANGE = (0.3, 2.5)
 RGAIN_RANGE = (0.5, 2.0)
+
+
+def sky_time(zulu_s, local_s):
+    """t for the local date: zulu time, not wrapped at zulu midnight.
+
+    A day's sky is keyed by its local date, which changes at local midnight. Zulu time
+    wraps elsewhere, 17:00 local at Hobbs, and every thermal would change at once.
+    """
+    return local_s - ((local_s - zulu_s + 43200.0) % 86400.0 - 43200.0)
 
 
 def smoothstep(x):

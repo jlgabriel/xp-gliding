@@ -153,3 +153,12 @@ def test_set_frame_moves_positions_not_thermals():
     e, n = new_frame.to_enu(th.lat, th.lon)
     assert (th.e, th.n) == (e, n)
     assert field.lift_at(e, n, z, t, WSTAR, ZI) == pytest.approx(w_before, abs=1e-6)
+
+
+def test_sky_time_is_zulu_without_the_wrap_inside_a_local_day():
+    from xp_gliding.engine.field import sky_time
+    h = 3600.0
+    assert sky_time(19 * h, 12 * h) == 19 * h  # Hobbs at noon
+    assert sky_time(1 * h, 18 * h) == 25 * h  # Hobbs after zulu midnight: same local date
+    assert sky_time(23 * h, 9 * h) == -1 * h  # east of Greenwich, before zulu midnight
+    assert sky_time(5 * h, 12 * h) == 5 * h

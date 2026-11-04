@@ -90,7 +90,7 @@ def state(lat=KHOB[0], lon=KHOB[1], agl=800.0, tas=28.0, alpha=0.0, beta=0.0, ps
     s = AircraftState()
     s.lat, s.lon, s.agl_m, s.tas_ms = lat, lon, agl, tas
     s.alpha_deg, s.beta_deg, s.psi_deg, s.phi_deg = alpha, beta, psi, phi
-    s.mass_kg, s.rho, s.t_zulu_s, s.day = mass, 1.0, t, day
+    s.mass_kg, s.rho, s.sky_t_s, s.day = mass, 1.0, t, day
     return s
 
 
@@ -156,7 +156,7 @@ def find_thermal_state(inj_, s):
     e, n = inj_.frame.to_enu(s.lat, s.lon)
     lat, lon = inj_.frame.to_latlon(e + near.distance_m * math.sin(b),
                                     n + near.distance_m * math.cos(b))
-    return state(lat=lat, lon=lon, agl=s.agl_m, t=s.t_zulu_s, day=s.day)
+    return state(lat=lat, lon=lon, agl=s.agl_m, t=s.sky_t_s, day=s.day)
 
 
 def test_thermal_field_gives_lift_in_a_core_and_is_deterministic():

@@ -15,6 +15,8 @@ import os
 
 import xp
 
+from ..engine.field import sky_time
+
 STATE = (
     ("lat", "sim/flightmodel/position/latitude", "d"),
     ("lon", "sim/flightmodel/position/longitude", "d"),
@@ -28,6 +30,7 @@ STATE = (
     ("mass_kg", "sim/flightmodel/weight/m_total", "f"),
     ("rho", "sim/weather/rho", "f"),
     ("t_zulu_s", "sim/time/zulu_time_sec", "f"),
+    ("t_local_s", "sim/time/local_time_sec", "f"),
     ("day", "sim/time/local_date_days", "i"),
 )
 
@@ -54,6 +57,7 @@ class XPlaneIO:
     def read_state(self, s):
         for attr, get, ref in self._state:
             setattr(s, attr, get(ref))
+        s.sky_t_s = sky_time(s.t_zulu_s, s.t_local_s)
         return s
 
     def apply(self, out):
@@ -87,11 +91,12 @@ class XPlaneIO:
 
 
 class SkyObjects:
-    """The SDK calls behind the training markers (see `markers.py`): never per frame."""
+    """The SDK calls behind the markers and the clouds (`markers.py`, `clouds.py`): never
+    per frame. folder: under `xp_gliding/assets/`."""
 
-    def __init__(self):
+    def __init__(self, folder="markers"):
         assets = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                              "assets", "markers")
+                              "assets", folder)
         # XPLMLoadObject wants a path relative to X-Plane's folder.
         self.folder = os.path.relpath(assets, xp.getSystemPath()).replace(os.sep, "/")
 
@@ -104,8 +109,8 @@ class SkyObjects:
         xp.unloadObject(obj)
 
     @staticmethod
-    def create(obj):
-        return xp.createInstance(obj)
+    def create(obj, datarefs=None):
+        return xp.createInstance(obj, datarefs)
 
     @staticmethod
     def destroy(instance):
@@ -116,5 +121,9 @@ class SkyObjects:
         return xp.worldToLocal(lat, lon, msl_m)
 
     @staticmethod
-    def set_position(instance, x, y, z):
-        xp.instanceSetPosition(instance, (x, y, z, 0.0, 0.0, 0.0))
+    def set_position(instance, x, y, z, data=None):
+        xp.instanceSetPosition(instance, (x, y, z, 0.0, 0.0, 0.0), data)
+
+    @staticmethod
+    def auto_shift(instance):
+        xp.instanceSetAutoShift(instance)

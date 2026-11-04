@@ -3,7 +3,7 @@
 Not a simulation of X-Plane: it checks that the plugin starts, registers its
 datarefs and commands, adds its force to the `*_plug_acf` datarefs once per
 frame, respects pause, holds the native thermal setting at 0 and restores it,
-and creates, moves and destroys the training markers' instances.
+and creates, moves and destroys the instances of the training markers and clouds.
 """
 
 import importlib
@@ -30,6 +30,7 @@ DATA = {
     "sim/flightmodel/weight/m_total": 541.0,
     "sim/weather/rho": 1.0,
     "sim/time/zulu_time_sec": 43200.0,
+    "sim/time/local_time_sec": 18000.0,
     "sim/time/local_date_days": 305,
     "sim/time/paused": 0,
     "sim/time/is_in_replay": 0,
@@ -104,7 +105,7 @@ def make_fake_xp(tmp_path, data):
     def create_instance(obj, dataRefs=None):
         assert obj in xp.objects
         ref = f"inst{next(counter)}"
-        xp.instances[ref] = [obj, None]
+        xp.instances[ref] = [obj, None, None, dataRefs]
         return ref
 
     def world_to_local(lat, lon, alt=0.0):
@@ -114,6 +115,9 @@ def make_fake_xp(tmp_path, data):
     def set_position(instance, position, data=None):
         assert len(position) == 6
         xp.instances[instance][1] = tuple(position)
+        xp.instances[instance][2] = data
+        if xp.instances[instance][3]:
+            assert data is not None and len(data) == len(xp.instances[instance][3])
 
     def load_object_async(path, loaded, refCon=None):
         delivery = lambda: loaded(load_object(path), refCon)  # noqa: E731
@@ -128,6 +132,8 @@ def make_fake_xp(tmp_path, data):
     xp.destroyInstance = lambda instance: xp.instances.pop(instance)
     xp.worldToLocal = world_to_local
     xp.instanceSetPosition = set_position
+    xp.shifted = set()
+    xp.instanceSetAutoShift = xp.shifted.add
     return xp
 
 
@@ -261,7 +267,8 @@ def test_markers_create_two_instances_per_thermal_at_the_right_heights(plugin):
     rings = [v for v in xp.instances.values() if "ring_" in xp.objects[v[0]]]
     columns = [v for v in xp.instances.values() if "column_" in xp.objects[v[0]]]
     assert len(rings) == len(columns) == count
-    for _, position in xp.instances.values():
+    for value in xp.instances.values():
+        position = value[1]
         assert position is not None and position[3:] == (0.0, 0.0, 0.0)
     # Rings at the glider's height, columns' tops at the top of the lift over its ground.
     assert {v[1][1] for v in rings} == {1916.0 - 1000.0}
@@ -445,4 +452,165 @@ def test_a_failing_draw_stops_the_hud_and_nothing_else(plugin):
     hud.tick()
     assert data["visible"] == 0
     frame(pi, data)
+    assert dataref(xp, "active") == 1
+
+
+# --- cumulus ---------------------------------------------------------------------------
+
+def clouds_tick(pi, data):
+    """Run the frames of a cloud update: one loading tiles, one planning."""
+    frame(pi, data)  # the slow path, if due
+    pi.next_slow = float("inf")
+    for _ in range(2):
+        pi.next_clouds = 0.0
+        frame(pi, data)
+        pi.next_clouds = 0.0
+        pi.clouds._next_plan = 0.0
+        frame(pi, data)
+        pi.clouds._next_plan = float("inf")
+    pi.next_slow = 0.0
+
+
+def fill_sky(pi, data):
+    """Until every tile has loaded and no new cloud is waiting."""
+    for _ in range(2000):
+        clouds_tick(pi, data)
+        if pi.clouds.catalog is not None and pi.clouds.catalog.started \
+                and not pi.clouds.catalog.missing and not pi.clouds.more:
+            return
+    raise AssertionError("the sky did not fill")
+
+
+def test_clouds_are_on_by_default_and_fill_the_sky_over_many_updates(plugin):
+    pi, xp, data = plugin
+    assert dataref(xp, "clouds_enabled") == 1
+    clouds_tick(pi, data)
+    assert 0 < len(xp.instances) <= 2 * pi.clouds.planner.params.max_new
+    assert dataref(xp, "clouds/tiles_missing") > 0
+    fill_sky(pi, data)
+    count = dataref(xp, "clouds/count")
+    assert count > 40 and len(xp.instances) == count == dataref(xp, "clouds/created")
+    assert all("xp_gliding/assets/clouds/cumulus.obj" in p for p in xp.objects.values())
+    assert set(xp.instances) == xp.shifted
+    assert dataref(xp, "clouds/nearest_m") >= 0.0
+
+
+def test_clouds_carry_their_rate_and_scale_at_the_base_of_the_clouds(plugin):
+    pi, xp, data = plugin
+    fill_sky(pi, data)
+    wanted = ("xp_gliding/clouds/rate", "xp_gliding/clouds/scale")
+    for name in wanted:
+        assert name in xp.accessors
+    # y in the fake's world_to_local is the height minus 1000; the base is above the ground
+    # under the glider: 1916 - 800, plus the top of the lift.
+    base = 1916.0 - 800.0 + 2000.0 / 1.1
+    from xp_gliding.engine.clouds import SCALE_RANGE
+    for _, position, values, drefs in xp.instances.values():
+        assert drefs == wanted
+        assert position[1] == pytest.approx(base - 1000.0)
+        assert values[0] > 0.0 and SCALE_RANGE[0] <= values[1] <= SCALE_RANGE[1]
+
+
+def test_a_filled_cloud_settles_to_its_steady_rate(plugin):
+    pi, xp, data = plugin
+    fill_sky(pi, data)
+    params = pi.clouds.planner.params
+    assert any(v[2][0] > 1.0 for v in xp.instances.values())  # filling fast
+    data["sim/time/zulu_time_sec"] += params.ttl_s / params.prewarm + 1.0
+    fill_sky(pi, data)
+    data["sim/time/zulu_time_sec"] += 1.0
+    clouds_tick(pi, data)
+    near = [(v[2][0], th) for th, (inst, _) in pi.clouds.instances.items() for v in [xp.instances[inst]]]
+    assert dataref(xp, "clouds/rate_changes") > 0
+    assert all(rate <= 1.0 + 1e-9 or pi.clouds.planner.shown[th].fast_until
+               > data["sim/time/zulu_time_sec"] for rate, th in near)
+
+
+def test_clouds_go_when_switched_off_and_with_the_thermals(plugin):
+    pi, xp, data = plugin
+    handler, attr = xp.handlers["xp_gliding/clouds/toggle"]
+    clouds_tick(pi, data)
+    assert xp.instances
+    handler("xp_gliding/clouds/toggle", xp.CommandBegin, attr)
+    assert dataref(xp, "clouds_enabled") == 0
+    frame(pi, data)
+    assert not xp.instances and dataref(xp, "clouds/count") == 0
+    handler("xp_gliding/clouds/toggle", xp.CommandBegin, attr)
+    clouds_tick(pi, data)
+    assert xp.instances
+    dataref(xp, "thermals_enabled", 0)
+    frame(pi, data)
+    assert not xp.instances
+
+
+def test_clouds_stay_put_while_paused(plugin):
+    pi, xp, data = plugin
+    clouds_tick(pi, data)
+    before = {k: (v[1], v[2]) for k, v in xp.instances.items()}
+    calls = xp.calls["worldToLocal"]
+    data["sim/time/paused"] = 1
+    clouds_tick(pi, data)
+    assert {k: (v[1], v[2]) for k, v in xp.instances.items()} == before
+    assert xp.calls["worldToLocal"] == calls
+
+
+def test_clouds_start_over_with_a_new_flight_and_when_the_clock_jumps(plugin):
+    pi, xp, data = plugin
+    clouds_tick(pi, data)
+    assert xp.instances
+    pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0)
+    assert not xp.instances
+    clouds_tick(pi, data)
+    assert xp.instances
+    created = dataref(xp, "clouds/created")
+    old = set(xp.instances)
+    data["sim/time/zulu_time_sec"] += 3600.0
+    clouds_tick(pi, data)
+    assert not old & set(xp.instances) and dataref(xp, "clouds/created") > created
+
+
+def test_an_error_takes_the_clouds_away_with_the_rest(plugin, capsys):
+    pi, xp, data = plugin
+    clouds_tick(pi, data)
+    assert xp.instances
+    del data["sim/flightmodel/position/y_agl"]
+    assert pi.flight_loop(0.016, 0.016, 0, None) == 0
+    assert not xp.instances
+
+
+def test_a_cloud_object_still_loading_when_switched_off_is_not_left_behind(plugin):
+    pi, xp, data = plugin
+    xp.deliveries = []
+    clouds_tick(pi, data)
+    assert len(xp.deliveries) == 1 and not xp.instances
+    clouds_tick(pi, data)
+    assert len(xp.deliveries) == 1  # asked for once
+    pi.XPluginDisable()
+    xp.deliveries.pop()()
+    assert not xp.objects
+    pi.XPluginEnable()
+    xp.deliveries = None
+    clouds_tick(pi, data)
+    assert xp.instances
+
+
+def test_the_sky_does_not_change_at_zulu_midnight(plugin):
+    pi, xp, data = plugin
+    data["sim/time/zulu_time_sec"], data["sim/time/local_time_sec"] = 86390.0, 61190.0
+    clouds_tick(pi, data)
+    before = set(xp.instances)
+    assert before
+    data["sim/time/zulu_time_sec"], data["sim/time/local_time_sec"] = 10.0, 61210.0
+    clouds_tick(pi, data)
+    assert before <= set(xp.instances)
+    assert pi.state.sky_t_s == 86410.0
+
+
+def test_a_cloud_object_that_will_not_load_leaves_the_flight_alone(plugin, capsys):
+    pi, xp, data = plugin
+    xp.loadObjectAsync = lambda path, loaded, ref=None: loaded(None, ref)
+    clouds_tick(pi, data)
+    clouds_tick(pi, data)
+    assert not xp.instances and pi.clouds.failed
+    assert "could not load the cloud object" in capsys.readouterr().out
     assert dataref(xp, "active") == 1

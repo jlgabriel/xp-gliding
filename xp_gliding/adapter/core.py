@@ -42,7 +42,7 @@ class AircraftState:
     """What the adapter reads from X-Plane each frame."""
 
     __slots__ = ("lat", "lon", "agl_m", "psi_deg", "phi_deg", "alpha_deg", "beta_deg",
-                 "r_rad", "tas_ms", "mass_kg", "rho", "t_zulu_s", "day")
+                 "r_rad", "tas_ms", "mass_kg", "rho", "t_zulu_s", "t_local_s", "sky_t_s", "day")
 
     def __init__(self):
         self.lat = self.lon = 0.0
@@ -52,7 +52,8 @@ class AircraftState:
         self.tas_ms = 0.0
         self.mass_kg = 0.0
         self.rho = 1.225
-        self.t_zulu_s = 0.0
+        self.t_zulu_s = self.t_local_s = 0.0
+        self.sky_t_s = 0.0  # the engine's t: `field.sky_time`
         self.day = 0
 
 
@@ -161,19 +162,19 @@ class Injector:
         elif self.frame.distance_to_origin(s.lat, s.lon) > st.recentre_m:
             self.frame = LocalFrame(s.lat, s.lon)
             self.field.set_frame(self.frame)
-        self.field.update(s.t_zulu_s, s.lat, s.lon)
+        self.field.update(s.sky_t_s, s.lat, s.lon)
 
         near = self.nearest
         e, n = self.frame.to_enu(s.lat, s.lon)
-        th, r = self.field.nearest(e, n, s.t_zulu_s, NEAREST_MAX_M)
+        th, r = self.field.nearest(e, n, s.sky_t_s, NEAREST_MAX_M)
         if th is None:
             near.distance_m, near.bearing_deg, near.core_ms = -1.0, 0.0, 0.0
         else:
             near.distance_m = r
             near.bearing_deg = math.degrees(math.atan2(th.e - e, th.n - n)) % 360.0
-            near.core_ms = self.field.lift_at(th.e, th.n, s.agl_m, s.t_zulu_s,
+            near.core_ms = self.field.lift_at(th.e, th.n, s.agl_m, s.sky_t_s,
                                               st.wstar_ms, st.zi_m)
-        near.alive = len(self.field.alive(s.t_zulu_s))
+        near.alive = len(self.field.alive(s.sky_t_s))
         near.loaded = sum(1 for _ in self.field.thermals())
 
     # --- every frame ---------------------------------------------------------
@@ -190,7 +191,7 @@ class Injector:
         elif st.thermals_enabled:
             e, n = self.frame.to_enu(s.lat, s.lon)
             g.update(e, n, s.agl_m, s.psi_deg, s.phi_deg)
-            f, t, wstar, zi = self.field, s.t_zulu_s, st.wstar_ms, st.zi_m
+            f, t, wstar, zi = self.field, s.sky_t_s, st.wstar_ms, st.zi_m
             wc = f.lift_at(g.ce, g.cn, g.cz, t, wstar, zi)
             wl = f.lift_at(g.le, g.ln, g.lz, t, wstar, zi)
             wr = f.lift_at(g.re, g.rn, g.rz, t, wstar, zi)

@@ -21,6 +21,7 @@ DEFAULTS = {
     "roll_enabled": True,  # gust roll moment from the spanwise lift gradient
     "helix_enabled": True,  # cancel the climbing-turn overbanking of the energy force
     "markers_enabled": False,  # training mode: draw a ring and a column over nearby thermals
+    "clouds_enabled": True,  # cumulus over the thermals that carry one
     "hud_enabled": True,  # soaring HUD: vario, netto, average, height to the top, centring aid
     "gliders_only": True,  # only act on aircraft without engines
     "wstar_ms": 3.0,  # convective velocity scale w* (m/s)

@@ -8,14 +8,15 @@ active (enabled, and the user's aircraft is a glider unless `gliders_only` is
 off) and the sim is neither paused nor in replay, it reads the aircraft state,
 asks the engine for the lift, and adds the forces (see `core` and `xpio`).
 About once a second it keeps the thermal field loaded around the aircraft and
-re-checks the native thermal setting, and, half a second apart so that the two
-never share a frame, updates the training markers if they are on (`markers`).
+re-checks the native thermal setting, and, in frames apart so that they never share
+one, updates the cumulus (`clouds`) and the training markers if they are on (`markers`).
 The soaring HUD runs apart from all this, with its own flight loop (`hud`).
 
 Commands (also in the Plugins > xp-gliding menu):
   xp_gliding/toggle            plugin effect on / off
   xp_gliding/thermals/toggle   our thermals on / off, the plugin stays loaded (issue #30)
   xp_gliding/markers/toggle    training markers on / off (off by default)
+  xp_gliding/clouds/toggle     cumulus on / off
   xp_gliding/hud/toggle        soaring HUD on / off
 
 Datarefs (`xp_gliding/...`, see DATAREFS): settings and debug modes are
@@ -36,11 +37,13 @@ from .. import __version__
 from .aircraft import DEFAULT_GEOMETRY, read_acf_geometry
 from .config import load_settings
 from .core import AircraftState, Injection, Injector, NativeThermalGuard
+from .clouds import CumulusClouds
 from .hud import Hud
 from .markers import TrainingMarkers
 from .xpio import SkyObjects, XPlaneIO
 
 SLOW_PERIOD_S = 1.0
+CLOUDS_PERIOD_S = 0.25  # cloud tiles load in small bites
 TAG = "[xp-gliding]"
 
 # (name under xp_gliding/, holder, attribute, type, writable). holder names an
@@ -51,6 +54,18 @@ DATAREFS = (
     ("roll_enabled", "settings", "roll_enabled", "i", 1),
     ("helix_enabled", "settings", "helix_enabled", "i", 1),
     ("markers_enabled", "settings", "markers_enabled", "i", 1),
+    ("clouds_enabled", "settings", "clouds_enabled", "i", 1),
+    ("clouds/rate", "clouds", "status.rate_dummy", "f", 0),
+    ("clouds/scale", "clouds", "status.scale_dummy", "f", 0),
+    ("clouds/count", "clouds", "status.count", "i", 0),
+    ("clouds/created", "clouds", "status.created", "i", 0),
+    ("clouds/destroyed", "clouds", "status.destroyed", "i", 0),
+    ("clouds/rate_changes", "clouds", "status.rate_changes", "i", 0),
+    ("clouds/tiles_missing", "clouds", "status.tiles_missing", "i", 0),
+    ("clouds/update_us", "clouds", "status.update_us", "f", 0),
+    ("clouds/update_us_max", "clouds", "status.update_us_max", "f", 0),
+    ("clouds/plan_us", "clouds", "status.plan_us", "f", 0),
+    ("clouds/nearest_m", "clouds", "status.nearest_m", "f", 0),
     ("hud_enabled", "settings", "hud_enabled", "i", 1),
     ("hud/te_ms", "hud", "vario.te_ms", "f", 0),
     ("hud/netto_ms", "hud", "vario.netto_ms", "f", 0),
@@ -159,11 +174,13 @@ class PythonInterface:
         self.out = Injection()
         self.status = Status()
         self.markers = TrainingMarkers(SkyObjects(), lambda text: print(f"{TAG} {text}"))
+        self.clouds = CumulusClouds(SkyObjects("clouds"), lambda text: print(f"{TAG} {text}"))
         self.hud = Hud(self.settings, lambda text: print(f"{TAG} {text}"))
         self.eligible = False
         self.failed = False
         self.next_slow = 0.0
         self.next_markers = 0.0
+        self.next_clouds = 0.0
 
         self.datarefs = []
         for name, holder, attr, kind, writable in DATAREFS:
@@ -187,6 +204,8 @@ class PythonInterface:
              self.on_toggle, "thermals_enabled", "Thermals"),
             (xp.createCommand("xp_gliding/markers/toggle", "xp-gliding: training markers on/off"),
              self.on_toggle, "markers_enabled", "Training markers"),
+            (xp.createCommand("xp_gliding/clouds/toggle", "xp-gliding: cumulus on/off"),
+             self.on_toggle, "clouds_enabled", "Cumulus clouds"),
             (xp.createCommand("xp_gliding/hud/toggle", "xp-gliding: soaring HUD on/off"),
              self.on_toggle, "hud_enabled", "Soaring HUD"),
         )
@@ -220,6 +239,7 @@ class PythonInterface:
         xp.scheduleFlightLoop(self.loop, 0, 1)
         self.guard.release()
         self.markers.shutdown()
+        self.clouds.shutdown()
         self.hud.disable()
         self.status.active = 0
         self.out.clear()
@@ -235,6 +255,7 @@ class PythonInterface:
         geometry = read_acf_geometry(path) if path else None
         self.injector.set_geometry(geometry or DEFAULT_GEOMETRY)
         engines = self.io.engine_count()
+        self.clouds.clear()  # a new flight: X-Plane may have dropped the particles
         # At the main menu the "aircraft" is X-Plane's own folder: stay inert until
         # a real aircraft is loaded (a plane-loaded message follows).
         loaded = path.lower().endswith(".acf")
@@ -272,6 +293,7 @@ class PythonInterface:
             self.out.clear()
             self.guard.release()
             self.markers.clear()
+            self.clouds.clear()
             return 0
 
     def step(self):
@@ -282,6 +304,9 @@ class PythonInterface:
         markers = active and st.thermals_enabled and st.markers_enabled
         if not markers and self.markers.shown:
             self.markers.clear()
+        clouds = active and st.thermals_enabled and st.clouds_enabled
+        if not clouds and self.clouds.instances:
+            self.clouds.clear()
         if not active or self.io.frozen():
             self.status.active = 0
             self.out.clear()
@@ -291,8 +316,13 @@ class PythonInterface:
         if now >= self.next_slow:
             self.next_slow = now + SLOW_PERIOD_S
             self.next_markers = now + 0.5 * SLOW_PERIOD_S
+            self.next_clouds = now + CLOUDS_PERIOD_S
             self.injector.slow_update(s)
             self.refresh_menu()
+        elif clouds and now >= self.next_clouds and self.injector.field is not None:
+            self.next_clouds = now + CLOUDS_PERIOD_S
+            self.clouds.update(self.injector.field, self.injector.frame, s, self.io.elevation_m(),
+                               st.zi_m, now)
         elif markers and now >= self.next_markers and self.injector.field is not None:
             self.next_markers = now + SLOW_PERIOD_S
             self.markers.update(self.injector.field, self.injector.frame, s, self.io.elevation_m(),

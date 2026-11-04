@@ -130,7 +130,7 @@ class TrainingMarkers:
         st = self.status
         if now >= self._next_select:
             self._next_select = now + SELECT_PERIOD_S
-            self._reconcile(select_markers(field, e, n, s.agl_m, s.t_zulu_s, wstar, zi, self.shown))
+            self._reconcile(select_markers(field, e, n, s.agl_m, s.sky_t_s, wstar, zi, self.shown))
             st.select_us = (time.perf_counter() - t0) * 1e6
         top_dy = TOP_ZZI * zi - s.agl_m  # the column's top, above the glider
         best_r, best_x, best_y, best_z, best = math.inf, 0.0, 0.0, 0.0, None
