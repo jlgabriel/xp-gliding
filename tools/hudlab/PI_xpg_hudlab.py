@@ -7,12 +7,14 @@ Writing `xp_gliding/hudlab/mode` picks the method (see MODES). Each one draws th
 scene from synthetic values: a scrim, a tape of 11 ticks, a needle, a marker and three
 text lines. Published, over the samples since `xp_gliding/hudlab/reset` was last written:
 
-  draw_us_p50/p99     CPU time in our own draw callback, per draw
-  window_us_p50/p99   CPU time between the before and after callbacks of Phase_Window,
-                      which holds everything drawn there, ours or another plugin's
+  draw_us_p50/p99     CPU time in our own draw callback, per draw (with imgui, the whole
+                      window callback, its renderer included)
   draws_per_s         how often the scene is really drawn (on-demand drawing is less)
+  errors              exceptions caught in a draw
 
-GPU cost and whole-frame time come from X-Plane's own datarefs, read by the driver.
+Exceptions must not leave a draw callback: XPPython3 logged the first one and the callback
+never drew again (seen 2026-11-03), so a bug in one mode silently ends the others sharing
+its window. GPU cost and main-thread CPU are read from outside by the driver.
 imgui is imported only when its mode is first used: the SPEC warns that reloading scripts
 after using it crashes the simulator, so never reload with this plugin once that mode ran.
 
@@ -21,6 +23,7 @@ License: GPL-3.0-or-later.
 
 import math
 import time
+import traceback
 
 import xp
 from OpenGL import GL
@@ -41,6 +44,7 @@ MODES = {
     5: "avionics popup: xpgl, every frame",
     6: "avionics popup: xpgl, on demand at 10 Hz",
     7: "window: imgui",
+    8: "window: GL display list for the static part, xpgl TrueType text",
 }
 
 
@@ -71,8 +75,7 @@ class PythonInterface:
     def XPluginStart(self):
         self.mode = 0
         self.draw_stats = Stats()
-        self.window_stats = Stats()
-        self.window_t0 = 0.0
+        self.errors = 0
         self.reset_at = time.monotonic()
         self.draws = 0
         self.list_id = None
@@ -82,8 +85,8 @@ class PythonInterface:
         self.device = None
         self.device_demand = None
         self.big = self.small = None
-        self.published = {"draw_us_p50": 0.0, "draw_us_p99": 0.0, "window_us_p50": 0.0,
-                          "window_us_p99": 0.0, "draws_per_s": 0.0}
+        self.published = {"draw_us_p50": 0.0, "draw_us_p99": 0.0, "draws_per_s": 0.0,
+                          "errors": 0.0}
         self.refs = [
             xp.registerDataAccessor("xp_gliding/hudlab/mode", xp.Type_Int, 1,
                                     readInt=lambda _: self.mode,
@@ -101,16 +104,12 @@ class PythonInterface:
     def XPluginEnable(self):
         self.big = xpgl.loadFont(FONT, 34)
         self.small = xpgl.loadFont(FONT, 14)
-        xp.registerDrawCallback(self.before_window, xp.Phase_Window, 0, None)
-        xp.registerDrawCallback(self.after_window, xp.Phase_Window, 1, None)
         xp.scheduleFlightLoop(self.loop, ON_DEMAND_PERIOD_S, 1)
         return 1
 
     def XPluginDisable(self):
         self.set_mode(0)
         xp.scheduleFlightLoop(self.loop, 0, 1)
-        xp.unregisterDrawCallback(self.before_window, xp.Phase_Window, 0, None)
-        xp.unregisterDrawCallback(self.after_window, xp.Phase_Window, 1, None)
 
     def XPluginStop(self):
         xp.destroyFlightLoop(self.loop)
@@ -127,17 +126,8 @@ class PythonInterface:
 
     def reset_stats(self):
         self.draw_stats.reset()
-        self.window_stats.reset()
         self.draws = 0
         self.reset_at = time.monotonic()
-
-    def before_window(self, phase, after, refCon):
-        self.window_t0 = time.perf_counter()
-        return 1
-
-    def after_window(self, phase, after, refCon):
-        self.window_stats.add((time.perf_counter() - self.window_t0) * 1e6)
-        return 1
 
     def slow_loop(self, sinceLast, elapsedTime, counter, refCon):
         if self.mode == 6 and self.device_demand is not None:
@@ -147,14 +137,19 @@ class PythonInterface:
             p = self.published
             p["draw_us_p50"] = self.draw_stats.percentile(0.50)
             p["draw_us_p99"] = self.draw_stats.percentile(0.99)
-            p["window_us_p50"] = self.window_stats.percentile(0.50)
-            p["window_us_p99"] = self.window_stats.percentile(0.99)
             p["draws_per_s"] = self.draws / (now - self.reset_at)
+            p["errors"] = float(self.errors)
         return ON_DEMAND_PERIOD_S
 
     def timed(self, scene, *args):
         t0 = time.perf_counter()
-        scene(*args)
+        try:
+            scene(*args)
+        except Exception:
+            self.errors += 1
+            if self.errors == 1:
+                xp.log("[hudlab] draw failed:\n" + traceback.format_exc())
+            return
         self.draw_stats.add((time.perf_counter() - t0) * 1e6)
         self.draws += 1
 
@@ -165,7 +160,7 @@ class PythonInterface:
             return
         self.hide_all()
         self.mode = mode
-        if mode in (1, 2, 3, 4):
+        if mode in (1, 2, 3, 4, 8):
             self.show_window()
         elif mode == 5:
             self.show_device(False)
@@ -211,8 +206,14 @@ class PythonInterface:
         if self.imgui_window is None:
             import imgui
             from XPPython3 import xp_imgui
+            lab = self
+
+            class TimedWindow(xp_imgui.Window):
+                def imguiDrawWindow(self, windowID, refCon):
+                    lab.timed(super().imguiDrawWindow, windowID, refCon)
+
             self.imgui = imgui
-            self.imgui_window = xp_imgui.Window(
+            self.imgui_window = TimedWindow(
                 left=LEFT, top=TOP, right=LEFT + W, bottom=TOP - H, visible=1,
                 draw=self.draw_imgui, refCon=None)
         xp.setWindowIsVisible(self.imgui_window.windowID, 1)
@@ -229,6 +230,8 @@ class PythonInterface:
             self.timed(self.scene_gl, left, bottom)
         elif self.mode == 4:
             self.timed(self.scene_gl_list, left, bottom)
+        elif self.mode == 8:
+            self.timed(self.scene_gl_ttf, left, bottom)
 
     def draw_device(self, refCon):
         def scene():
@@ -237,7 +240,7 @@ class PythonInterface:
         self.timed(scene)
 
     def draw_imgui(self, windowID, refCon):
-        self.timed(self.scene_imgui)
+        self.scene_imgui()
 
     # --- the scene, each way ---------------------------------------------------
 
@@ -260,7 +263,14 @@ class PythonInterface:
         a, b, c = self.texts()
         y = self.needle_y(bottom)
         xp.setGraphicsState(alphaBlending=1)
-        xpgl.drawRectangle(left, bottom, W, H, (0.0, 0.0, 0.0, 0.45))
+        # xpgl's polygons force alpha to 1 on XPPython3 4.7.1, so the scrim is plain GL.
+        GL.glColor4f(0.0, 0.0, 0.0, 0.45)
+        GL.glBegin(GL.GL_QUADS)
+        GL.glVertex2f(left, bottom)
+        GL.glVertex2f(left + W, bottom)
+        GL.glVertex2f(left + W, bottom + H)
+        GL.glVertex2f(left, bottom + H)
+        GL.glEnd()
         for i in range(11):
             ty = bottom + 12 + i * (H - 24) / 10
             xpgl.drawLine(left + 6, ty, left + (26 if i % 5 == 0 else 18), ty, 1.0, (1, 1, 1, 0.9))
@@ -286,8 +296,7 @@ class PythonInterface:
             GL.glVertex2f(left + (26 if i % 5 == 0 else 18), ty)
         GL.glEnd()
 
-    def moving_gl(self, left, bottom):
-        a, b, c = self.texts()
+    def needle_gl(self, left, bottom):
         y = self.needle_y(bottom)
         GL.glColor4f(1.0, 0.8, 0.1, 1.0)
         GL.glBegin(GL.GL_TRIANGLES)
@@ -295,6 +304,10 @@ class PythonInterface:
         GL.glVertex2f(left + 48, y + 7)
         GL.glVertex2f(left + 48, y - 7)
         GL.glEnd()
+
+    def moving_gl(self, left, bottom):
+        a, b, c = self.texts()
+        self.needle_gl(left, bottom)
         xp.drawString((1, 1, 1), left + 56, bottom + H // 2, a, None, xp.Font_Proportional)
         xp.drawString((1, 1, 1), left + 56, bottom + 30, b, None, xp.Font_Proportional)
         xp.drawString((1, 1, 1), left + 56, bottom + 12, c, None, xp.Font_Proportional)
@@ -304,7 +317,7 @@ class PythonInterface:
         self.static_gl(left, bottom)
         self.moving_gl(left, bottom)
 
-    def scene_gl_list(self, left, bottom):
+    def static_list(self, left, bottom):
         xp.setGraphicsState(alphaBlending=1)
         if self.list_id is None:
             self.list_id = GL.glGenLists(1)
@@ -315,7 +328,18 @@ class PythonInterface:
         GL.glTranslatef(left, bottom, 0.0)
         GL.glCallList(self.list_id)
         GL.glPopMatrix()
+
+    def scene_gl_list(self, left, bottom):
+        self.static_list(left, bottom)
         self.moving_gl(left, bottom)
+
+    def scene_gl_ttf(self, left, bottom):
+        a, b, c = self.texts()
+        self.static_list(left, bottom)
+        self.needle_gl(left, bottom)
+        xpgl.drawText(self.big, left + 56, bottom + H // 2, a)
+        xpgl.drawText(self.small, left + 56, bottom + 30, b)
+        xpgl.drawText(self.small, left + 56, bottom + 12, c)
 
     def scene_imgui(self):
         imgui = self.imgui

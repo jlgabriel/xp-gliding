@@ -25,6 +25,16 @@ G = 9.80665
 SAMPLE_PERIOD_S = 0.1
 MAX_ENERGY_RATE_MS = 60.0  # beyond this it is a teleport or an air start, not air
 MAX_GAP_S = 1.0
+THERMAL_TOP_RATIO = 1.0 / 1.1  # Allen's mean updraft dies here, as a fraction of zi
+
+
+def height_to_top(zi_m, agl_m):
+    """Metres from the aircraft up to the day's thermal top; negative above it.
+
+    The day's forecast, as a pilot would know it from the cloud base: it says nothing
+    about any particular thermal, and uses the same zi the engine does (m above ground).
+    """
+    return zi_m * THERMAL_TOP_RATIO - agl_m
 
 
 class Polar:

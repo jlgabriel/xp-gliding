@@ -162,7 +162,7 @@ Almost everything that defines Condor can be built in XP12 with a plugin; the ex
 | Convergence | No | Yes |
 | Triggers by ground type | No | Yes, with data preprocessed offline |
 | Aerotow and winch | Exist natively | *Verify* how well they work |
-| TE/netto vario and flight computer | Depends on each aircraft | Yes: own vario + XCSoar via NMEA |
+| TE/netto vario and flight computer | Depends on each aircraft | Yes: own soaring HUD ([hud.md](hud.md)) + XCSoar via NMEA |
 | Other gliders in the sky | No | Yes (AI gliders) |
 | Weather briefing, IGC, replay | No | Yes |
 | Accurate polars | Depends on each aircraft | Partial: can be measured and validated, not corrected |
@@ -421,7 +421,7 @@ F = \frac{m \, g \, w}{V_{TAS}}
 
 **Known limitation**
 
-Because lift is a force and not moving air, the aircraft's own instruments that compute netto from the polar may show wrong values. Mitigation: the plugin's own vario (see instrumentation).
+Because lift is a force and not moving air, the aircraft's own instruments that compute netto from the polar may show wrong values. Mitigation: the plugin's own vario (see instrumentation). Measured 2026-11-03 ([hud.md](hud.md)): X-Plane's total-energy gauge reads our lift correctly, within 0.03 m/s over 20 s, so this concerns netto only.
 
 ## Thermal model
 
@@ -617,19 +617,20 @@ The most laborious part is not programming it but tuning the behavior so it look
 
 The NMEA output to XCSoar is the integration with the best effort-to-value ratio: it reuses an existing, excellent real flight computer.
 
-- **Own audio vario** with TE and netto modes, because many XP12 gliders have poor varios and force-based injection can confuse the netto of the aircraft's instruments. Optional since 2026-11-03: the vario will come from XCSoar, fed through the NMEA output below (XCSoar computes it from the aircraft's energy, which includes our injected lift).
+- **Soaring HUD** (decided by Juan Luis, 2026-11-03: permanent, alongside XCSoar; it replaces that day's earlier decision that made an own vario optional). A small panel with TE, netto, the average climb, the height to the day's thermal top and a centring aid, in the plugin (`xp_gliding/adapter/hud.py`). It works without a tablet, and gives what is needed for test F now. Drawing method and measurements in [hud.md](hud.md). Netto needs each glider's polar; only the Laminar ASK 21 has one.
+- **Own audio vario** with TE and netto modes. Juan Luis wants it. Not done: X-Plane's native switch (`sim/cockpit2/switches/total_energy_audio`) is the first thing to try, since its TE is right.
 - **NMEA output to XCSoar** on a tablet or PC: position and vario, so XCSoar works as a flight computer with thermal assistant and planning.
 - **FLARM traffic to XCSoar:** emit the AI gliders with the FLARM protocol (traffic sentences) so XCSoar shows them as real traffic, even marking which ones are circling and how fast they climb.
 - **IGC recorder** for XP12, to analyze flights in SeeYou or WeGlide. There is prior experience with an IGC recorder for Aerofly FS4.
 - **Force feedback:** the bump of a wing entering a thermal felt in the stick (for example with a Moza AB9 base). Tied to the turbulence at the thermal's edge.
 - **Information / statistics screen** (issue #7): current thermal strength, distance to center, applied forces; also useful for debugging.
-- **RC HUD:** thermal indicator for RC glider thermal soaring.
+- **RC HUD:** thermal indicator for RC glider thermal soaring. Juan Luis's [RCHud](https://github.com/jlgabriel/RCHud) (SASL, Lua) was evaluated for the soaring instruments and not chosen; its ideas were ([hud.md](hud.md)).
 
 ## Learning, briefing and analysis
 
 These features turn the plugin into a tool for learning to soar, not just a thermal generator.
 
-- **Centering instructor:** indicates which side the core is on and gives statistics at the end, such as percentage of time climbing and average climb rate while circling.
+- **Centering instructor:** indicates which side the core is on and gives statistics at the end, such as percentage of time climbing and average climb rate while circling. The direction is in the soaring HUD since 2026-11-04, from netto against heading only, never from the engine: reliable from about 60 m off centre ([hud.md](hud.md)). The statistics are still to do.
 - **Post-flight replay:** the flight track drawn over the map of thermals that existed, to see which core was missed.
 - **Pre-flight briefing:** RASP-style forecast of the day computed from XP12's atmosphere: cloud base, expected strength, useful time window, wind by layer.
 - **Engine visualization tool** outside the simulator (maps, vertical cross-sections, evolution through the day), useful for both the pilot and development.
@@ -684,7 +685,10 @@ Phases 1 to 3 alone would deliver something clearly better than what exists toda
    - [x] Step zero, training markers (2026-11-03, [phase2.md](phase2.md)): instanced objects at thermal positions, created and destroyed with each thermal's life. Within 0.2 m of X-Plane's own coordinates, and no cost that can be told from the noise at 20 markers (40 instances). Feel from the seat still to judge in test F.
    - *Done when:* a thermal can be found just by looking at the clouds.
 3. **Instrumentation**
-   - NMEA output to XCSoar; the vario comes from XCSoar (decided 2026-11-03), so an own audio vario is optional.
+   - NMEA output to XCSoar, as flight computer.
+   - [x] Soaring HUD in the plugin, flown by the test pilot (2026-11-04, [hud.md](hud.md)). It came forward from this phase because Juan Luis wants it for thermalling now, permanently, alongside XCSoar (2026-11-03).
+   - [x] Juan Luis flew with it (2026-11-04): it looks good. It stays as it is until the air works well; then it gets refined ([hud.md](hud.md#still-open)).
+   - [ ] Audio vario.
    - *Done when:* XCSoar on a tablet shows position and vario in real time.
 4. **Wave, and ridge gaps**
    - Wave with rotor. Ridge stays native; add only the gaps measured in test H (for example lee-side sink), plus the AI glider's approximate ridge model.
@@ -709,7 +713,7 @@ These questions do not have an answer yet; they are resolved in the phase indica
 
 **Decisions for Juan Luis**
 
-- [x] What is missed most from Condor when flying gliders in XP12? **Finding thermals by looking at the clouds** (2026-11-03). That makes coherent cumulus (phase 2) the priority right after the phase 1 physics. The vario is not a priority of its own: it will come from XCSoar through the NMEA integration (phase 3).
+- [x] What is missed most from Condor when flying gliders in XP12? **Finding thermals by looking at the clouds** (2026-11-03). That makes coherent cumulus (phase 2) the priority right after the phase 1 physics. The vario was not a priority of its own then, because it would come from XCSoar (phase 3). **Changed the same day:** he wants an own HUD permanently, alongside XCSoar, with netto, a centring aid, the thermal average, the height to the top and audio ([hud.md](hud.md)).
 - [ ] AI gliders: do they take off from an airfield or appear airborne? **Deferred** (2026-11-03): AI gliders go to the very end of the roadmap, after everything else.
 - [x] Main use: **full-size gliders only, and only the Laminar ASK 21 that ships with XP12 for now** (2026-11-03). RC is out of scope until further notice.
 - [x] Thermal strategy: **A, replace** (2026-11-03, after test I). Native thermals were not found and their setting only adds a uniform sink, so the plugin owns thermals and keeps the native setting at 0 while it is active. Until phase 2 draws its own cumulus, XP12's clouds will not match our thermals (fly it as a blue day).
@@ -721,6 +725,7 @@ These questions do not have an answer yet; they are resolved in the phase indica
 
 **Technical verifications**
 
+- [x] How to draw an on-screen instrument from XPPython3 under Vulkan, and at what cost? **A plain XPLM window, raw OpenGL, a display list, X-Plane's font for small text:** 75 µs per frame for the test scene, against ~500 µs with xpgl or imgui; the HUD as built costs 265 µs, mostly one TrueType number. Avionics popups draw every frame even on demand. Measured 2026-11-03/04 ([hud.md](hud.md)).
 - [x] Does X-Plane reset the `_plug_acf` datarefs every flight-model cycle? **Effectively yes** (test B, 2026-11-03): Alex's add-to-current-value force gives exactly one application per frame; it would run away otherwise. A plugin reading them after the flight model sees 0, so they cannot be used to observe another plugin's force.
 - [x] Best way to apply the energy-based force: along the flight path, vertical, or split? **Along the air-relative velocity, split into body axes with α and β** (2026-11-03): it gives Δvs = w at every speed and bank tried ([phase1.md](phase1.md)). Signs, from DataRefs.txt and checked in flight: `faxil_plug_acf` positive pushes backward, `fside_plug_acf` right, `fnrml_plug_acf` up, `L_plug_acf` positive rolls right; X-Plane's β is positive with the nose right of the flight path.
 - [ ] Do results change with X-Plane's number of flight-model runs per frame? (raised by Juan Luis, 2026-11-02) Partly answered (2026-11-03): with `--lock_fr` the frame rate itself does not matter (20–60 fps give the same still-air sink and the same lift gain). `--fm_per_frame=4`, another command-line option found in `X-Plane.exe`, changed nothing at 20 fps, but no dataref confirms that it took effect.
@@ -760,4 +765,7 @@ These questions do not have an answer yet; they are resolved in the phase indica
 - [TwinFan/XPPlanes (XPMP2)](https://github.com/TwinFan/XPPlanes)
 - [Laminar — X-Plane 12 flight model report](https://developer.x-plane.com/article/x-plane-12-flight-model-report/)
 - [X-Plane 12 desktop manual](https://www.x-plane.com/manuals/desktop/)
+- [XPPython3 — XPLMPanelGraphics (X-Plane 12.4.4+)](https://xppython3.readthedocs.io/en/beta/development/modules/panelgraphics.html)
+- [XPPython3 — Avionics API](https://xppython3.readthedocs.io/en/beta/development/modules/display_avionics.html)
+- [Laminar — Plugin compatibility guide, Vulkan and Metal](https://developer.x-plane.com/article/plugin-compatibility-guide-for-x-plane-11-50/)
 - X-Plane.org forum, XP12 Gliding: [Gliding in X-Plane 12](https://forums.x-plane.org/forums/topic/271830-gliding-in-x-plane-12/), [Automatic thermals?](https://forums.x-plane.org/forums/topic/276240-automatic-thermals/), [Personal thoughts and FAQ suggestions for gliding in XP12](https://forums.x-plane.org/forums/topic/306594-personal-thoughts-and-faq-suggestions-for-gliding-in-xp12/), [Gliding is broken in 12.0.9](https://forums.x-plane.org/forums/topic/302753-gliding-is-broken-doesnt-work-in-1209/)

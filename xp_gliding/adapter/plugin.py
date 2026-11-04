@@ -10,11 +10,13 @@ asks the engine for the lift, and adds the forces (see `core` and `xpio`).
 About once a second it keeps the thermal field loaded around the aircraft and
 re-checks the native thermal setting, and, half a second apart so that the two
 never share a frame, updates the training markers if they are on (`markers`).
+The soaring HUD runs apart from all this, with its own flight loop (`hud`).
 
 Commands (also in the Plugins > xp-gliding menu):
   xp_gliding/toggle            plugin effect on / off
   xp_gliding/thermals/toggle   our thermals on / off, the plugin stays loaded (issue #30)
   xp_gliding/markers/toggle    training markers on / off (off by default)
+  xp_gliding/hud/toggle        soaring HUD on / off
 
 Datarefs (`xp_gliding/...`, see DATAREFS): settings and debug modes are
 writable, so the flight logger and the test pilot can read what the adapter
@@ -34,6 +36,7 @@ from .. import __version__
 from .aircraft import DEFAULT_GEOMETRY, read_acf_geometry
 from .config import load_settings
 from .core import AircraftState, Injection, Injector, NativeThermalGuard
+from .hud import Hud
 from .markers import TrainingMarkers
 from .xpio import SkyObjects, XPlaneIO
 
@@ -48,6 +51,15 @@ DATAREFS = (
     ("roll_enabled", "settings", "roll_enabled", "i", 1),
     ("helix_enabled", "settings", "helix_enabled", "i", 1),
     ("markers_enabled", "settings", "markers_enabled", "i", 1),
+    ("hud_enabled", "settings", "hud_enabled", "i", 1),
+    ("hud/te_ms", "hud", "vario.te_ms", "f", 0),
+    ("hud/netto_ms", "hud", "vario.netto_ms", "f", 0),
+    ("hud/average_ms", "hud", "vario.average_ms", "f", 0),
+    ("hud/aid_valid", "hud", "aid.valid", "i", 0),
+    ("hud/aid_core_az_deg", "hud", "aid.core_az_deg", "f", 0),
+    ("hud/aid_amp_ms", "hud", "aid.amp_ms", "f", 0),
+    ("hud/sample_us", "hud", "sample_us", "f", 0),
+    ("hud/draw_us", "hud", "draw_us", "f", 0),
     ("seed", "settings", "seed", "i", 1),
     ("wstar_ms", "settings", "wstar_ms", "f", 1),
     ("zi_m", "settings", "zi_m", "f", 1),
@@ -147,6 +159,7 @@ class PythonInterface:
         self.out = Injection()
         self.status = Status()
         self.markers = TrainingMarkers(SkyObjects(), lambda text: print(f"{TAG} {text}"))
+        self.hud = Hud(self.settings, lambda text: print(f"{TAG} {text}"))
         self.eligible = False
         self.failed = False
         self.next_slow = 0.0
@@ -174,6 +187,8 @@ class PythonInterface:
              self.on_toggle, "thermals_enabled", "Thermals"),
             (xp.createCommand("xp_gliding/markers/toggle", "xp-gliding: training markers on/off"),
              self.on_toggle, "markers_enabled", "Training markers"),
+            (xp.createCommand("xp_gliding/hud/toggle", "xp-gliding: soaring HUD on/off"),
+             self.on_toggle, "hud_enabled", "Soaring HUD"),
         )
         self.menu_item = xp.appendMenuItem(xp.findPluginsMenu(), "xp-gliding", 0)
         self.menu = xp.createMenu("xp-gliding", xp.findPluginsMenu(), self.menu_item, None, None)
@@ -187,6 +202,7 @@ class PythonInterface:
 
     def XPluginStop(self):
         xp.destroyFlightLoop(self.loop)
+        self.hud.stop()
         for cmd, handler, attr, _ in self.commands:
             xp.unregisterCommandHandler(cmd, handler, 1, attr)
         xp.destroyMenu(self.menu)
@@ -197,12 +213,14 @@ class PythonInterface:
     def XPluginEnable(self):
         self.load_aircraft()
         xp.scheduleFlightLoop(self.loop, -1, 1)
+        self.hud.enable()
         return 1
 
     def XPluginDisable(self):
         xp.scheduleFlightLoop(self.loop, 0, 1)
         self.guard.release()
         self.markers.shutdown()
+        self.hud.disable()
         self.status.active = 0
         self.out.clear()
 
@@ -221,6 +239,7 @@ class PythonInterface:
         # a real aircraft is loaded (a plane-loaded message follows).
         loaded = path.lower().endswith(".acf")
         self.eligible = loaded and (engines == 0 or not self.settings.gliders_only)
+        self.hud.set_aircraft(path, self.eligible)
         print(f"{TAG} aircraft {path or '(none)'}: {engines} engines, "
               f"{'eligible' if self.eligible else 'not a glider, inactive'}; "
               f"{self.injector.geometry}")

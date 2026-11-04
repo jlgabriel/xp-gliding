@@ -38,11 +38,14 @@ DATA = {
     "sim/flightmodel/forces/fnrml_plug_acf": 0.0,
     "sim/flightmodel/forces/L_plug_acf": 0.0,
     "sim/weather/region/thermal_rate_ms": 0.62,
+    "sim/time/total_running_time_sec": 100.0,
+    "sim/flightmodel/position/indicated_airspeed": 48.6,
     "sim/aircraft/engine/acf_num_engines": 0,
 }
 
 
-ADAPTER_MODULES = ("xp_gliding.adapter.xpio", "xp_gliding.adapter.plugin")
+ADAPTER_MODULES = ("xp_gliding.adapter.xpio", "xp_gliding.adapter.hud",
+                   "xp_gliding.adapter.plugin")
 
 
 def make_fake_xp(tmp_path, data):
@@ -50,7 +53,9 @@ def make_fake_xp(tmp_path, data):
     xp.accessors = {}
     xp.handlers = {}
     for name in ("Type_Int", "Type_Float", "FlightLoop_Phase_BeforeFlightModel", "CommandBegin",
-                 "Menu_Checked", "Menu_Unchecked", "MSG_PLANE_LOADED"):
+                 "Menu_Checked", "Menu_Unchecked", "MSG_PLANE_LOADED",
+                 "FlightLoop_Phase_AfterFlightModel", "WindowDecorationNone",
+                 "WindowLayerFlightOverlay"):
         setattr(xp, name, name)
     xp.findDataRef = lambda name: name
     xp.getDataf = xp.getDatad = lambda ref: float(data[ref])
@@ -401,3 +406,43 @@ def test_an_error_clears_the_markers(plugin):
     del data["sim/flightmodel/position/y_agl"]
     assert pi.flight_loop(0.016, 0.016, 0, None) == 0
     assert not xp.instances
+
+
+def test_hud_reads_the_energy_and_only_when_wanted(plugin):
+    pi, xp, data = plugin
+    hud = pi.hud
+    hud._load_drawing = lambda: setattr(hud, "window", "window")
+    xp.setWindowIsVisible = lambda window, visible: None
+    xp.destroyWindow = lambda window: None
+    pi.settings.hud_enabled = False
+    hud.tick()
+    assert hud.window is None
+    pi.settings.hud_enabled = True
+    data["acf_path"] = "Aircraft/Laminar Research/Schleicher ASK 21/ASK21.acf"
+    pi.load_aircraft()
+    assert hud.vario.has_netto
+    for i in range(30):
+        data["sim/time/total_running_time_sec"] += 0.1
+        data["sim/flightmodel/position/elevation"] -= 0.1
+        hud.tick()
+    assert dataref(xp, "hud/te_ms") == pytest.approx(-1.0, abs=0.01)
+    assert dataref(xp, "hud/netto_ms") > dataref(xp, "hud/te_ms")
+    assert hud._te_text == "-1.0"
+    assert hud._top_text.startswith("TOP ")
+    assert hud.window == "window"
+
+
+def test_a_failing_draw_stops_the_hud_and_nothing_else(plugin):
+    pi, xp, data = plugin
+    hud = pi.hud
+    hud.window = "window"
+    xp.getWindowGeometry = lambda window: 1 / 0
+    xp.setWindowIsVisible = lambda window, visible: data.__setitem__("visible", visible)
+    xp.destroyWindow = lambda window: None
+    hud.on_draw("window", None)
+    assert hud.failed
+    hud.on_draw("window", None)  # must not raise, must not log again
+    hud.tick()
+    assert data["visible"] == 0
+    frame(pi, data)
+    assert dataref(xp, "active") == 1
