@@ -1,8 +1,8 @@
 # xp-gliding
 
-Good thermals for X-Plane 12: you find them by reading the clouds and climb in them by hand.
+A thermal soaring plugin for X-Plane 12: thermals you can find by reading the clouds and climb in by hand.
 
-X-Plane 12 draws cumulus and has good ridge lift, but in our tests no thermal could be found under its clouds. This plugin adds them. X-Plane keeps the weather, the wind, the ridge lift and the flight model.
+It builds on what X-Plane 12 already does well. The weather, the wind, the ridge lift and the flight model stay X-Plane's, and the plugin adds thermals tied to clouds of their own.
 
 > **Status: in development, not released yet.** It flies, and for now all the work goes into the thermal model, tuned by flying. A release and an install guide come at the end, if the result is good. Thermals and clouds now follow X-Plane's wind, flown so far by the test pilot and not yet by hand. The full specification is in [docs/SPEC.md](docs/SPEC.md).
 
