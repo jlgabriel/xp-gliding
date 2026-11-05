@@ -91,6 +91,12 @@ def test_the_airbrakes_are_a_column(logger):
     assert "speedbrake_ratio" in module.COLUMNS
 
 
+def test_a_log_can_rebuild_the_sky(logger):
+    module, _ = logger
+    for column in ("date_days", "xpg_seed", "xpg_sky_index", "xpg_dlat_deg", "xpg_dlon_deg"):
+        assert column in module.COLUMNS
+
+
 def test_the_plugin_records_a_flight_by_itself(logger, tmp_path):
     module, fake = logger
     fake.getSystemPath.return_value = str(tmp_path)

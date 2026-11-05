@@ -1,6 +1,7 @@
 """Sky profiles: the default changes nothing, a candidate shapes the same draw."""
 
 import math
+import statistics
 
 import pytest
 
@@ -209,10 +210,26 @@ def test_catalog_uses_the_same_sky_as_the_field():
 
 
 def test_cloud_size_does_not_follow_the_stretch():
-    """A cloud's size is from the drawn rgain, not the lift's width."""
-    drawn = f.Thermal(LAT, LON, 0.0, 1000.0, 1.0, 1.25, 1.0, 1.0)
-    wide = f.Thermal(LAT, LON, 0.0, 1000.0, 1.0, 1.25, 1.0, 2.0)
+    """A cloud's size is from the drawn gains, not the lift's width."""
+    drawn = f.Thermal(LAT, LON, 0.0, 1000.0, 1.0, cl.SCALE_WR, 1.0, 1.0)
+    wide = f.Thermal(LAT, LON, 0.0, 1000.0, 1.0, cl.SCALE_WR, 1.0, 2.0)
     assert cl.cloud_scale(wide) == cl.cloud_scale(drawn) == 1.0
+
+
+def test_a_bigger_cloud_is_usually_a_stronger_thermal():
+    """What a pilot reads in the sky: true on the whole, and not a perfect ranking."""
+    p = cl.CloudParams()
+    sizes, cores = [], []
+    for seed in (1, 2, 3):
+        field = make_field(WIDE, range_m=15000.0, seed=seed)
+        we = field.environment_sink(1000.0, WSTAR, ZI)
+        for th in field.thermals():
+            if cl.carries_cloud(th, p):
+                core, _ = markers.core_of(th, 1000.0, 0.5 * (th.birth + th.death), WSTAR, ZI, we)
+                sizes.append(cl.cloud_scale(th))
+                cores.append(core)
+    assert len(sizes) > 100
+    assert 0.6 < statistics.correlation(sizes, cores) < 0.95
 
 
 def test_the_cloud_base_moves_no_lift():

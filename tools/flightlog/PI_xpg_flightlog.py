@@ -46,7 +46,7 @@ import time
 
 import xp
 
-LOGGER_VERSION = "0.5.0"
+LOGGER_VERSION = "0.6.0"
 FLUSH_EVERY_ROWS = 300
 
 # (column, dataref, type) read after the flight model
@@ -78,6 +78,7 @@ STATE_DATAREFS = (
     ("sun_pitch_deg", "sim/graphics/scenery/sun_pitch_degrees", "f"),
     ("beta_deg", "sim/flightmodel/position/beta", "f"),
     ("speedbrake_ratio", "sim/cockpit2/controls/speedbrake_ratio", "f"),
+    ("date_days", "sim/time/local_date_days", "i"),
 )
 
 FORCE_DATAREFS = (
@@ -135,6 +136,11 @@ XPG_DATAREFS = (
     ("xpg_frame_us", "xp_gliding/frame_us", "f"),
     ("xpg_markers", "xp_gliding/markers/count", "i"),
     ("xpg_markers_update_us", "xp_gliding/markers/update_us", "f"),
+    # What it takes to rebuild the sky afterwards (tools/flightlog/replay_sky.py).
+    ("xpg_seed", "xp_gliding/seed", "i"),
+    ("xpg_sky_index", "xp_gliding/sky_index", "i"),
+    ("xpg_dlat_deg", "xp_gliding/wind/dlat_deg", "f"),
+    ("xpg_dlon_deg", "xp_gliding/wind/dlon_deg", "f"),
 )
 
 COLUMNS = (

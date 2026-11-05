@@ -36,8 +36,9 @@ from .geo import radii_of_curvature
 
 TOP_ZZI = 1.0 / 1.1  # the lift ends at this z/zi (Allen Eq. 11), the same as the markers' top
 CREATE, RATE, DESTROY = 0, 1, 2  # actions of CloudPlanner.step
-# Cloud size against rgain: the object's size at a typical carrier's (they are the wide ones).
-SCALE_RGAIN = 1.25
+# Cloud size against wgain x rgain: this value gets the object's size. It keeps the median size
+# that a size from rgain alone had (1.07), so the sky is as cloudy (docs/phase3.md).
+SCALE_WR = 1.7
 SCALE_RANGE = (0.6, 1.4)
 
 
@@ -76,8 +77,14 @@ def carries_cloud(thermal, params):
 
 
 def cloud_scale(thermal):
-    """Size of the cloud relative to the object's: wider thermals have wider clouds."""
-    return min(max(thermal.rgain / SCALE_RGAIN, SCALE_RANGE[0]), SCALE_RANGE[1])
+    """Size of the cloud relative to the object's: stronger thermals have bigger clouds, mostly.
+
+    In Allen's model a wider thermal has slower air, so a size from rgain alone made the
+    biggest clouds the weakest thermals, and a size from wgain alone would rank them exactly.
+    The product reads as a pilot should expect: a big cloud is usually a good one, not always.
+    """
+    size = thermal.wgain * thermal.gain * thermal.rgain / SCALE_WR
+    return min(max(size, SCALE_RANGE[0]), SCALE_RANGE[1])
 
 
 def feeding_window(thermal, params):

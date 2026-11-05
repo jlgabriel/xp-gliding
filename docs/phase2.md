@@ -17,7 +17,7 @@ A particle cloud over the thermals that carry one, on by default: menu *Plugins 
 | Moment in the thermal's life | Cloud |
 | --- | --- |
 | 10% | It starts forming: particles at the steady rate, full after one particle life |
-| 10% to 70% | Fed steadily, with a size that follows `rgain` |
+| 10% to 70% | Fed steadily, with a size that follows `wgain` × `rgain` (`rgain` alone [until 2026-11-05](phase3.md#first-flight-by-hand)) |
 | 70%, when the thermal starts to decay | Feeding stops. It fades as its particles die, 144 to 216 s later |
 | 100% | At the shortest life, the fade ends just as the thermal does |
 
@@ -269,7 +269,7 @@ At x1.5 a steeper turn pays again at 500 m, as the handbook says, and every clou
 
 Juan Luis, 2026-11-04, Santiago, Laminar ASK 21, with `carrier_stretch` 2 and the blue thermals as above, before the base was lowered. The log's lift matches the rebuilt field within 0.001 m/s, so it was this sky.
 
-- **The airbrakes were fully out for the first part**, which nothing showed at first: he felt the glider heavy and ended about 70 m above the ground. Straight flight at 85 km/h sank 1.9-2.4 m/s, and the HUD's netto read −2 for it, in air that was not moving. Why they were out was not found. With them closed, measured the same way: −1.00 m/s against 0.98 from the polar. So that part says nothing about the sky, except that in 20 s means he met +2.2 to +2.8 m/s while circling. The flight log now has a `speedbrake_ratio` column.
+- **The airbrakes were fully out for the first part**, which nothing showed at first: he felt the glider heavy and ended about 70 m above the ground. Straight flight at 85 km/h sank 1.9-2.4 m/s, and the HUD's netto read −2 for it, in air that was not moving. Why they were out was not found then; on 2026-11-05 the likely cause was: [the aircraft's own script opens them on the ground](phase3.md#first-flight-by-hand), not checked for this flight. With them closed, measured the same way: −1.00 m/s against 0.98 from the polar. So that part says nothing about the sky, except that in 20 s means he met +2.2 to +2.8 m/s while circling. The flight log now has a `speedbrake_ratio` column.
 - **High up, he found almost no thermals.** At about 1540 m AGL, with clouds still above him, the nearest cores gave +0.1 to +0.6 m/s. That is what the model says, and it is why the base came down: the clouds promised lift where there was none.
 - **The HUD's `TOP` read as wrong to him.** It is the height left up to the top, so it grows as the glider sinks: +1748 m at 70 m AGL. It is right, but the label does not say so.
 
