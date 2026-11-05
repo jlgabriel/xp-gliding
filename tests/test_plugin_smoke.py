@@ -8,6 +8,7 @@ and creates, moves and destroys the instances of the training markers and clouds
 
 import importlib
 import itertools
+import json
 import sys
 import types
 
@@ -42,6 +43,8 @@ DATA = {
     "sim/time/total_running_time_sec": 100.0,
     "sim/flightmodel/position/indicated_airspeed": 48.6,
     "sim/aircraft/engine/acf_num_engines": 0,
+    "sim/weather/aircraft/wind_now_x_msc": 0.0,
+    "sim/weather/aircraft/wind_now_z_msc": 0.0,
 }
 
 
@@ -76,11 +79,30 @@ def make_fake_xp(tmp_path, data):
     xp.registerCommandHandler = lambda cmd, h, before, refcon: xp.handlers.__setitem__(cmd, (h, refcon))
     xp.unregisterCommandHandler = lambda cmd, h, before, refcon: xp.handlers.pop(cmd)
     xp.findPluginsMenu = lambda: "plugins"
-    xp.appendMenuItem = lambda menu, name, refcon: 0
-    xp.createMenu = lambda *a: "menu"
-    xp.appendMenuItemWithCommand = lambda menu, name, cmd: 0
-    xp.checkMenuItem = lambda menu, index, check: None
-    xp.destroyMenu = lambda menu: None
+    xp.menus = {}  # title -> {"handler", "items": [(label, refcon)], "checked": {index}}
+
+    def create_menu(title, parent, item, handler, refcon):
+        xp.menus[title] = {"handler": handler, "items": [], "checked": set()}
+        return title
+
+    def append_item(menu, name, refcon):
+        if menu not in xp.menus:
+            return 0
+        xp.menus[menu]["items"].append((name, refcon))
+        return len(xp.menus[menu]["items"]) - 1
+
+    def check_item(menu, index, check):
+        if check == xp.Menu_Checked:
+            xp.menus[menu]["checked"].add(index)
+        else:
+            xp.menus[menu]["checked"].discard(index)
+
+    xp.appendMenuItem = append_item
+    xp.createMenu = create_menu
+    xp.appendMenuItemWithCommand = lambda menu, name, cmd: append_item(menu, name, cmd)
+    xp.appendMenuSeparator = lambda menu: None
+    xp.checkMenuItem = check_item
+    xp.destroyMenu = lambda menu: xp.menus.pop(menu)
     xp.removeMenuItem = lambda menu, index: None
     xp.createFlightLoop = lambda cb, phase, refcon: "loop"
     xp.scheduleFlightLoop = lambda loop, interval, relative: None
@@ -520,7 +542,7 @@ def test_a_filled_cloud_settles_to_its_steady_rate(plugin):
     fill_sky(pi, data)
     data["sim/time/zulu_time_sec"] += 1.0
     clouds_tick(pi, data)
-    near = [(v[2][0], th) for th, (inst, _) in pi.clouds.instances.items() for v in [xp.instances[inst]]]
+    near = [(v[2][0], th) for th, (inst, _, _) in pi.clouds.instances.items() for v in [xp.instances[inst]]]
     assert dataref(xp, "clouds/rate_changes") > 0
     assert all(rate <= 1.0 + 1e-9 or pi.clouds.planner.shown[th].fast_until
                > data["sim/time/zulu_time_sec"] for rate, th in near)
@@ -614,3 +636,212 @@ def test_a_cloud_object_that_will_not_load_leaves_the_flight_alone(plugin, capsy
     assert not xp.instances and pi.clouds.failed
     assert "could not load the cloud object" in capsys.readouterr().out
     assert dataref(xp, "active") == 1
+
+
+# --- the wind ---------------------------------------------------------------------
+
+def test_in_calm_air_the_clouds_are_not_moved(plugin):
+    pi, xp, data = plugin
+    fill_sky(pi, data)
+    assert pi.clouds.instances
+    for _ in range(8):
+        data["sim/time/zulu_time_sec"] += 1.0
+        clouds_tick(pi, data)
+    assert dataref(xp, "clouds/moved") == 0
+
+
+def test_the_wind_moves_every_cloud_about_once_a_second_downwind(plugin):
+    pi, xp, data = plugin
+    fill_sky(pi, data)
+    before = {th: xp.instances[entry[0]][1] for th, entry in pi.clouds.instances.items()}
+    data["sim/weather/aircraft/wind_now_x_msc"] = 10.0
+    pi.next_clouds = 0.0
+    frame(pi, data)  # the clock starts for the wind
+    for _ in range(5):
+        data["sim/time/zulu_time_sec"] += 1.0
+        frame(pi, data)
+    assert dataref(xp, "wind/e_ms") == 10.0 and dataref(xp, "wind/dlon_deg") > 0.0
+    pi.clouds._next_plan = float("inf")
+    pi.next_slow = float("inf")
+    for _ in range(4 + 1):  # slices of a round, and the round's start
+        pi.next_clouds = 0.0
+        frame(pi, data)
+    pi.next_slow = 0.0
+    assert dataref(xp, "clouds/moved") >= len(before)
+    after = {th: xp.instances[entry[0]][1] for th, entry in pi.clouds.instances.items()}
+    assert all(after[th] != before[th] for th in before if th in after)
+
+
+def test_a_moved_cloud_keeps_its_rate_and_scale(plugin):
+    pi, xp, data = plugin
+    fill_sky(pi, data)
+    th, entry = next(iter(pi.clouds.instances.items()))
+    rate = xp.instances[entry[0]][2]
+    data["sim/weather/aircraft/wind_now_x_msc"] = 10.0
+    frame(pi, data)
+    data["sim/time/zulu_time_sec"] += 1.0
+    frame(pi, data)
+    pi.clouds._next_plan = float("inf")
+    pi.next_slow = float("inf")
+    for _ in range(5):
+        pi.next_clouds = 0.0
+        frame(pi, data)
+    pi.next_slow = 0.0
+    assert xp.instances[pi.clouds.instances[th][0]][2] == rate
+
+
+def test_a_new_flight_puts_the_sky_back(plugin):
+    pi, xp, data = plugin
+    data["sim/weather/aircraft/wind_now_x_msc"] = 10.0
+    frame(pi, data)
+    data["sim/time/zulu_time_sec"] += 1.0
+    frame(pi, data)
+    assert dataref(xp, "wind/dlon_deg") > 0.0
+    pi.XPluginReceiveMessage("x", xp.MSG_PLANE_LOADED, 0)
+    assert dataref(xp, "wind/dlon_deg") == 0.0
+
+
+def test_the_wind_can_be_switched_off(plugin):
+    pi, xp, data = plugin
+    handler, attr = xp.handlers["xp_gliding/wind/toggle"]
+    data["sim/weather/aircraft/wind_now_x_msc"] = 10.0
+    handler("xp_gliding/wind/toggle", xp.CommandBegin, attr)
+    assert dataref(xp, "wind_enabled") == 0
+    frame(pi, data)
+    data["sim/time/zulu_time_sec"] += 1.0
+    frame(pi, data)
+    assert dataref(xp, "wind/dlon_deg") == 0.0
+
+
+def test_markers_are_drawn_where_the_wind_took_their_thermals(plugin):
+    pi, xp, data = plugin
+    dataref(xp, "markers_enabled", 1)
+    markers_tick(pi, data)
+    th = next(iter(pi.markers.shown))
+    before = xp.instances[pi.markers.shown[th].ring][1]
+    data["sim/weather/aircraft/wind_now_x_msc"] = 10.0
+    frame(pi, data)
+    data["sim/time/zulu_time_sec"] += 1.0
+    markers_tick(pi, data)
+    assert th in pi.markers.shown
+    assert xp.instances[pi.markers.shown[th].ring][1] != before
+
+
+# --- the settings menu ------------------------------------------------------------
+
+def choose(xp, title, label):
+    menu = xp.menus[title]
+    refcon = next(refcon for name, refcon in menu["items"] if name == label)
+    menu["handler"](title, refcon)
+
+
+def checked(xp, title):
+    menu = xp.menus[title]
+    return [menu["items"][k][0] for k in sorted(menu["checked"])]
+
+
+def saved(pi):
+    with open(pi.config_path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def test_the_menu_shows_the_current_choices(plugin):
+    pi, xp, data = plugin
+    assert checked(xp, "Sky") == ["Narrow thermals, as the paper"]
+    assert checked(xp, "Strength of the day (w*)") == ["3 m/s"]
+    assert checked(xp, "Depth of the thermal layer (zi)") == ["2000 m"]
+    assert checked(xp, "Seed of the sky") == ["1"]
+
+
+def test_every_sky_in_the_menu_exists_and_every_sky_is_in_the_menu(plugin):
+    pi, xp, data = plugin
+    values = {refcon[1] for _, refcon in xp.menus["Sky"]["items"]}
+    assert values == set(importlib.import_module("xp_gliding.engine.field").SKY_NAMES)
+
+
+def test_choosing_a_sky_changes_it_and_saves_it(plugin):
+    pi, xp, data = plugin
+    frame(pi, data)
+    choose(xp, "Sky", "Wide thermals under the clouds (x2)")
+    assert pi.settings.sky == "wide_carriers"
+    assert checked(xp, "Sky") == ["Wide thermals under the clouds (x2)"]
+    assert saved(pi)["sky"] == "wide_carriers"
+    old = pi.injector.field
+    frame(pi, data)  # at once, not up to a second later
+    assert pi.injector.field is not old
+    assert pi.injector.field.config.sky is importlib.import_module("xp_gliding.engine.field").SKIES["wide_carriers"]
+
+
+def test_choosing_a_new_day_keeps_the_numbers_as_numbers(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Strength of the day (w*)", "4 m/s")
+    choose(xp, "Seed of the sky", "3")
+    assert pi.settings.wstar_ms == 4.0 and pi.settings.seed == 3 and isinstance(pi.settings.seed, int)
+    assert saved(pi)["wstar_ms"] == 4.0 and saved(pi)["seed"] == 3
+
+
+def test_a_new_depth_starts_the_clouds_over_at_their_new_base(plugin):
+    pi, xp, data = plugin
+    fill_sky(pi, data)
+    assert pi.clouds.instances
+    choose(xp, "Depth of the thermal layer (zi)", "1500 m")
+    assert pi.settings.zi_m == 1500.0
+    assert not pi.clouds.instances
+
+
+def test_a_switch_is_saved_too(plugin):
+    pi, xp, data = plugin
+    handler, attr = xp.handlers["xp_gliding/hud/toggle"]
+    handler("xp_gliding/hud/toggle", xp.CommandBegin, attr)
+    assert saved(pi)["hud_enabled"] is False
+
+
+def test_a_value_outside_the_menu_checks_nothing_and_stays(plugin):
+    pi, xp, data = plugin
+    dataref(xp, "zi_m", 1800.0)
+    frame(pi, data)
+    assert checked(xp, "Depth of the thermal layer (zi)") == []
+    assert pi.settings.zi_m == 1800.0
+
+
+def test_a_config_that_cannot_be_written_only_says_so(plugin, capsys):
+    pi, xp, data = plugin
+    pi.config_path = str(pi.config_path) + "/not/a/folder/config.json"
+    choose(xp, "Seed of the sky", "2")
+    assert pi.settings.seed == 2
+    assert "could not write" in capsys.readouterr().out
+
+
+# --- the wind on the HUD ----------------------------------------------------------
+
+@pytest.mark.parametrize("wind_x, wind_z, psi, right, up", [
+    (10.0, 0.0, 0.0, 1.0, 0.0),  # blowing toward the east, nose north: to the right
+    (10.0, 0.0, 90.0, 0.0, 1.0),  # nose east: a tailwind, up
+    (10.0, 0.0, 270.0, 0.0, -1.0),  # nose west: a headwind, down
+    (0.0, -10.0, 0.0, 0.0, 1.0),  # toward the north (z is south), nose north: up
+    (0.0, 10.0, 90.0, 1.0, 0.0),  # toward the south, nose east: to the right
+])
+def test_the_wind_arrow_points_where_the_wind_goes_from_the_nose(plugin, wind_x, wind_z, psi, right, up):
+    hud = importlib.import_module("xp_gliding.adapter.hud")
+    dx, dy = hud.wind_arrow(wind_x, wind_z, psi)
+    assert dx == pytest.approx(right * hud.WIND_RADIUS, abs=1e-6)
+    assert dy == pytest.approx(up * hud.WIND_RADIUS, abs=1e-6)
+
+
+def hud_samples(pi, xp, data, count=30):
+    hud = pi.hud
+    hud._load_drawing = lambda: setattr(hud, "window", "window")
+    xp.setWindowIsVisible = lambda window, visible: None
+    xp.destroyWindow = lambda window: None
+    for _ in range(count):
+        data["sim/time/total_running_time_sec"] += 0.1
+        hud.tick()
+
+
+def test_the_hud_gives_the_wind_in_knots_and_says_when_it_is_calm(plugin):
+    pi, xp, data = plugin
+    hud_samples(pi, xp, data)
+    assert pi.hud._wind_text == "WIND calm" and pi.hud._wind_arrow is None
+    data["sim/weather/aircraft/wind_now_x_msc"] = 7.72
+    hud_samples(pi, xp, data)
+    assert pi.hud._wind_text == "WIND 15 kt" and pi.hud._wind_arrow is not None

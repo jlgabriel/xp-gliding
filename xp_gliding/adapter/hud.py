@@ -13,8 +13,8 @@ glyph from Python; only the big TE reading pays for it.
 It never touches the forces, and a failure here only hides the panel: an
 exception must not leave a draw callback, because XPPython3 stops calling it.
 
-Metric units for now: m/s and m. Plugins > xp-gliding > Soaring HUD toggles it,
-as does the command `xp_gliding/hud/toggle`.
+Metric units for now: m/s and m, except the wind, in knots as in X-Plane's weather settings.
+Plugins > xp-gliding > Soaring HUD toggles it, as does the command `xp_gliding/hud/toggle`.
 """
 
 import math
@@ -32,6 +32,9 @@ TAPE_MS = 5.0
 TAPE_BOTTOM, TAPE_TOP = 12, HEIGHT - 12
 TAPE_X = 8
 AID_X, AID_Y, AID_RADIUS = 118, 52, 34
+WIND_X, WIND_Y, WIND_RADIUS = 118, 122, 18  # the arrow, between the text and the centring aid
+WIND_CALM_MS = 0.5  # below this there is no direction to show
+KT_PER_MS = 1.0 / 0.514444
 # Half-swing of the lift around a circle. On logged orbits of the test pilot it is 0.8-0.9 m/s
 # even within 30 m of the core, where the direction means nothing, and 1.8 m/s or more once
 # 30 m or more off centre (docs/hud.md). Below this the arrow stays hidden.
@@ -61,6 +64,15 @@ def aid_arrow(core_az_deg, psi_deg, amp_ms):
     return length * math.sin(angle), length * math.cos(angle)
 
 
+def wind_arrow(wind_x_ms, wind_z_ms, psi_deg):
+    """The tip of the wind's arrow from its centre: up is the nose, and it points where the wind
+    goes, so it turns as the glider circles. None when calm. X-Plane's local axes: x east, z south."""
+    if math.hypot(wind_x_ms, wind_z_ms) < WIND_CALM_MS:
+        return None
+    angle = math.atan2(wind_x_ms, -wind_z_ms) - math.radians(psi_deg)
+    return WIND_RADIUS * math.sin(angle), WIND_RADIUS * math.cos(angle)
+
+
 class Hud:
     def __init__(self, settings, log):
         self.settings = settings
@@ -78,7 +90,9 @@ class Hud:
         self._samples = 0
         self._te_y = self._netto_y = self._average_y = tape_y(0.0)
         self._arrow = None
+        self._wind_arrow = None
         self._te_text = self._netto_text = self._average_text = self._top_text = ""
+        self._wind_text = ""
         ref = xp.findDataRef
         self._time = ref("sim/time/total_running_time_sec")
         self._paused = ref("sim/time/paused")
@@ -90,6 +104,8 @@ class Hud:
         self._phi = ref("sim/flightmodel/position/phi")
         self._psi = ref("sim/flightmodel/position/psi")
         self._mass = ref("sim/flightmodel/weight/m_total")
+        self._wind_x = ref("sim/weather/aircraft/wind_now_x_msc")
+        self._wind_z = ref("sim/weather/aircraft/wind_now_z_msc")
         self.loop = xp.createFlightLoop(self.on_loop, xp.FlightLoop_Phase_AfterFlightModel, None)
 
     # --- life cycle ------------------------------------------------------------
@@ -191,6 +207,12 @@ class Hud:
         self._average_text = f"AVG {vario.average_ms:+.1f}"
         base_zzi = sky_named(self.settings.sky).cloud_base_zzi
         self._top_text = f"TOP {height_to_top(self.settings.zi_m, getf(self._agl), base_zzi):+.0f} m"
+        wind_x, wind_z = getf(self._wind_x), getf(self._wind_z)
+        self._wind_arrow = wind_arrow(wind_x, wind_z, psi)
+        if self._wind_arrow is None:
+            self._wind_text = "WIND calm"
+        else:
+            self._wind_text = f"WIND {math.hypot(wind_x, wind_z) * KT_PER_MS:.0f} kt"
 
     # --- every frame ----------------------------------------------------------------
 
@@ -229,6 +251,7 @@ class Hud:
         xp.drawString(GREEN, x, y - 70, self._netto_text, None, xp.Font_Proportional)
         xp.drawString(WHITE, x, y - 90, self._average_text, None, xp.Font_Proportional)
         xp.drawString(WHITE, x, y - 110, self._top_text, None, xp.Font_Proportional)
+        xp.drawString(WHITE, x, y - 130, self._wind_text, None, xp.Font_Proportional)
 
     def draw_static(self):
         GL = self.GL
@@ -286,4 +309,17 @@ class Hud:
             GL.glVertex2f(AID_X + dx, AID_Y + dy)
             GL.glVertex2f(AID_X - dy * 0.25, AID_Y + dx * 0.25)
             GL.glVertex2f(AID_X + dy * 0.25, AID_Y - dx * 0.25)
+            GL.glEnd()
+        arrow = self._wind_arrow
+        if arrow is not None:
+            dx, dy = arrow
+            GL.glColor3f(*WHITE)
+            GL.glBegin(GL.GL_LINES)
+            GL.glVertex2f(WIND_X - dx, WIND_Y - dy)
+            GL.glVertex2f(WIND_X + 0.3 * dx, WIND_Y + 0.3 * dy)
+            GL.glEnd()
+            GL.glBegin(GL.GL_TRIANGLES)
+            GL.glVertex2f(WIND_X + dx, WIND_Y + dy)
+            GL.glVertex2f(WIND_X + 0.3 * dx - 0.4 * dy, WIND_Y + 0.3 * dy + 0.4 * dx)
+            GL.glVertex2f(WIND_X + 0.3 * dx + 0.4 * dy, WIND_Y + 0.3 * dy - 0.4 * dx)
             GL.glEnd()

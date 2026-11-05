@@ -18,6 +18,10 @@ About once a second (`Injector.slow_update`): load and drop thermal tiles
 around the aircraft, move the local origin when the aircraft is far from it,
 and find the nearest thermal for the instruments.
 
+The wind is X-Plane's. `Injector.carry` integrates it every frame into the offset between
+the ground and the air (`engine/wind.py`), and the field is only ever asked about the
+aircraft's position in the air's frame.
+
 X-Plane's conventions (DataRefs.txt, XP 12.4.3): `faxil_plug_acf` positive
 pushes the aircraft *backward*, `fside_plug_acf` positive pushes it right,
 `fnrml_plug_acf` positive pushes it up, `L_plug_acf` positive rolls right.
@@ -34,6 +38,7 @@ import math
 from ..engine import injection as inj
 from ..engine.field import FieldConfig, ThermalField, sky_index, sky_named
 from ..engine.geo import LocalFrame
+from ..engine.wind import AirDrift
 
 NEAREST_MAX_M = 5000.0
 
@@ -42,7 +47,8 @@ class AircraftState:
     """What the adapter reads from X-Plane each frame."""
 
     __slots__ = ("lat", "lon", "agl_m", "psi_deg", "phi_deg", "alpha_deg", "beta_deg",
-                 "r_rad", "tas_ms", "mass_kg", "rho", "t_zulu_s", "t_local_s", "sky_t_s", "day")
+                 "r_rad", "tas_ms", "mass_kg", "rho", "t_zulu_s", "t_local_s", "sky_t_s", "day",
+                 "wind_x_ms", "wind_z_ms")
 
     def __init__(self):
         self.lat = self.lon = 0.0
@@ -55,6 +61,7 @@ class AircraftState:
         self.t_zulu_s = self.t_local_s = 0.0
         self.sky_t_s = 0.0  # the engine's t: `field.sky_time`
         self.day = 0
+        self.wind_x_ms = self.wind_z_ms = 0.0  # X-Plane's wind at the aircraft, local axes
 
 
 class Injection:
@@ -136,6 +143,7 @@ class Injector:
         self.frame = None
         self.field = None
         self._field_key = None
+        self.drift = AirDrift()
         self.nearest = Nearest()
 
     def set_geometry(self, geometry):
@@ -152,24 +160,35 @@ class Injector:
         self.field = None
         self._field_key = None
 
+    # --- the wind ---------------------------------------------------------
+
+    def carry(self, s):
+        """Every frame, first: X-Plane's wind moves the sky as it moves the aircraft."""
+        if self.settings.wind_enabled:
+            # Local axes: x east, z south (engine/geo.py).
+            self.drift.advance(s.wind_x_ms, -s.wind_z_ms, s.lat, s.sky_t_s)
+        else:
+            self.drift.hold(s.sky_t_s)
+
     # --- about once a second ----------------------------------------------
 
     def slow_update(self, s):
         """Keep the field loaded around the aircraft. Not for every frame."""
         st = self.settings
+        lat, lon = self.drift.to_air(s.lat, s.lon)
         key = (st.seed, s.day, st.range_m, st.sky)
         if self.field is None or key != self._field_key:
-            self.frame = LocalFrame(s.lat, s.lon)
+            self.frame = LocalFrame(lat, lon)
             config = FieldConfig(seed=st.seed, day=s.day, range_m=st.range_m, sky=sky_named(st.sky))
             self.field = ThermalField(config, self.frame)
             self._field_key = key
-        elif self.frame.distance_to_origin(s.lat, s.lon) > st.recentre_m:
-            self.frame = LocalFrame(s.lat, s.lon)
+        elif self.frame.distance_to_origin(lat, lon) > st.recentre_m:
+            self.frame = LocalFrame(lat, lon)
             self.field.set_frame(self.frame)
-        self.field.update(s.sky_t_s, s.lat, s.lon)
+        self.field.update(s.sky_t_s, lat, lon)
 
         near = self.nearest
-        e, n = self.frame.to_enu(s.lat, s.lon)
+        e, n = self.frame.to_enu(lat, lon)
         th, r = self.field.nearest(e, n, s.sky_t_s, NEAREST_MAX_M)
         if th is None:
             near.distance_m, near.bearing_deg, near.core_ms = -1.0, 0.0, 0.0
@@ -193,7 +212,8 @@ class Injector:
         if self.uniform_ms != 0.0:
             wl = wc = wr = wt = self.uniform_ms
         elif st.thermals_enabled:
-            e, n = self.frame.to_enu(s.lat, s.lon)
+            lat, lon = self.drift.to_air(s.lat, s.lon)
+            e, n = self.frame.to_enu(lat, lon)
             g.update(e, n, s.agl_m, s.psi_deg, s.phi_deg)
             f, t, wstar, zi = self.field, s.sky_t_s, st.wstar_ms, st.zi_m
             wc = f.lift_at(g.ce, g.cn, g.cz, t, wstar, zi)

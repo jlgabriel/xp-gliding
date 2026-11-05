@@ -245,7 +245,7 @@ The plugin works *on top of* the native weather, never instead of it. Whether th
 
 **Wind (DataRefs.txt, XP 12.4.3, read-only)**
 
-- At the aircraft: `sim/weather/aircraft/wind_now_x_msc`, `_y_msc`, `_z_msc` (OpenGL axes), `wind_now_speed_msc`, `wind_now_direction_degt`. *Verify* in flight that this is the wind that moves the glider.
+- At the aircraft: `sim/weather/aircraft/wind_now_x_msc`, `_y_msc`, `_z_msc` (OpenGL axes), `wind_now_speed_msc`, `wind_now_direction_degt`. This is the wind that moves the glider, within 0.02 m/s (measured 2026-11-05, [phase3.md](phase3.md)).
 - By layer: `sim/weather/aircraft/wind_altitude_msl_m[13]`, `wind_speed_kts[13]`, `wind_direction_degt[13]`, `shear_speed_kts[13]`, `shear_direction_degt[13]`, `turbulence[13]`. Datarefs, so no call to the weather API is needed.
 
 **Other**
@@ -440,7 +440,7 @@ The engine's thermal model lives in `xp_gliding/engine/` and is tested outside t
 
 ## Wind
 
-Next in the roadmap (decided by Juan Luis, 2026-11-05). Today thermals are fixed to the ground and XP12's wind carries the glider, so a glider circling in wind leaves its thermal: 20 kt is ~10 m/s, out of a thermal 200 m in radius in about half a minute (reasoned, not flown). Until this is done the plugin can only be flown in calm air.
+In progress (decided by Juan Luis, 2026-11-05; results in [phase3.md](phase3.md)). With thermals fixed to the ground, XP12's wind would carry a circling glider out of its thermal: 20 kt is ~10 m/s, out of a thermal 200 m in radius in about half a minute. The first step below is built and flown by the test pilot, not yet by hand.
 
 **The wind is X-Plane's** (Juan Luis, 2026-11-05). The plugin has no wind model and writes no wind: it reads the wind the simulator is flying, real or set by hand, and the thermals respond to it. Whatever the user sets in XP12's weather is what the thermals see.
 
@@ -451,7 +451,7 @@ Next in the roadmap (decided by Juan Luis, 2026-11-05). Today thermals are fixed
 - Under cumulus the lift is upwind of the cloud: the lower the glider, and the stronger the wind against the thermal, the further upwind (10-4).
 - Brisk winds with a nearly constant direction up to the base can line thermals up in streets, with sink between them (9-11).
 
-**First step: the wind carries the sky**
+**First step: the wind carries the sky** (flown by the test pilot in a uniform wind: at 15 kt a circle with no correction matches the calm one within 0.02 m/s of climb)
 
 Thermals and clouds keep the positions they were generated with, in a frame that moves with the air. The engine gets one offset D(t), the wind integrated over time, and everything else follows: lift is sampled at the glider's position minus D, and clouds and markers are drawn at their position plus D. In a uniform wind, glider and thermal travel together and a circle needs no correction.
 
@@ -460,8 +460,8 @@ Thermals and clouds keep the positions they were generated with, in a frame that
 - **No jumps:** the wind changing moves nothing at once, only the rate D grows at. Pause stops it.
 - **Tiles:** the field looks up tiles by position in the air's frame, so it does not need to search further for thermals that have drifted.
 - **Which wind:** the adapter passes a wind and the engine does not care which. In a uniform wind all candidates agree. In shear they differ: a sky moving at one layer's speed runs away from a glider at another height at the difference between the two. The first candidate is the wind at the glider (`wind_now_*`), which keeps it with its thermal at any height, at the price of a sky that depends slightly on the glider's height. To decide by flying.
-- **Clouds now move,** so every cloud needs position updates. To measure; the markers already do this once a second.
-- **Particles:** our emitter has `DRAG` 0, so particles should stay where they were emitted, and a moving emitter would leave a trail upwind. *Verify* with `tools/cloudlab/` whether a drag above 0 lets XP12's wind carry them, and at which speed.
+- **Clouds now move:** each gets a new position about once a second in wind, a quarter of them per update, and none in calm air. No cost seen so far; not measured properly.
+- **Particles:** with `DRAG` 0 they stay where they were emitted, and a moving emitter left a trail of about 2 km at 25 kt. With `DRAG` 1, XP12's wind carries them, and clouds stay compact, also in the one shear tried ([phase3.md](phase3.md#clouds-in-wind)).
 
 **Second step: shear and tilt.** The form is open. A rigid column tilted by the rise time (10 m/s of wind and 3 m/s of rise give 3.3 km of offset per km of height) and carried with the air would move away from a climbing glider at U·c/w: 5 m/s with U = 10 m/s and a climb of half of w, probably too fast to fly (arithmetic, not flown). Real air is closer to bubbles, where a glider stays with its bubble and the cloud was fed by earlier ones. What has to be right is what a pilot sees: the lift upwind of the cloud, more so when low, and having to recentre in shear.
 
@@ -492,14 +492,15 @@ What you see in the sky must be a consequence of the model, so the pilot learns 
 What a pilot needs to feel and work a thermal. It stays as it is until the model is done (Juan Luis, 2026-11-04 and 2026-11-05), then phase 7.
 
 - **Soaring HUD** (decided by Juan Luis, 2026-11-03: permanent). A small panel with TE, netto, the average climb, the height to the day's thermal top and a centring aid, in the plugin (`xp_gliding/adapter/hud.py`). The centring direction comes from netto against heading only, never from the engine, and is reliable from about 60 m off centre. Drawing method and measurements in [hud.md](hud.md). Netto needs each glider's polar; only the Laminar ASK 21 has one.
+- **Wind** (Juan Luis, 2026-11-05): an arrow and the speed in knots, from the wind at the glider. Up is the nose and it points where the wind goes, so it turns as the glider circles.
 - **Audio vario.** Juan Luis wants it. Not done: X-Plane's native switch (`sim/cockpit2/switches/total_energy_audio`) is the first thing to try, since its TE is right.
 
 ## Settings menu
 
 Worked on in parallel with the model (Juan Luis, 2026-11-05): *Plugins → xp-gliding* should let the pilot choose the plugin's settings, so flying never needs an edit of `config.json` and a restart.
 
-- **Today:** five on/off items (plugin, thermals, markers, cumulus, HUD), each also a command. Changes last until X-Plane closes. Sky, strength of the day (w\*), depth (zi) and seed are only in `Output/xp-gliding/config.json`, read at start.
-- **To add:** the sky by name, the strength and depth of the day, the seed. Each new piece of the model that needs a switch gets its item when it is built, starting with the wind.
+- **Switches:** plugin, thermals, thermals follow the wind, markers, cumulus, HUD, each also a command. Each new piece of the model that needs one gets its item when it is built.
+- **Submenus** (`config.MENU_CHOICES`, built 2026-11-05, nobody has chosen anything in them yet): the sky by name, the strength and depth of the day, the seed.
 - **Saved:** what is chosen in the menu is written to `config.json`, so the next session starts from it.
 - **Method:** plain XPLM submenus with check marks and a few values to choose from, since they cost nothing per frame. A window with sliders only if the flying asks for it, and without imgui if possible: XPPython3's reload crashes after imgui.
 - **Changing the sky in flight** replaces every thermal and cloud at once. That is acceptable from a menu, but it has to be clean: no cloud left behind and no jump in the forces. *Verify* in flight.
@@ -554,9 +555,9 @@ Rewritten on 2026-11-05 around good thermals. **This stage is the model only** (
    - [x] A candidate sky, offline (2026-11-04, [phase2.md](phase2.md#a-wider-sky-under-the-clouds)): thermals with a cloud twice as wide, few blue ones. Nearly all the air at +2 m/s or more is then under a cloud, and an ASK 21 climbs under every cloud offline, with the clouds' base lowered to where a typical climb runs out. Its numbers are a first guess. `wide_carriers` in `SKIES`; the default sky has not changed. First climb by hand (2026-11-05): +2.31 m/s for 126 s under a cloud, 422 to 712 m AGL, sink within 0.04 m/s of the offline model.
    - *Done when:* a thermal can be found just by looking at the clouds.
 3. **Wind** (next; [design](#wind))
-   - [ ] The wind carries thermals, clouds and markers: an offset in the engine, tested offline, with no change at zero wind.
-   - [ ] Particle clouds that move without a trail (`tools/cloudlab/`).
-   - [ ] Checked by the test pilot in a uniform wind of 5, 15 and 25 kt: `wind_now_*` is the wind that moves the glider, and the orbit stays on a thermal with no correction.
+   - [x] The wind carries thermals, clouds and markers: an offset in the engine, tested offline, with no change at zero wind.
+   - [x] Particle clouds that move without a trail: `DRAG` 1, so XP12's wind carries the particles ([phase3.md](phase3.md#clouds-in-wind)).
+   - [x] Checked by the test pilot in a uniform wind (2026-11-05, [phase3.md](phase3.md)): `wind_now_*` is the wind that moves the glider, and at 15 and 25 kt a circle with no correction stays on the thermal with the same sink as in calm air.
    - [ ] By hand in a uniform wind: stay in a thermal, and find one by its cloud.
    - [ ] Shear: which wind carries the sky, tilt, lift upwind of the cloud.
    - *Done when:* in a steady 15–20 kt wind a thermal can be found by its cloud and worked by hand as in calm air, and in shear the pilot has to recentre without losing it.
@@ -586,9 +587,9 @@ Rewritten on 2026-11-05 around good thermals. **This stage is the model only** (
 
 **In parallel with the model: the [settings menu](#settings-menu)**
    - [x] On/off items for the plugin, thermals, markers, cumulus and HUD.
-   - [ ] Sky, strength and depth of the day, seed.
-   - [ ] Choices saved to `config.json`.
-   - [ ] An item for each new piece of the model that needs one, starting with the wind.
+   - [x] A switch for the wind.
+   - [x] Sky, strength and depth of the day, seed, saved to `config.json`. Tested offline, and loads in X-Plane.
+   - [ ] Used by hand, including a change of sky in flight.
    - *Done when:* a flight never needs an edit of `config.json`.
 
 ## Open questions and verifications
@@ -610,10 +611,10 @@ These questions do not have an answer yet; they are resolved in the phase indica
 **Technical verifications**
 
 - [ ] Global land-cover and elevation data sources, and their licenses. (phase 6)
-- [ ] Is `sim/weather/aircraft/wind_now_*` the wind that moves the glider? (phase 3)
+- [x] Is `sim/weather/aircraft/wind_now_*` the wind that moves the glider? **Yes,** within 0.02 m/s at 15 and 25 kt, and it points where the air goes (2026-11-05, [phase3.md](phase3.md)).
 - [ ] Which wind should carry the sky in shear: the one at the glider, or a layer's? (phase 3, by flying)
 - [ ] What form should tilt take, so the lift is upwind of the cloud without running away from a climbing glider? (phase 3, by flying)
-- [ ] Does a moving emitter leave a trail, and does a drag above 0 let XP12's wind carry the particles? (phase 3, `tools/cloudlab/`)
+- [x] Does a moving emitter leave a trail, and does a drag above 0 let XP12's wind carry the particles? **Yes to both** (2026-11-05, [phase3.md](phase3.md#clouds-in-wind)): `DRAG` 1 keeps clouds whole at 25 kt.
 - [x] How to draw an on-screen instrument from XPPython3 under Vulkan, and at what cost? **A plain XPLM window, raw OpenGL, a display list, X-Plane's font for small text:** 75 µs per frame for the test scene, against ~500 µs with xpgl or imgui; the HUD as built costs 265 µs, mostly one TrueType number. Avionics popups draw every frame even on demand. Measured 2026-11-03/04 ([hud.md](hud.md)).
 - [x] Does X-Plane reset the `_plug_acf` datarefs every flight-model cycle? **Effectively yes** (test B, 2026-11-03): Alex's add-to-current-value force gives exactly one application per frame; it would run away otherwise. A plugin reading them after the flight model sees 0, so they cannot be used to observe another plugin's force.
 - [x] Best way to apply the energy-based force: along the flight path, vertical, or split? **Along the air-relative velocity, split into body axes with α and β** (2026-11-03): it gives Δvs = w at every speed and bank tried ([phase1.md](phase1.md)). Signs, from DataRefs.txt and checked in flight: `faxil_plug_acf` positive pushes backward, `fside_plug_acf` right, `fnrml_plug_acf` up, `L_plug_acf` positive rolls right; X-Plane's β is positive with the nose right of the flight path.

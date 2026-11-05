@@ -98,6 +98,10 @@ From the documentation, not tried:
 - The same release adds browser windows, avionics content types and [`setObjectAvionics`](https://xppython3.readthedocs.io/en/beta/development/modules/display_avionics.html) (an avionics screen on a 3D object), and `xp.isReloading()`.
 - Laminar's [compatibility guide](https://developer.x-plane.com/article/plugin-compatibility-guide-for-x-plane-11-50/) lists window drawing and custom OpenGL in 2D callbacks as compatible under Vulkan: plugins get their own OpenGL context. The [xpgl page](https://xppython3.readthedocs.io/en/beta/development/modules/xpgl.html) calls xpgl a work in progress and makes no statement on cost.
 
+## The wind
+
+Added on 2026-11-05, as Juan Luis asked: `WIND 19 kt` under the text, and an arrow above the centring aid, from `sim/weather/aircraft/wind_now_*`. Up is the nose and it points where the wind goes, as in the centring aid, so it turns as the glider circles. Knots, as X-Plane's weather settings have it. Checked in flight: heading 40° in a wind from 90° draws it down and to the left, 230° from the nose. Drawing costs 281 µs against 265 µs, one reading.
+
 ## Still open
 
 For when the air works well (Juan Luis, 2026-11-04):

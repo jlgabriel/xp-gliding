@@ -19,7 +19,9 @@ X-Plane's local origin when it shifts (for up to a second after a shift a marker
 is out of place). The thermals to mark change slowly, so choosing them, which
 is the expensive part, runs every `SELECT_PERIOD_S`.
 
-Positions go through lat/lon and `xp.worldToLocal`, as `engine/geo.py` says.
+Positions go through lat/lon and `xp.worldToLocal`, as `engine/geo.py` says. The field is
+in the air's frame, so each thermal is drawn at its position plus the wind's offset
+(`engine/wind.py`), once a second like everything else here.
 Heights follow the glider's, not the thermal's, ground: the engine's lift at a
 point uses the glider's AGL (no terrain under each thermal yet), so a marker
 shows what the glider would meet flying there at this height AGL.
@@ -117,7 +119,7 @@ class TrainingMarkers:
 
     # --- about once a second ---------------------------------------------------
 
-    def update(self, field, frame, s, msl_m, local, wstar, zi, now):
+    def update(self, field, frame, s, msl_m, local, wstar, zi, now, drift):
         """Bring the markers up to date for the aircraft state s, at msl_m metres MSL.
 
         local: the aircraft's (x, y, z) in X-Plane's local coordinates, for the probe.
@@ -126,7 +128,7 @@ class TrainingMarkers:
         if self.failed or not self._ready():
             return
         t0 = time.perf_counter()
-        e, n = frame.to_enu(s.lat, s.lon)
+        e, n = frame.to_enu(*drift.to_air(s.lat, s.lon))
         st = self.status
         if now >= self._next_select:
             self._next_select = now + SELECT_PERIOD_S
@@ -136,7 +138,7 @@ class TrainingMarkers:
         best_r, best_x, best_y, best_z, best = math.inf, 0.0, 0.0, 0.0, None
         for item in self.shown.values():
             th = item.thermal
-            x, y, z = self.sky.world_to_local(th.lat, th.lon, msl_m)
+            x, y, z = self.sky.world_to_local(*drift.to_ground(th.lat, th.lon), msl_m)
             self.sky.set_position(item.ring, x, y, z)
             self.sky.set_position(item.column, x, y + top_dy, z)
             r = math.hypot(e - th.e, n - th.n)

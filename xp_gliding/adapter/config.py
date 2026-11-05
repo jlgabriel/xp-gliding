@@ -1,10 +1,9 @@
 """Plugin settings: defaults, and an optional JSON file that overrides them.
 
 The file is `Output/xp-gliding/config.json` under X-Plane's folder; it is
-created with the defaults the first time the plugin starts, so the user can
-see and edit them. Changes made in flight (through the `xp_gliding/...`
-datarefs or the menu) are not written back: the file is the starting point of
-every session.
+created with the defaults the first time the plugin starts. What the pilot chooses
+in the menu is written back, so the next session starts from it. Changes made through
+the `xp_gliding/...` datarefs, as the test pilot does, are not written by themselves.
 
 Day parameters. Until phase 5 reads them from XP12's atmosphere, the
 convective velocity scale w* and the mixed-layer depth zi (m above ground)
@@ -14,10 +13,12 @@ Pure Python: no `xp`.
 """
 
 import json
+import os
 
 DEFAULTS = {
     "enabled": True,  # plugin effect on at start
     "thermals_enabled": True,  # our thermals (issue #30: off keeps the plugin loaded)
+    "wind_enabled": True,  # XP12's wind carries the thermals, clouds and markers
     "roll_enabled": True,  # gust roll moment from the spanwise lift gradient
     "helix_enabled": True,  # cancel the climbing-turn overbanking of the energy force
     "markers_enabled": False,  # training mode: draw a ring and a column over nearby thermals
@@ -31,6 +32,23 @@ DEFAULTS = {
     "range_m": 10000.0,  # thermals are loaded this far around the aircraft
     "recentre_m": 20000.0,  # move the local origin when this far from it
 }
+
+# The menu's submenus: (title, setting, ((label, value), ...)). The values of the sky are
+# names in engine.field.SKIES, and all of them are first guesses to judge by flying.
+MENU_CHOICES = (
+    ("Sky", "sky", (
+        ("Narrow thermals, as the paper", "default"),
+        ("Medium thermals under the clouds (x1.5)", "medium_carriers"),
+        ("Wide thermals under the clouds (x2)", "wide_carriers"),
+    )),
+    ("Strength of the day (w*)", "wstar_ms", (
+        ("2 m/s", 2.0), ("2.5 m/s", 2.5), ("3 m/s", 3.0), ("3.5 m/s", 3.5), ("4 m/s", 4.0), ("5 m/s", 5.0),
+    )),
+    ("Depth of the thermal layer (zi)", "zi_m", (
+        ("1000 m", 1000.0), ("1500 m", 1500.0), ("2000 m", 2000.0), ("2500 m", 2500.0), ("3000 m", 3000.0),
+    )),
+    ("Seed of the sky", "seed", tuple((str(k), k) for k in range(1, 6))),
+)
 
 
 class Settings:
@@ -57,6 +75,19 @@ class Settings:
 
     def as_dict(self):
         return {key: getattr(self, key) for key in DEFAULTS}
+
+
+def save_settings(settings, path):
+    """Write the settings to the JSON file at path, whole or not at all. None, or what failed."""
+    temp = path + ".tmp"
+    try:
+        with open(temp, "w", encoding="utf-8") as f:
+            json.dump(settings.as_dict(), f, indent=2)
+            f.write("\n")
+        os.replace(temp, path)
+    except OSError as exc:
+        return f"could not write {path}: {exc}"
+    return None
 
 
 def load_settings(path):

@@ -12,9 +12,13 @@ re-checks the native thermal setting, and, in frames apart so that they never sh
 one, updates the cumulus (`clouds`) and the training markers if they are on (`markers`).
 The soaring HUD runs apart from all this, with its own flight loop (`hud`).
 
-Commands (also in the Plugins > xp-gliding menu):
+The Plugins > xp-gliding menu has the switches below, and submenus to choose the sky and
+the day (`config.MENU_CHOICES`). What is chosen there is saved to `config.json`.
+
+Commands (also in the menu):
   xp_gliding/toggle            plugin effect on / off
   xp_gliding/thermals/toggle   our thermals on / off, the plugin stays loaded (issue #30)
+  xp_gliding/wind/toggle       XP12's wind carries the thermals, or they stay where they are
   xp_gliding/markers/toggle    training markers on / off (off by default)
   xp_gliding/clouds/toggle     cumulus on / off
   xp_gliding/hud/toggle        soaring HUD on / off
@@ -35,7 +39,7 @@ import xp
 
 from .. import __version__
 from .aircraft import DEFAULT_GEOMETRY, read_acf_geometry
-from .config import load_settings
+from .config import MENU_CHOICES, load_settings, save_settings
 from .core import AircraftState, Injection, Injector, NativeThermalGuard
 from .clouds import CumulusClouds
 from .hud import Hud
@@ -51,6 +55,11 @@ TAG = "[xp-gliding]"
 DATAREFS = (
     ("enabled", "settings", "enabled", "i", 1),
     ("thermals_enabled", "settings", "thermals_enabled", "i", 1),
+    ("wind_enabled", "settings", "wind_enabled", "i", 1),
+    ("wind/e_ms", "injector", "drift.wind_e_ms", "f", 0),
+    ("wind/n_ms", "injector", "drift.wind_n_ms", "f", 0),
+    ("wind/dlat_deg", "injector", "drift.dlat_deg", "f", 0),  # the sky's offset from the ground
+    ("wind/dlon_deg", "injector", "drift.dlon_deg", "f", 0),
     ("roll_enabled", "settings", "roll_enabled", "i", 1),
     ("helix_enabled", "settings", "helix_enabled", "i", 1),
     ("markers_enabled", "settings", "markers_enabled", "i", 1),
@@ -61,6 +70,7 @@ DATAREFS = (
     ("clouds/created", "clouds", "status.created", "i", 0),
     ("clouds/destroyed", "clouds", "status.destroyed", "i", 0),
     ("clouds/rate_changes", "clouds", "status.rate_changes", "i", 0),
+    ("clouds/moved", "clouds", "status.moved", "i", 0),
     ("clouds/tiles_missing", "clouds", "status.tiles_missing", "i", 0),
     ("clouds/update_us", "clouds", "status.update_us", "f", 0),
     ("clouds/update_us_max", "clouds", "status.update_us_max", "f", 0),
@@ -164,7 +174,8 @@ class PythonInterface:
 
         folder = os.path.join(xp.getSystemPath(), "Output", "xp-gliding")
         os.makedirs(folder, exist_ok=True)
-        self.settings, how = load_settings(os.path.join(folder, "config.json"))
+        self.config_path = os.path.join(folder, "config.json")
+        self.settings, how = load_settings(self.config_path)
         print(f"{TAG} {__version__} starting; settings {how}")
 
         self.io = XPlaneIO()
@@ -203,6 +214,8 @@ class PythonInterface:
              self.on_toggle, "enabled", "Enabled"),
             (xp.createCommand("xp_gliding/thermals/toggle", "xp-gliding: thermals on/off"),
              self.on_toggle, "thermals_enabled", "Thermals"),
+            (xp.createCommand("xp_gliding/wind/toggle", "xp-gliding: thermals follow the wind on/off"),
+             self.on_toggle, "wind_enabled", "Thermals follow the wind"),
             (xp.createCommand("xp_gliding/markers/toggle", "xp-gliding: training markers on/off"),
              self.on_toggle, "markers_enabled", "Training markers"),
             (xp.createCommand("xp_gliding/clouds/toggle", "xp-gliding: cumulus on/off"),
@@ -215,6 +228,14 @@ class PythonInterface:
         for cmd, handler, attr, label in self.commands:
             xp.registerCommandHandler(cmd, handler, 1, attr)
             xp.appendMenuItemWithCommand(self.menu, label, cmd)
+        xp.appendMenuSeparator(self.menu)
+        self.submenus = []  # (menu, setting, values, in the menu's order)
+        for title, attr, options in MENU_CHOICES:
+            item = xp.appendMenuItem(self.menu, title, None)
+            submenu = xp.createMenu(title, self.menu, item, self.on_choice, None)
+            for label, value in options:
+                xp.appendMenuItem(submenu, label, (attr, value))
+            self.submenus.append((submenu, attr, tuple(value for _, value in options)))
         self.refresh_menu()
 
         self.loop = xp.createFlightLoop(self.flight_loop, xp.FlightLoop_Phase_BeforeFlightModel, None)
@@ -225,6 +246,8 @@ class PythonInterface:
         self.hud.stop()
         for cmd, handler, attr, _ in self.commands:
             xp.unregisterCommandHandler(cmd, handler, 1, attr)
+        for submenu, _, _ in self.submenus:
+            xp.destroyMenu(submenu)
         xp.destroyMenu(self.menu)
         xp.removeMenuItem(xp.findPluginsMenu(), self.menu_item)
         for ref in self.datarefs:
@@ -257,6 +280,7 @@ class PythonInterface:
         self.injector.set_geometry(geometry or DEFAULT_GEOMETRY)
         engines = self.io.engine_count()
         self.clouds.clear()  # a new flight: X-Plane may have dropped the particles
+        self.injector.drift.reset()  # and the sky starts where the field drew it
         # At the main menu the "aircraft" is X-Plane's own folder: stay inert until
         # a real aircraft is loaded (a plane-loaded message follows).
         loaded = path.lower().endswith(".acf")
@@ -273,12 +297,35 @@ class PythonInterface:
             setattr(self.settings, attr, not getattr(self.settings, attr))
             self.refresh_menu()
             print(f"{TAG} {attr} = {getattr(self.settings, attr)}")
+            self.save()
         return 1
+
+    def on_choice(self, menuRef, itemRef):
+        """A value chosen in a submenu. A new sky or seed gives a new field in the slow path,
+        and the clouds and markers follow it. The clouds' base comes from zi when each is
+        created, so a new zi starts them over."""
+        attr, value = itemRef
+        self.settings.update({attr: value})
+        if attr == "zi_m":
+            self.clouds.clear()
+        self.next_slow = 0.0
+        self.refresh_menu()
+        print(f"{TAG} {attr} = {getattr(self.settings, attr)}")
+        self.save()
+
+    def save(self):
+        failed = save_settings(self.settings, self.config_path)
+        if failed:
+            print(f"{TAG} {failed}")
 
     def refresh_menu(self):
         for index, (_, _, attr, _) in enumerate(self.commands):
             check = xp.Menu_Checked if getattr(self.settings, attr) else xp.Menu_Unchecked
             xp.checkMenuItem(self.menu, index, check)
+        for submenu, attr, values in self.submenus:
+            current = getattr(self.settings, attr)
+            for index, value in enumerate(values):
+                xp.checkMenuItem(submenu, index, xp.Menu_Checked if value == current else xp.Menu_Unchecked)
 
     # --- per frame -------------------------------------------------------------
 
@@ -314,6 +361,7 @@ class PythonInterface:
             return -1
         t0 = time.perf_counter()
         s = self.io.read_state(self.state)
+        self.injector.carry(s)
         if now >= self.next_slow:
             self.next_slow = now + SLOW_PERIOD_S
             self.next_markers = now + 0.5 * SLOW_PERIOD_S
@@ -323,11 +371,12 @@ class PythonInterface:
         elif clouds and now >= self.next_clouds and self.injector.field is not None:
             self.next_clouds = now + CLOUDS_PERIOD_S
             self.clouds.update(self.injector.field, self.injector.frame, s, self.io.elevation_m(),
-                               st.zi_m, now)
+                               st.zi_m, now, self.injector.drift)
         elif markers and now >= self.next_markers and self.injector.field is not None:
             self.next_markers = now + SLOW_PERIOD_S
             self.markers.update(self.injector.field, self.injector.frame, s, self.io.elevation_m(),
-                                self.io.local_position(), st.wstar_ms, st.zi_m, now)
+                                self.io.local_position(), st.wstar_ms, st.zi_m, now,
+                                self.injector.drift)
         self.injector.step(s, self.out)
         self.io.apply(self.out)
         self.status.active = 1

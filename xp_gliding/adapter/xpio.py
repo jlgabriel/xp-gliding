@@ -1,7 +1,7 @@
 """X-Plane datarefs and objects of the adapter. With `plugin`, the only modules with `xp`.
 
 Every dataref is looked up once, when the plugin starts. Per frame the adapter
-makes 13 reads of the aircraft state and reads and writes the four force
+makes 16 reads of the aircraft state and the wind and reads and writes the four force
 datarefs; nothing else crosses into the SDK in the per-frame path.
 
 Forces: DataRefs.txt says to *add* to the `*_plug_acf` datarefs, and X-Plane
@@ -32,6 +32,8 @@ STATE = (
     ("t_zulu_s", "sim/time/zulu_time_sec", "f"),
     ("t_local_s", "sim/time/local_time_sec", "f"),
     ("day", "sim/time/local_date_days", "i"),
+    ("wind_x_ms", "sim/weather/aircraft/wind_now_x_msc", "f"),
+    ("wind_z_ms", "sim/weather/aircraft/wind_now_z_msc", "f"),
 )
 
 

@@ -55,6 +55,8 @@ LOD_M = 40000
 # Particle life (s): long, so a cloud needs few new ones. CloudParams.ttl_s is the longest.
 TTL_S = 180.0
 TTL_SPREAD = 0.2
+# How fast a particle takes on the speed of the air around it, so XP12's wind carries it.
+DRAG = 1.0
 # Particles alive per cloud at rate 1, per type.
 BASE_N, BODY_N, TOP_N = 60, 180, 80
 # Shape at scale 1 (m): half width, and height above the base.
@@ -155,7 +157,7 @@ def particle(name, first_cell, cell_count, size_m, tint, alpha, max_particles=MA
     out += constant("TINT", *tint)
     out += constant("GRAVITY_CURVE", 0.0)
     out += constant("TURBULENCE", 0.0)
-    out += constant("DRAG_CURVE", 0.0)
+    out += constant("DRAG_CURVE", DRAG)
     out += constant("SPIN_CURVE", 0.0)
     out += constant("ELASTICITY", 0.0)
     out += [" COLLISION_MODE NONE", "END_PARTICLE"]

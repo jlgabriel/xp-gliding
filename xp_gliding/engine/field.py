@@ -37,7 +37,9 @@ stream draws the same thermals in the same places, then the thermals that carry 
 can be stretched and the others thinned out and weakened. The default changes nothing.
 See `SkyProfile` for what the numbers mean, and docs/phase2.md for how they were measured.
 
-Not modeled yet: drift and lean with the wind (phase 3), daily cycle of w* and zi
+The wind carries the whole sky from outside (`wind.py`): this module is in the air's frame.
+
+Not modeled yet: lean with the wind's shear (phase 3), daily cycle of w* and zi
 (phase 5), terrain triggers (phase 6). Water and other no-thermal ground can be excluded with an optional
 `accept(lat, lon)` predicate; the adapter does not build one yet (phase 4).
 """
