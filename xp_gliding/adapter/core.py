@@ -32,7 +32,7 @@ the spanwise gradient for the roll moment (checks the roll sign).
 import math
 
 from ..engine import injection as inj
-from ..engine.field import FieldConfig, ThermalField
+from ..engine.field import FieldConfig, ThermalField, sky_named
 from ..engine.geo import LocalFrame
 
 NEAREST_MAX_M = 5000.0
@@ -153,10 +153,10 @@ class Injector:
     def slow_update(self, s):
         """Keep the field loaded around the aircraft. Not for every frame."""
         st = self.settings
-        key = (st.seed, s.day, st.range_m)
+        key = (st.seed, s.day, st.range_m, st.sky)
         if self.field is None or key != self._field_key:
             self.frame = LocalFrame(s.lat, s.lon)
-            config = FieldConfig(seed=st.seed, day=s.day, range_m=st.range_m)
+            config = FieldConfig(seed=st.seed, day=s.day, range_m=st.range_m, sky=sky_named(st.sky))
             self.field = ThermalField(config, self.frame)
             self._field_key = key
         elif self.frame.distance_to_origin(s.lat, s.lon) > st.recentre_m:

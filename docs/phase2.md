@@ -1,6 +1,6 @@
 # Phase 2: training markers and cumulus
 
-Two things drawn at the engine's thermals. [Cumulus](#cumulus) comes first, as it is what the phase is for. Training mode draws a marker over each thermal of the engine near the glider, so a pilot can see where the cores are. It is an aid for flying the thermals (test F), and step zero of phase 2's cumulus: the same mechanism (instanced objects placed at thermal positions, created and destroyed with each thermal's life), tried here before the particle clouds. See the roadmap in [SPEC.md](SPEC.md).
+Two things drawn at the engine's thermals, and what they showed about the sky. [Cumulus](#cumulus) comes first, as it is what the phase is for; [A wider sky under the clouds](#a-wider-sky-under-the-clouds) is an offline candidate, not flown. Training mode draws a marker over each thermal of the engine near the glider, so a pilot can see where the cores are. It is an aid for flying the thermals (test F), and step zero of phase 2's cumulus: the same mechanism (instanced objects placed at thermal positions, created and destroyed with each thermal's life), tried here before the particle clouds. See the roadmap in [SPEC.md](SPEC.md).
 
 **Status (2026-11-03):** working in X-Plane 12.4.3 under Vulkan with the Laminar ASK 21, flown by the test pilot. Positions match X-Plane's own coordinates within 0.2 m, and no drawing or CPU cost can be told from the noise at 20 markers. Juan Luis has watched them in flight but not flown with them: how they read from the seat is for test F.
 
@@ -131,6 +131,8 @@ The strongest thing shown here is the distance table above: the lift is under th
 - **The climb is thin with this glider.** See above; it is the same finding as in phase 1.
 - **A better orbit first.** Tuning the sky against this test pilot's climbs would be tuning against its swing.
 
+Where the good air is, and how wide, led to a candidate: see [A wider sky under the clouds](#a-wider-sky-under-the-clouds).
+
 ### Still open
 
 Not flown yet, in the order worth doing:
@@ -143,6 +145,112 @@ Not flown yet, in the order worth doing:
 - Time acceleration, and whether particle life follows it.
 - No shadow on the ground: particles do not seem to cast one, and the SPEC wants cloud shadows.
 - Looks: bases are less flat than real ones, and clouds are rather round from close by. The footprint of each is a square of random offsets.
+
+## A wider sky under the clouds
+
+**Status (2026-11-04): offline only, not flown.** The default sky has not changed. A named sky, `wide_carriers`, holds a candidate. Its numbers are a first guess to judge by flying, and no measured reference in this repository supports them: everything below says what the candidate does to our own sky, not that it is right.
+
+### Why
+
+Juan Luis flew under a full sky by hand for the first time on 2026-11-04, over Santiago, and noticed that the thermals did not seem to be right under the clouds. Measured offline at the same place (`tools/engine_plots/clouds_vs_lift.py`), he was right, and the cause was the design, not a misplacement. A cloud's centre has good lift, but only about 12% of the marked columns have their own cloud, about 22% are under any cloud, the nearest cloud is about 1.2 km away, and only about 30% of the air at +2 m/s or more is under a cloud. A cloud's body is about 900 m wide over lift about 270 m wide.
+
+His idea: thermals with a cloud about twice as wide and as strong as they are, with few blue ones. His condition: the sky is to be judged by real thermals and how it flies, not tuned to make up for Laminar's weak ASK 21. So the circle's mean lift below says nothing about a glider, and only the climb uses the Laminar ASK 21's sink from test A.
+
+### What changed in the engine
+
+`SkyProfile` in `xp_gliding/engine/field.py`, five numbers, all 1.0 by default. `FieldConfig(sky=...)` takes one, `SKIES` names them. The draw is untouched, so a profile moves nothing: the same stream gives the same thermals in the same places, and the clouds are the ones of today's sky. Thinning uses a second random stream with its own key, so the first is the same with or without it. A test pins values of the sky from before the change: `lift_at`, the sink and a tile are identical to the last digit.
+
+| Number | Default | `wide_carriers` | What it does |
+| --- | --- | --- | --- |
+| `carrier_stretch` | 1 | 2 | A thermal that carries a cloud is this much wider, shape and all: its lift at r is Allen's at r / stretch |
+| `carrier_gain` | 1 | 1 | Its strength. The stretch keeps the peak, so it stays at 1 |
+| `blue_keep` | 1 | 0.15 | The share of the other thermals that exist. The rest are dropped |
+| `blue_gain` | 1 | 0.6 | The strength of those that remain |
+| `blue_stretch` | 1 | 0.75 | Their width |
+
+The environment sink is not a number to pick. It follows from conservation of mass (`mean_flux_gain`, closed form, compared with a large sample in a test).
+
+**How to choose it.** In the plugin, add `"sky": "wide_carriers"` to `Output/xp-gliding/config.json` and restart; a config without the key, or with a name it does not know, flies the default sky. In the tools, `--sky wide_carriers`, and `--set carrier_stretch=1.75` to try other numbers. The test pilot's missions rebuild the field with `FieldConfig(seed, day)`, so they have no `--sky` yet and their oracle would see the default sky's lift.
+
+**Two deviations from Allen, on record as the others are:**
+
+- **The stretch, instead of a larger `rgain`.** Allen's Eq. 13 raises the core ratio r1/r2 with r2, so doubling r2 gives a flat top with a steep edge and a peak 20% lower, and it takes `wgain` x1.25 to get the peak back. Stretching keeps Allen's shape and his mean updraft at every height, so the strength stays as it is, and it needs nothing new in `updraft.py`. Flux goes up by stretch squared, which the sink accounts for.
+- **Far fewer thermals than Allen's Eq. 20.** About 0.65 blue ones per km² instead of about 4.4. His density comes from measured spacing at z/zi = 0.4. In our field each of those thermals has a core worth going to (median +2.1 to +2.4 m/s at 500-800 m AGL), which is why most of the good air had no cloud, and those are what is removed. There is no way to keep that density and widen: stretching every thermal x2 gives a sink of −1.9 to −4.3 m/s and a mean of the air of −0.6 to −2.0 (the area they cover is no longer small, `--set carrier_stretch=2 --set blue_stretch=2`).
+
+### How much blue
+
+Santiago, `clouds_vs_lift.py`, `--points 3000`, thermals alive within 7 km. The blue thermals exist so that the blue air is not dead, and they should not pull anyone away from a cloud. Widening the carriers with all of them left in place, the first row, does not solve what Juan Luis saw.
+
+| Candidate, 1000 m AGL | Thermals | Marked columns with their own cloud | Air at +2 under a cloud | Air outside clouds at +1 or more | Sink |
+| --- | --- | --- | --- | --- | --- |
+| Carriers x2, all blue kept | 699 | 11% | 55% | 6.6% | −0.41 |
+| + keep 30%, gain 0.7, width 0.85 | 230 | 28% | 96% | 1.1% | −0.16 |
+| **+ keep 15%, gain 0.6, width 0.75** | **130** | **55%** | **99%** | **0.5%** | **−0.13** |
+| + keep 5%, gain 0.6, width 0.75 | 67 | 79% | 99% | 0.3% | −0.12 |
+
+The chosen one leaves a thin sky of bumps. Its blue thermals have a core of +1.4 at the median at 500 m AGL, +2.2 at p90 and +3.6 at most. Perfectly centred at 500 and 800 m AGL, 3-4% of them can be climbed in the Laminar ASK 21 at 31° or 45°; today 6-8% at 31° and 31-32% at 45°. They are a clue, not a place to stop. These three numbers are the softest here: flying will say.
+
+### The numbers
+
+Median carrier at 550 m AGL, w* 3, zi 2000 (`thermal_profile.py`), then Santiago (`clouds_vs_lift.py`) and KHOB (`cloud_climb.py`), as in the earlier tables, with perfect centring unless it says otherwise.
+
+| | Today | Candidate |
+| --- | --- | --- |
+| Peak (m/s) | +3.9 | +3.9 |
+| Half-peak radius (m) | 110 | 218 |
+| Lift at 50-100 m | +3.2 | +3.8 |
+| Lift at 100-150 m | +1.2 | +3.5 |
+| Lift at 150-200 m | −0.1 | +2.8 |
+| Lift at 200-300 m | −0.2 | +1.2 |
+| Lift at 300-500 m | −0.2 | −0.1 |
+| Surroundings | −0.24 | −0.12 |
+| Circle's mean lift at 31°, 83 km/h, 500 and 800 m AGL | +1.9, +2.0 | +4.0, +3.7 (+3.7, +3.5 at 60 m off) |
+| Climb in that turn, 500 and 800 m | +0.5, +0.7 | +2.7, +2.3 |
+| Share of clouds that give more than +1 there | 22%, 35% | 100%, 100% |
+| Climb at 45°, 85 km/h, 500 and 800 m | +1.9, +1.6 | +2.5, +2.2 |
+| Air at +2 under a cloud, 500-1300 m | 26-34% | 97-100% |
+| Share of the sky under a cloud | 13% | 13% (same clouds) |
+| Marked columns with their own cloud, 500 / 800 / 1000 / 1300 m | 12 / 11 / 11 / 11% | 39 / 44 / 55 / 85% |
+| Marked at +3 or more (orange, red) with their own cloud | 9-17% | 81-100% |
+| Nearest cloud to a marked column, 1000 m | 1177 m | 0 m (median) |
+| Lift at 100-200 m from a cloud's centre, 1000 m | +0.7 | +2.4 |
+| Next carrier closer than the sum of half-peak radii | 3-4% | 12-18% |
+| Strongest air, 500 m (p99, max) | +6.1, +10.5 | +6.0, +7.9 |
+| Mean of all the air, 500-1300 m | −0.02 | −0.01 |
+| `lift_at`, in Python 3.12 | 11.5 µs | 10.1 µs |
+| Top of the climb under a cloud (31°, 45°), below the 1818 m base | 568, 468 m | 368, 418 m |
+
+Other seeds agree (`cloud_climb.py`, 31°, 500 and 800 m AGL): seed 2, +2.3 and +2.0; seed 3, +2.6 and +2.2; every cloud above 0 in both, and at least 90% above +1. The climbs use the turn model of `circle_climb.py`, which was already optimistic at 45° (see [above](#is-the-lift-under-the-clouds)).
+
+**What it does to circling.** Today a tight turn is best, because the core is small: at 800 m the 45° circle gives +1.6 and the 31° one +0.7. In the candidate that turns round: +2.3 at 31° against +2.2 at 45°. And it forgives: 60 m off centre costs about 0.2-0.3 m/s at 31°, against 0.3 m/s from a climb of +0.5-0.7 today, and 1 m/s at 45°.
+
+**Overlap.** It does not become a problem. With clouds at the same places, the next carrier is 2 half-peak radii (summed) away at the median; 12-18% are closer than that, so some pairs merge. They are few, and the air stays below today's worst, since the blue thermals that today add to each other are gone: air at +2 made by two or more thermals drops from 16-48% to 6-15%.
+
+**Mass balance.** The sink is about half of today's (−0.12 against −0.24 at 550 m AGL), because the flux of the sky is about half (0.57 against 1.04 thermals of mean size per thermal drawn): the carriers, about 5% of the thermals drawn, hold 92% of it. So gliding between clouds gets easier than today. Whether that is too easy is for flying to say. A stronger sink cannot simply be chosen: to sink 0.6 m/s, say, the carriers would have to carry about four times their flux, which means four times as many clouds or twice as wide again.
+
+**The top of the climb is not solved.** It rises by about 200 m at 31° and 50 m at 45°. Width helps a turn only while the circle is near the edge; what stops the climb is Allen's mean updraft, which dies toward z/zi = 1/1.1 whatever the width. The base stays out of reach by about 370-420 m in the Laminar ASK 21 at this sink. In a scratch calculation (not in the engine), a median carrier with a layer 25% deeper than zi, stretched x1.6 to keep its width, climbs to within 40 m of the base at 31°. Nothing says yet that lift should be like that.
+
+**What it may cost.** The centring cues get weaker, since the wide core is flat. On a 106 m circle, the first harmonic of the lift with the centre 60 m off is 0.43 m/s against 1.88 today at 550 m AGL, and at 1000 m 0.17 against 1.31; the HUD's centring aid was reliable from about 60 m off centre in today's sky ([hud.md](hud.md)). The steepest difference across a 17 m span halves, from 0.75 to 0.37 m/s, so the roll on entering a thermal will be softer. Neither has been flown. Nothing was changed in the HUD.
+
+### What remains unknown
+
+- **All of it in flight.** Nothing here has flown. Whether it feels right is test F.
+- **Whether x2 is the right width,** and the rest of the numbers. They are a first guess.
+- **Other days.** Measured at w* 3, zi 2000 m. The stretch scales with Allen's radius, so it should follow other days, but only this one was looked at.
+- **Under a cloud, away from its centre.** A cloud's body is about 900 m wide over lift about 530 m wide at +1 for the median carrier at 550 m AGL, up from 270. A pilot aiming at the visual edge still misses; narrower clouds are a choice for after flying. The body has not changed, because it was chosen by eye.
+- **Ring sizes.** The largest ring is 112 m and a carrier's core is now 101 m at the median and up to 228 m, so rings of wide carriers stop growing. The column and the colour are right. New objects would be needed, if it is worth it.
+- **Carriers with no cloud.** A carrier is alive before its cloud forms and after it has faded, so some marked columns without a cloud can be those. Their life cycle has not changed.
+
+### How to repeat it
+
+```bash
+.venv/Scripts/python.exe tools/engine_plots/thermal_profile.py --sky wide_carriers
+.venv/Scripts/python.exe tools/engine_plots/clouds_vs_lift.py --sky wide_carriers
+.venv/Scripts/python.exe tools/engine_plots/cloud_climb.py --sky wide_carriers --offset 60
+.venv/Scripts/python.exe tools/engine_plots/sky_passes.py --sky wide_carriers
+```
+
+Without `--sky` they measure today's. Straight passes at +1 m/s or more, for what a glide feels like: 0.11-0.15 per km, median 280-480 m wide (today 0.37-0.48 per km, 140 m wide).
 
 ## Training markers
 

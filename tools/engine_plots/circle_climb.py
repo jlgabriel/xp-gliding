@@ -2,7 +2,7 @@
 
 Usage:
     python tools/engine_plots/circle_climb.py [--seed 1] [--wstar 3] [--zi 2000]
-        [--hour 19.1] [--day 305]
+        [--hour 19.1] [--day 305] [--sky NAME] [--set NAME=VALUE]
 
 For every thermal alive within 5 km of KHOB at that moment (zulu hour, day as
 X-Plane's `local_date_days`), and at a few heights, the lift is averaged over a
@@ -24,17 +24,19 @@ import statistics
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tools", "testpilot"))
 
 from polar import polar_sink  # noqa: E402
+from sky_choice import add_sky_args, sky_from_args  # noqa: E402
 from xp_gliding.engine.field import FieldConfig, ThermalField  # noqa: E402
 from xp_gliding.engine.geo import LocalFrame  # noqa: E402
 
 G = 9.80665
 KHOB_LAT, KHOB_LON, KHOB_ELEV = 32.6875, -103.2170, 1115.0
 TURN_SINK_EXTRA = 0.18  # measured circling sink minus the turn model (35 deg, 90 km/h)
-TURNS = ((35.0, 90.0), (40.0, 85.0), (45.0, 85.0), (45.0, 80.0), (50.0, 80.0))
+TURNS = ((31.0, 83.0), (35.0, 90.0), (40.0, 85.0), (45.0, 85.0), (45.0, 80.0), (50.0, 80.0))
 HEIGHTS = (500.0, 800.0, 1100.0, 1400.0)
 POINTS = 72
 
@@ -60,10 +62,11 @@ def main(argv=None):
     parser.add_argument("--wstar", type=float, default=3.0)
     parser.add_argument("--zi", type=float, default=2000.0)
     parser.add_argument("--within", type=float, default=5000.0, help="metres from KHOB")
+    add_sky_args(parser)
     args = parser.parse_args(argv)
 
     frame = LocalFrame(KHOB_LAT, KHOB_LON)
-    field = ThermalField(FieldConfig(seed=args.seed, day=args.day), frame)
+    field = ThermalField(FieldConfig(seed=args.seed, day=args.day, sky=sky_from_args(args)), frame)
     t = args.hour * 3600.0
     field.update(t, KHOB_LAT, KHOB_LON)
     alive = [th for th in field.alive(t) if math.hypot(th.e, th.n) <= args.within]

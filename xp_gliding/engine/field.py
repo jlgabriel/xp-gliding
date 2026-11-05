@@ -32,6 +32,11 @@ perturbation from it. Allen uses only the nearest updraft, which jumps when
 two thermals' regions overlap; superposition is continuous and lets nearby
 thermals merge into a stronger one, which real thermals do.
 
+Sky profiles. `SkyProfile` shapes the sky without moving anything in it: the same random
+stream draws the same thermals in the same places, then the thermals that carry a cloud
+can be stretched and the others thinned out and weakened. The default changes nothing.
+See `SkyProfile` for what the numbers mean, and docs/phase2.md for how they were measured.
+
 Not modeled yet (later phases): drift and lean with the wind (phase 2), daily
 cycle of w* and zi (phase 2), terrain triggers (phase 5). Water and other
 no-thermal ground is excluded with an optional `accept(lat, lon)` predicate
@@ -53,6 +58,14 @@ RADIUS_START = 0.6
 # Clamp the per-thermal gains so a lognormal tail cannot make giants.
 WGAIN_RANGE = (0.3, 2.5)
 RGAIN_RANGE = (0.5, 2.0)
+
+# Which thermals carry a cloud, from their drawn numbers: the largest mass flux, and a life
+# long enough for a cloud to form and fade (docs/phase2.md). `clouds.CloudParams` defaults
+# to these.
+CARRIER_MIN_FLUX = 2.0
+CARRIER_MIN_LIFE_S = 720.0
+
+BLUE_STREAM = 1  # last part of the key of the second random stream, for thinning
 
 
 def sky_time(zulu_s, local_s):
@@ -93,15 +106,66 @@ def _mean_life_flux(steps=2000):
 MEAN_LIFE_FLUX = _mean_life_flux()
 
 
+def is_carrier(wgain, rgain, life_s):
+    """Does a thermal with these drawn numbers carry a cloud?"""
+    return wgain * rgain * rgain >= CARRIER_MIN_FLUX and life_s >= CARRIER_MIN_LIFE_S
+
+
+class SkyProfile:
+    """How a sky differs from the one the random stream draws. Defaults: not at all.
+
+    Deviations from Allen's model, so they stay on record (docs/SPEC.md "Thermal model"):
+    - `carrier_stretch` widens a thermal that carries a cloud by this factor, shape and all:
+      the lift at r is the lift Allen gives at r / stretch. Raising `rgain` instead would
+      follow his Eq. 13, where the core ratio grows with r2, so a wide thermal has a lower
+      peak and a flat top with a steep edge. The idea is the same strength, only wider.
+    - `carrier_gain` multiplies its strength. The stretch keeps the peak, so 1.0 is enough.
+    - `blue_keep` is the share of the other thermals that exist at all. They are blue, with
+      no cloud to mark them, and at Allen's density they hold most of the good air, so they
+      pull a pilot away from the clouds. The density of `FieldConfig` stays the number drawn.
+    - `blue_gain` and `blue_stretch` make those that remain weaker and narrower.
+
+    The environment sink follows from all this by conservation of mass (`mean_flux_gain`),
+    so it is an outcome and not a parameter.
+    """
+
+    __slots__ = ("carrier_stretch", "carrier_gain", "blue_keep", "blue_gain", "blue_stretch")
+
+    def __init__(self, carrier_stretch=1.0, carrier_gain=1.0, blue_keep=1.0, blue_gain=1.0,
+                 blue_stretch=1.0):
+        self.carrier_stretch = float(carrier_stretch)
+        self.carrier_gain = float(carrier_gain)
+        self.blue_keep = float(blue_keep)
+        self.blue_gain = float(blue_gain)
+        self.blue_stretch = float(blue_stretch)
+
+    @property
+    def max_stretch(self):
+        return max(self.carrier_stretch, self.blue_stretch)
+
+
+# The skies that can be chosen by name (`"sky"` in the plugin's config.json).
+SKIES = {
+    "default": SkyProfile(),
+    # Not flown yet, a first guess to judge by flying. Measured offline (docs/phase2.md).
+    "wide_carriers": SkyProfile(carrier_stretch=2.0, blue_keep=0.15, blue_gain=0.6, blue_stretch=0.75),
+}
+
+
+def sky_named(name):
+    """The profile of that name; the default one for a name it does not know."""
+    return SKIES.get(name, SKIES["default"])
+
+
 class FieldConfig:
     """Parameters of a thermal field. All defaults are first guesses to tune."""
 
     __slots__ = ("seed", "day", "tile_deg", "density_per_km2", "lifetime_min_s",
-                 "lifetime_max_s", "wgain_sigma", "rgain_sigma", "range_m", "cell_m")
+                 "lifetime_max_s", "wgain_sigma", "rgain_sigma", "range_m", "cell_m", "sky")
 
     def __init__(self, seed=0, day=0, tile_deg=0.02, density_per_km2=None,
                  lifetime_min_s=300.0, lifetime_max_s=1800.0, wgain_sigma=0.3,
-                 rgain_sigma=0.2, range_m=10000.0, cell_m=400.0, zi_ref_m=1400.0):
+                 rgain_sigma=0.2, range_m=10000.0, cell_m=400.0, zi_ref_m=1400.0, sky=None):
         self.seed = int(seed)
         self.day = int(day)
         self.tile_deg = float(tile_deg)
@@ -115,6 +179,7 @@ class FieldConfig:
         self.rgain_sigma = float(rgain_sigma)
         self.range_m = float(range_m)
         self.cell_m = float(cell_m)
+        self.sky = sky if sky is not None else SKIES["default"]
 
     @property
     def slot_s(self):
@@ -125,18 +190,53 @@ class FieldConfig:
         return 0.5 * (self.lifetime_min_s + self.lifetime_max_s)
 
 
+def carrier_flux_share(config):
+    """Mean of `wgain * rgain^2` over the alive thermals, counting only those that carry a cloud.
+
+    A lognormal's partial mean, times the share of alive thermals that live long enough:
+    they are alive in proportion to their lifetime, which is uniform. The clamps on the
+    gains are left out, as in the sink of the default sky; tests compare it with a large sample.
+    """
+    wvar, rvar = config.wgain_sigma ** 2, config.rgain_sigma ** 2
+    mu = -0.5 * wvar - rvar  # of ln(wgain * rgain^2), whose variance is wvar + 4 rvar
+    s2 = wvar + 4.0 * rvar
+    partial = (math.exp(rvar)
+               * 0.5 * math.erfc((math.log(CARRIER_MIN_FLUX) - mu - s2) / math.sqrt(2.0 * s2)))
+    lo, hi = config.lifetime_min_s, config.lifetime_max_s
+    long_enough = min(max(CARRIER_MIN_LIFE_S, lo), hi)
+    return partial * (hi * hi - long_enough * long_enough) / (hi * hi - lo * lo)
+
+
+def mean_flux_gain(config):
+    """Mean of each drawn thermal's mass flux relative to a mean-size one (thinned ones are 0).
+
+    It is what scales the environment sink: everything that goes up comes down around it.
+    """
+    sky = config.sky
+    blue = sky.blue_keep * sky.blue_gain * sky.blue_stretch ** 2
+    carrier = sky.carrier_gain * sky.carrier_stretch ** 2
+    return math.exp(config.rgain_sigma ** 2) * blue + carrier_flux_share(config) * (carrier - blue)
+
+
 class Thermal:
-    """One thermal. lat/lon/birth/death/gains are fixed; e/n follow the local frame."""
+    """One thermal. lat/lon/birth/death/gains are fixed; e/n follow the local frame.
 
-    __slots__ = ("lat", "lon", "birth", "death", "wgain", "rgain", "e", "n", "cell")
+    wgain and rgain are as drawn, which is what decides a cloud and its size. gain and
+    stretch are what the sky's profile does to the lift (`SkyProfile`).
+    """
 
-    def __init__(self, lat, lon, birth, death, wgain, rgain):
+    __slots__ = ("lat", "lon", "birth", "death", "wgain", "rgain", "gain", "stretch", "e", "n",
+                 "cell")
+
+    def __init__(self, lat, lon, birth, death, wgain, rgain, gain=1.0, stretch=1.0):
         self.lat = lat
         self.lon = lon
         self.birth = birth
         self.death = death
         self.wgain = wgain
         self.rgain = rgain
+        self.gain = gain
+        self.stretch = stretch
         self.e = 0.0
         self.n = 0.0
         self.cell = None
@@ -163,6 +263,11 @@ def generate_tile(config, i, j, slot, accept=None):
     lat0 = i * config.tile_deg
     lon0 = j * config.tile_deg
     t0 = slot * config.slot_s
+    sky = config.sky
+    # A stream of its own, so thinning moves nothing: the thermals kept are as today's.
+    thin = None
+    if sky.blue_keep < 1.0:
+        thin = SplitMix64(hash_key(config.seed, config.day, i, j, slot, BLUE_STREAM))
     thermals = []
     for _ in range(count):
         # Draw every number before filtering, so `accept` never shifts the stream.
@@ -172,9 +277,15 @@ def generate_tile(config, i, j, slot, accept=None):
         life = rng.uniform_range(config.lifetime_min_s, config.lifetime_max_s)
         wgain = min(max(rng.lognormal_unit_mean(config.wgain_sigma), WGAIN_RANGE[0]), WGAIN_RANGE[1])
         rgain = min(max(rng.lognormal_unit_mean(config.rgain_sigma), RGAIN_RANGE[0]), RGAIN_RANGE[1])
+        if is_carrier(wgain, rgain, life):
+            gain, stretch = sky.carrier_gain, sky.carrier_stretch
+        else:
+            if thin is not None and thin.uniform() >= sky.blue_keep:
+                continue
+            gain, stretch = sky.blue_gain, sky.blue_stretch
         if accept is not None and not accept(lat, lon):
             continue
-        thermals.append(Thermal(lat, lon, birth, birth + life, wgain, rgain))
+        thermals.append(Thermal(lat, lon, birth, birth + life, wgain, rgain, gain, stretch))
     return thermals
 
 
@@ -192,9 +303,10 @@ class ThermalField:
         self._tiles = {}  # (i, j, slot) -> list of Thermal
         self._grid = {}  # (cx, cy) -> list of Thermal
         # Effective full-size updrafts per m2 for the environment sink (Eq. 21):
-        # life-cycle average of strength * radius^2 times E[rgain^2] (lognormal).
+        # life-cycle average of strength * radius^2 times the mean flux of a thermal.
         self._flux_density = (config.density_per_km2 * 1e-6 * MEAN_LIFE_FLUX
-                              * math.exp(config.rgain_sigma ** 2))
+                              * mean_flux_gain(config))
+        self._max_stretch = config.sky.max_stretch
 
     # --- loading -----------------------------------------------------------
 
@@ -313,7 +425,7 @@ class ThermalField:
         if zi <= 0.0 or z <= 0.0 or z >= zi:
             return 0.0
         we = updraft.environment_sink(z, zi, wstar, self._flux_density)
-        reach = updraft.influence_radius(z, zi, RGAIN_RANGE[1])
+        reach = updraft.influence_radius(z, zi, RGAIN_RANGE[1]) * self._max_stretch
         cell_m = self.config.cell_m
         k = math.ceil(reach / cell_m)
         cx = math.floor(e / cell_m)
@@ -337,6 +449,7 @@ class ThermalField:
                     # Scale the whole perturbation, not wgain: Allen's stretch toward
                     # the environment sink (Eq. 23) leaves a residual of about |we|
                     # when wgain -> 0, which would jump at birth and death.
-                    w = updraft.updraft_velocity(r, z, zi, wstar, th.wgain, th.rgain * rf, we)
+                    w = updraft.updraft_velocity(r / th.stretch, z, zi, wstar, th.wgain * th.gain,
+                                                 th.rgain * rf, we)
                     total += s * (w - we)
         return total

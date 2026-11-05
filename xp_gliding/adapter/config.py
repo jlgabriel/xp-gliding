@@ -27,6 +27,7 @@ DEFAULTS = {
     "wstar_ms": 3.0,  # convective velocity scale w* (m/s)
     "zi_m": 2000.0,  # convective layer depth zi (m AGL)
     "seed": 1,  # field seed; with the date and place it fixes the sky
+    "sky": "default",  # a name in engine.field.SKIES; an unknown name is the default sky
     "range_m": 10000.0,  # thermals are loaded this far around the aircraft
     "recentre_m": 20000.0,  # move the local origin when this far from it
 }

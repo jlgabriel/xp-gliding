@@ -5,6 +5,7 @@ import pytest
 from xp_gliding.adapter import aircraft, config
 from xp_gliding.adapter.core import (AircraftState, Injection, Injector, NativeThermalGuard)
 from xp_gliding.engine import injection as inj
+from xp_gliding.engine.field import sky_named
 
 # The wing parts of Laminar's ASK 21 (XP 12.4.3 ASK21.acf), lengths in feet.
 ASK21_ACF = """\
@@ -169,6 +170,23 @@ def test_thermal_field_gives_lift_in_a_core_and_is_deterministic():
     assert out_b.w_span == out_a.w_span and out_b.faxil_n == out_a.faxil_n
     c = injector(seed=4)
     assert run(c, s).w_span != out_a.w_span
+
+
+def test_the_sky_comes_from_the_settings_by_name():
+    plain = injector()
+    plain.slow_update(state())
+    assert plain.field.config.sky is sky_named("default")
+    wide = injector(sky="wide_carriers")
+    wide.slow_update(state())
+    assert wide.field.config.sky is sky_named("wide_carriers")
+    # Changing it in flight rebuilds the field, as the seed does.
+    wide.settings.sky = "default"
+    wide.slow_update(state())
+    assert wide.field.config.sky is sky_named("default")
+    # A name it does not know is the default sky, not a failure.
+    other = injector(sky="nope")
+    other.slow_update(state())
+    assert other.field.config.sky is sky_named("default")
 
 
 def test_lift_does_not_change_when_the_origin_moves():

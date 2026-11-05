@@ -91,9 +91,9 @@ def core_of(thermal, z, t, wstar, zi, we):
     if strength == 0.0:
         return we, 0.0
     rgain = thermal.rgain * radius
-    w = updraft.updraft_velocity(0.0, z, zi, wstar, thermal.wgain, rgain, we)
+    w = updraft.updraft_velocity(0.0, z, zi, wstar, thermal.wgain * thermal.gain, rgain, we)
     r1, _ = updraft.core_radii(z, zi, rgain)
-    return we + strength * (w - we), r1
+    return we + strength * (w - we), r1 * thermal.stretch
 
 
 def select_markers(field, e, n, z, t, wstar, zi, shown=(), params=None):

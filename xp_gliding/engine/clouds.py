@@ -31,7 +31,7 @@ Pure Python: no `xp`. `CloudPlanner.step` returns what to do, the adapter does i
 
 import math
 
-from .field import FieldConfig, generate_tile
+from .field import CARRIER_MIN_FLUX, CARRIER_MIN_LIFE_S, FieldConfig, generate_tile
 from .geo import radii_of_curvature
 
 TOP_ZZI = 1.0 / 1.1  # the lift ends at this z/zi (Allen Eq. 11), the same as the markers' top
@@ -46,7 +46,7 @@ class CloudParams:
                  "near_m", "near_keep_m", "far_rate", "ttl_s", "mean_ttl_s", "prewarm",
                  "rest_fraction", "refill_factor", "min_fast_s", "tiles_per_update", "max_new")
 
-    def __init__(self, min_flux=2.0, min_life_s=720.0, form_tau=0.1, fade_tau=0.7,
+    def __init__(self, min_flux=CARRIER_MIN_FLUX, min_life_s=CARRIER_MIN_LIFE_S, form_tau=0.1, fade_tau=0.7,
                  range_m=20000.0, keep_range_m=21000.0, near_m=8000.0, near_keep_m=9000.0,
                  far_rate=0.3, ttl_s=216.0, mean_ttl_s=180.0, prewarm=20.0, rest_fraction=0.4,
                  refill_factor=5.0, min_fast_s=2.0, tiles_per_update=2, max_new=8):
@@ -102,7 +102,8 @@ class CloudCatalog:
                                   lifetime_min_s=config.lifetime_min_s,
                                   lifetime_max_s=config.lifetime_max_s,
                                   wgain_sigma=config.wgain_sigma, rgain_sigma=config.rgain_sigma,
-                                  range_m=self.params.keep_range_m, cell_m=config.cell_m)
+                                  range_m=self.params.keep_range_m, cell_m=config.cell_m,
+                                  sky=config.sky)
         self.frame = frame
         self.accept = accept
         self._tiles = {}  # (i, j, slot) -> list of Thermal with a cloud
