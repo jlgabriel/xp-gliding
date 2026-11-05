@@ -4,7 +4,7 @@ A thermal soaring plugin for X-Plane 12: thermals you can find by reading the cl
 
 It builds on what X-Plane 12 already does well. The weather, the wind, the ridge lift and the flight model stay X-Plane's, and the plugin adds thermals tied to clouds of their own.
 
-> **Status: in development, not released yet.** It flies, and for now all the work goes into the thermal model, tuned by flying. A release and an install guide come at the end, if the result is good. Thermals and clouds now follow X-Plane's wind, flown so far by the test pilot and not yet by hand. The full specification is in [docs/SPEC.md](docs/SPEC.md).
+> **Status: in development, not released yet.** It flies, and for now all the work goes into the thermal model, tuned by flying. A release and an install guide come at the end, if the result is good. Thermals and clouds now follow X-Plane's wind, flown so far by the test pilot and not yet by hand.
 
 ## What it does today
 
@@ -43,16 +43,6 @@ It is not a simulation of the atmosphere. The thermals start from a published mo
 
 - **Atmospheric engine:** pure Python, deterministic, independent of X-Plane, tested and plotted outside the simulator.
 - **X-Plane adapter:** an [XPPython3](https://xppython3.readthedocs.io/) plugin that applies the lift as forces and draws the clouds, markers and HUD.
-
-## What we measured
-
-Many of these findings may be useful to other X-Plane developers:
-
-- [docs/baseline.md](docs/baseline.md): X-Plane 12's native ridge, thermals and wave, and the Laminar ASK 21's polar.
-- [docs/phase1.md](docs/phase1.md): plugin forces, frame-rate independence and climbs in the engine's thermals.
-- [docs/phase2.md](docs/phase2.md): instanced markers, particle clouds driven per instance, and their cost.
-- [docs/phase3.md](docs/phase3.md): X-Plane's wind against a thermal, and particles carried by the wind.
-- [docs/hud.md](docs/hud.md): drawing from XPPython3 under Vulkan, and what it costs.
 
 ## Acknowledgements
 
