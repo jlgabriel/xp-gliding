@@ -6,7 +6,7 @@ see and edit them. Changes made in flight (through the `xp_gliding/...`
 datarefs or the menu) are not written back: the file is the starting point of
 every session.
 
-Day parameters. Until phase 2 reads them from XP12's atmosphere, the
+Day parameters. Until phase 5 reads them from XP12's atmosphere, the
 convective velocity scale w* and the mixed-layer depth zi (m above ground)
 are fixed numbers. Allen's thermals stop about 10% below zi.
 

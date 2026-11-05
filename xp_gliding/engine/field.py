@@ -37,10 +37,9 @@ stream draws the same thermals in the same places, then the thermals that carry 
 can be stretched and the others thinned out and weakened. The default changes nothing.
 See `SkyProfile` for what the numbers mean, and docs/phase2.md for how they were measured.
 
-Not modeled yet (later phases): drift and lean with the wind (phase 2), daily
-cycle of w* and zi (phase 2), terrain triggers (phase 5). Water and other
-no-thermal ground is excluded with an optional `accept(lat, lon)` predicate
-that the adapter builds from terrain probes.
+Not modeled yet: drift and lean with the wind (phase 3), daily cycle of w* and zi
+(phase 5), terrain triggers (phase 6). Water and other no-thermal ground can be excluded with an optional
+`accept(lat, lon)` predicate; the adapter does not build one yet (phase 4).
 """
 
 import math

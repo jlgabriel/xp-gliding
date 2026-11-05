@@ -4,14 +4,14 @@ Guidance for Claude Code when working in this repository.
 
 ## Project
 
-xp-gliding is a soaring layer for X-Plane 12 (Condor-like thermals, ridge, wave, cumulus, AI gliders), written in Python on top of XPPython3.
+xp-gliding adds good thermals to X-Plane 12: thermals you find by reading the clouds and climb in by hand. Written in Python on top of XPPython3. Anything beyond that is out of scope unless the maintainer brings it back (see "Set aside" in the spec).
 
 **[docs/SPEC.md](docs/SPEC.md) is the source of truth.** Read it before any design decision. If the simulator contradicts it, the observation wins and the spec gets updated in the same change. Items marked *verify* in the spec are assumptions, not facts.
 
 ## Working agreements
 
 - **Language:** everything committed (code, comments, docs, commit messages, issues, PRs) is in English. Conversation with the maintainer is in Spanish.
-- **Pace:** quality over speed. Work phase by phase as laid out in the spec's roadmap; each phase ends with a criterion verified by flying.
+- **Pace:** quality over speed. Work phase by phase as laid out in the spec's roadmap; each phase ends with a criterion verified by flying. Hand flights by the maintainer are the final judge of how the thermals feel.
 - **Keep the spec current:** when a phase finishes or a *verify* item is resolved, update `docs/SPEC.md` (tick the checkbox, record the finding).
 - **Commits:** only when the maintainer asks.
 
