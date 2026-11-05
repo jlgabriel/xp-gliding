@@ -2,26 +2,32 @@
 
 Good thermals for X-Plane 12: you find them by reading the clouds and climb in them by hand.
 
-X-Plane 12 draws cumulus and has good ridge lift, but in our tests no thermal could be found under its clouds. This plugin adds them. X-Plane keeps the weather, the ridge lift and the flight model.
+X-Plane 12 draws cumulus and has good ridge lift, but in our tests no thermal could be found under its clouds. This plugin adds them. X-Plane keeps the weather, the wind, the ridge lift and the flight model.
 
-> **Status: in development, not released yet.** It flies, and the thermal model is being tuned by flying. A release and an install guide will come once the model is done. Thermals and clouds now follow X-Plane's wind, flown so far by the test pilot and not yet by hand. The specification and roadmap are in [docs/SPEC.md](docs/SPEC.md).
+> **Status: in development, not released yet.** It flies, and for now all the work goes into the thermal model, tuned by flying. A release and an install guide come at the end, if the result is good. Thermals and clouds now follow X-Plane's wind, flown so far by the test pilot and not yet by hand. The full specification is in [docs/SPEC.md](docs/SPEC.md).
 
 ## What it does today
 
 - **Thermals** with a life cycle: they grow, peak and fade, and never vanish abruptly. The same seed, date and place give the same sky.
 - **Cumulus** drawn by the plugin over the thermals that carry one. Each forms and fades with its thermal, so a cloud means something.
 - **Lift with no per-aircraft calibration.** It is applied as the energy rising air would give the glider, and measured within 0.01 m/s of the intended climb at different speeds, banks and frame rates. The reference glider is the Laminar ASK 21.
-- **Thermals and clouds that follow X-Plane's wind.** The plugin has no wind of its own.
+- **Thermals and clouds that follow the wind.** The wind is X-Plane's, real or set by hand: the plugin reads it and has no wind of its own.
 - **A soaring HUD:** total energy, netto, average climb, height to the top of the lift, the wind and a centring aid.
-- **A menu** to choose the sky and the day, saved between sessions.
+- **A menu** in *Plugins → xp-gliding* to choose the sky and the day, saved between sessions. It grows along with the model.
 - **Optional training markers** showing where the thermals are.
 
-## What is missing
+## Where it is going
 
-- **Shear.** In a wind that changes with height, thermals do not tilt or deform yet.
-- **Terrain.** Thermals can appear over water, and cloud heights in the mountains use the ground under the glider. Later, thermals should be born where they would be in reality, from the ground type, slope and sun.
-- **X-Plane's own clouds.** Not flown together with ours yet.
-- **The day from X-Plane's weather.** Strength and cloud base are fixed settings, with no daily cycle or cloud shadow.
+This stage is the model only, in this order:
+
+1. **Wind (in progress).** Flown by hand in a uniform wind. Then shear: in a wind that changes with height, thermals do not tilt or deform yet, and the lift should sit upwind of its cloud.
+2. **A sound sky.** A default sky chosen by flying, and the feel of a thermal judged by hand. Thermals that respect the terrain, since today they can appear over water and cloud heights in the mountains use the ground under the glider. Next to X-Plane's own clouds, which have not been flown with ours yet.
+3. **The day.** Strength and cloud base from X-Plane's weather instead of two fixed settings, a daily cycle and cloud shadow.
+4. **Terrain triggers.** Thermals born where they would be in reality, from the ground type, slope and sun.
+
+At the end, if the result is good: refining the HUD, an audio vario, XCSoar, an install guide and a release, and a readable section with the findings for the community.
+
+Set aside, with no plans: wave, ridge corrections, convergence lines, AI gliders, briefing, IGC and replay, force feedback, multiplayer, a native C++ plugin, racing.
 
 ## What it is not
 
