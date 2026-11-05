@@ -3,7 +3,20 @@
 Usage (X-Plane running with the xp-gliding plugin):
     python tools/testpilot/fly_wind.py measure [--wind-kt 15] [--from-deg 270] [--seconds 60]
     python tools/testpilot/fly_wind.py circle [--wind-kt 15] [--from-deg 270] [--turns 6]
-        [--bank 35] [--kmh 95] [--agl 1000]
+        [--bank 35] [--kmh 95] [--agl 1000] [--lean] [--record]
+    python tools/testpilot/fly_wind.py layers [--wind-kt 15] [--from-deg 270] [--shear]
+    python tools/testpilot/fly_wind.py look [--wind-kt 25] [--from-deg 270] [--agl 700]
+
+layers: do `sim/weather/aircraft/wind_*`, which the thermals' lean reads, agree with the wind at
+the glider? Short flights at several heights, comparing the layer at the glider's height with
+`wind_now_*`, and the lean the plugin publishes with what the engine gives for those layers.
+
+look: flies at a thermal with a cloud, across the wind, with the markers on, and takes a
+screenshot with the lean off and one with it on from about the same place. The column should
+lean, with its bottom upwind.
+
+--lean in circle: the same flight with the thermals leaning, and the guidance knows. The lift
+at the glider is checked against the engine's at every sample.
 
 measure: straight flight in a uniform wind. Is `sim/weather/aircraft/wind_now_*` the wind
 that moves the glider, with the sign the plugin assumes? It compares the dataref, and the
@@ -26,6 +39,8 @@ import math
 import os
 import statistics
 import sys
+import time
+import types
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(HERE))
@@ -33,9 +48,12 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, REPO)
 
 from airstart import KHOB, air_start, weather  # noqa: E402
-from pilot import AGL, BETA, IAS, LAT, LON, SIM_TIME, TAS, TE, VX, VZ, Pilot, plugin_sky, release, take_over_logger  # noqa: E402
+from pilot import AGL, BETA, ELEV, IAS, LAT, LON, SIM_TIME, TAS, TE, VX, VZ, Pilot, plugin_sky, release, take_over_logger  # noqa: E402
+from xp_gliding.adapter.core import wind_layers  # noqa: E402
+from xp_gliding.engine import clouds as cl  # noqa: E402
 from xp_gliding.engine.field import FieldConfig, ThermalField  # noqa: E402
 from xp_gliding.engine.geo import LocalFrame, wrap_lon_deg  # noqa: E402
+from xp_gliding.engine.wind import Lean, _interpolate  # noqa: E402
 from xpweb import XPlaneStream, XPlaneWebAPI  # noqa: E402
 
 KT = 0.514444
@@ -43,8 +61,20 @@ PSI = "sim/flightmodel/position/psi"
 WIND_X, WIND_Z = "sim/weather/aircraft/wind_now_x_msc", "sim/weather/aircraft/wind_now_z_msc"
 DLAT, DLON = "xp_gliding/wind/dlat_deg", "xp_gliding/wind/dlon_deg"
 LIFT = "xp_gliding/lift_ms"
-EXTRA = (PSI, WIND_X, WIND_Z, DLAT, DLON, LIFT)
+LIFT_CENTRE = "xp_gliding/lift_centre_ms"
+LEAN_ON, LEAN_E, LEAN_N = "xp_gliding/lean_enabled", "xp_gliding/lean/e_m", "xp_gliding/lean/n_m"
+PROBE_SKY, PROBE_LOCAL = "xp_gliding/markers/probe_distance_m", "xp_gliding/markers/probe_local_distance_m"
+EXTRA = (PSI, WIND_X, WIND_Z, DLAT, DLON, LIFT, LIFT_CENTRE, LEAN_E, LEAN_N)
 LEAD_M = 45.0  # before the point abeam of the thermal: the roll takes a few seconds
+LEAN_WAIT_S = 7.0  # the plugin reads the layers of wind every 5 s
+SCREENSHOT = "sim/operation/screenshot"
+FRONT_VIEW, COCKPIT_VIEW = "sim/view/forward_with_nothing", "sim/view/3d_cockpit_cmnd_look"
+LAYER_ALT, LAYER_SPEED, LAYER_FROM = ("sim/weather/aircraft/wind_altitude_msl_m",
+                                      "sim/weather/aircraft/wind_speed_kts",
+                                      "sim/weather/aircraft/wind_direction_degt")
+# Layers in feet above the field, and their share of --wind-kt.
+UNIFORM = ((500.0, 1.0), (3000.0, 1.0), (6000.0, 1.0), (12000.0, 1.0))
+SHEAR = ((500.0, 0.2), (3000.0, 0.5), (6000.0, 1.2), (12000.0, 2.0))
 
 
 def wind_toward(kt, from_deg):
@@ -53,10 +83,10 @@ def wind_toward(kt, from_deg):
     return -kt * KT * math.sin(a), -kt * KT * math.cos(a)
 
 
-def windy_start(api, msl, kmh, heading, wind_kt, from_deg):
+def windy_start(api, msl, kmh, heading, wind_kt, from_deg, layers=UNIFORM):
     lat, lon, elev = KHOB
-    # The same wind at every height, through and above where the glider flies.
-    wind = [(elev / 0.3048 + alt, wind_kt, from_deg, 0.0) for alt in (500.0, 3000.0, 6000.0, 12000.0)] if wind_kt > 0.0 else []
+    # By default the same wind at every height, through and above where the glider flies.
+    wind = [(elev / 0.3048 + alt, wind_kt * share, from_deg, 0.0) for alt, share in layers] if wind_kt > 0.0 else []
     air_start(api, msl, kmh, heading, lat, lon, wx=weather(lat, lon, elev, wind=wind))
     take_over_logger(api)
 
@@ -75,6 +105,140 @@ class Offset:
 
     def to_air(self, lat, lon):
         return lat - self.dlat, wrap_lon_deg(lon - self.dlon)
+
+
+# --- layers -----------------------------------------------------------------------------
+
+def run_layers(api, wind_kt, from_deg, shear, real=False, heights=(150.0, 500.0, 1000.0, 1500.0, 2500.0), kmh=90.0):
+    lat, lon, elev = KHOB
+    base = None
+    print("| AGL (m) | wind_now e, n (m/s) | Layers at the glider e, n | Off (m/s) | Plugin's lean e, n (m) "
+          "| Engine's lean from the layers e, n | Off (m) |")
+    print("|" + " --- |" * 7)
+    for agl in heights:
+        if real:
+            air_start(api, elev + agl, kmh, (from_deg + 90.0) % 360.0, lat, lon, wx="use_real_weather")
+            take_over_logger(api)
+        else:
+            windy_start(api, elev + agl, kmh, (from_deg + 90.0) % 360.0, wind_kt, from_deg, SHEAR if shear else UNIFORM)
+        api.set(LEAN_ON, 1)
+        stream = XPlaneStream(api, EXTRA)
+        stream.wait_for(EXTRA)
+        try:
+            # Long enough for the plugin to read the layers once, with this flight's first read.
+            reason, _ = Pilot(api).run(kmh, LEAN_WAIT_S + 3.0, settle_s=5.0, min_agl=30.0, quiet=True)
+            values, _ = stream.snapshot()
+            msl, here = api.get(ELEV), api.get(AGL)
+            alts, speeds, froms = api.get(LAYER_ALT), api.get(LAYER_SPEED), api.get(LAYER_FROM)
+        finally:
+            stream.close()
+        ground = msl - here
+        heights_agl, east, north = wind_layers(alts, speeds, froms, ground)
+        e_now, n_now = values[WIND_X], -values[WIND_Z]
+        e_layer, n_layer = _interpolate(here, heights_agl, east), _interpolate(here, heights_agl, north)
+        wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/zi_m")
+        base = plugin_sky(api).cloud_base_zzi * zi
+        lean = Lean(smooth_s=0.0)
+        lean.set_wind(heights_agl, east, north, base, wstar, 0.0)
+        le, ln = lean.at(here)
+        print(f"| {here:.0f} | {e_now:+.2f}, {n_now:+.2f} | {e_layer:+.2f}, {n_layer:+.2f} "
+              f"| {math.hypot(e_layer - e_now, n_layer - n_now):.2f} "
+              f"| {values[LEAN_E]:+.0f}, {values[LEAN_N]:+.0f} | {le:+.0f}, {ln:+.0f} "
+              f"| {math.hypot(le - values[LEAN_E], ln - values[LEAN_N]):.1f} |", flush=True)
+        if agl == heights[0]:
+            print("<!-- layers MSL m: " + ", ".join(f"{a:.0f}" for a in alts) + " | kt: "
+                  + ", ".join(f"{s:.1f}" for s in speeds) + " | from: "
+                  + ", ".join(f"{d:.0f}" for d in froms) + " -->", flush=True)
+    api.set(LEAN_ON, 0)
+    print(f"base {base:.0f} m AGL, {reason}")
+
+
+# --- look -------------------------------------------------------------------------------
+
+def run_look(api, wind_kt, from_deg, agl, kmh=90.0):
+    """Toward a thermal with a cloud that lies across the wind, lean off and then on."""
+    _, _, elev = KHOB
+    heading = (from_deg + 90.0) % 360.0
+    windy_start(api, elev + agl, kmh, heading, wind_kt, from_deg)
+    api.set(LEAN_ON, 0)
+    api.set("xp_gliding/markers_enabled", 1)
+    api.set("xp_gliding/thermals_enabled", 1)
+    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/zi_m")
+    seed, day = int(api.get("xp_gliding/seed")), int(api.get("sim/time/local_date_days"))
+    zulu0, sim0 = api.get("sim/time/zulu_time_sec"), api.get(SIM_TIME)
+    sky = plugin_sky(api)
+    stream = XPlaneStream(api, EXTRA + (PROBE_SKY, PROBE_LOCAL))
+    stream.wait_for(EXTRA)
+    offset = Offset(stream)
+    state = {"phase": "start", "since": 0.0}
+    mission = types.SimpleNamespace(air_e=0.0, air_n=0.0, air_track=0.0)
+    frame_box = {}
+
+    def choose(v, t):
+        air = offset.to_air(v[LAT], v[LON])
+        frame = frame_box["frame"] = LocalFrame(*air)
+        field = ThermalField(FieldConfig(seed=seed, day=day, sky=sky), frame)
+        field.update(t, *air)
+        params = cl.CloudParams()
+        best, best_score = None, -math.inf
+        for th in field.alive(t):
+            d = math.hypot(th.e, th.n)
+            if not 1300.0 < d < 3500.0 or not cl.carries_cloud(th, params):
+                continue
+            start, stop = cl.feeding_window(th, params)
+            if not start + 0.5 * params.ttl_s <= t < stop:
+                continue
+            bearing = math.degrees(math.atan2(th.e, th.n))
+            across = abs(math.sin(math.radians(bearing - from_deg)))
+            ahead = math.cos(math.radians(bearing - heading))
+            score = across + 0.5 * ahead - d / 20000.0
+            if score > best_score:
+                best, best_score = th, score
+        if best is None:
+            raise RuntimeError("no formed cloud within reach")
+        print(f"  thermal {math.hypot(best.e, best.n):.0f} m away, bearing "
+              f"{math.degrees(math.atan2(best.e, best.n)) % 360.0:.0f}; the wind comes from {from_deg:.0f}", flush=True)
+        return best
+
+    def shot(name, values):
+        api.command(FRONT_VIEW)
+        time.sleep(0.5)
+        api.command(SCREENSHOT)
+        print(f"  screenshot, {name}: {pilot.flown:.0f} s; lean {values[LEAN_E]:+.0f}, {values[LEAN_N]:+.0f} m; "
+              f"marker distance in the sky {values.get(PROBE_SKY, -1):.1f} m, on the scene "
+              f"{values.get(PROBE_LOCAL, -1):.1f} m", flush=True)
+
+    def on_step(v, pilot):
+        values = offset.read()
+        t = zulu0 + v[SIM_TIME] - sim0
+        if state["phase"] == "start":
+            if pilot.flown < 8.0:
+                return
+            th = state["th"] = choose(v, t)
+            state["line"] = AirLine((th.e, th.n), mission)
+            pilot.guidance = state["line"]
+            state["phase"] = "toward"
+        air = frame_box["frame"].to_enu(*offset.to_air(v[LAT], v[LON]))
+        mission.air_e, mission.air_n = air
+        mission.air_track = (values[PSI] - v[BETA]) % 360.0
+        if state["phase"] == "toward" and state["line"].remaining() < 1500.0:
+            shot("lean off", values)
+            api.set(LEAN_ON, 1)
+            state["phase"], state["since"] = "waiting", pilot.flown
+        elif state["phase"] == "waiting" and pilot.flown - state["since"] > 2.0 * LEAN_WAIT_S:
+            shot("lean on", values)
+            state["phase"], state["since"] = "done", pilot.flown
+
+    pilot = Pilot(api)
+    try:
+        reason, _ = pilot.run(kmh, 240.0, settle_s=5.0, min_agl=250.0, on_step=on_step,
+                              until=lambda v, p: state["phase"] == "done" and p.flown - state["since"] > 3.0,
+                              quiet=True)
+    finally:
+        stream.close()
+        api.command(COCKPIT_VIEW)
+        api.set(LEAN_ON, 0)
+    print(f"look: {reason}, {state['phase']}")
 
 
 # --- measure ----------------------------------------------------------------------------
@@ -161,6 +325,7 @@ class CircleMission:
         self.state, self.since = "start", 0.0
         self.turn_s = 0.0
         self.rows = []
+        self.oracle = []  # the engine's lift at the glider, minus the plugin's
         self.ground_start = None
 
     def choose(self, lat, lon, z, t):
@@ -184,14 +349,20 @@ class CircleMission:
             raise RuntimeError("no thermal within reach")
         self.thermal = best
         self.ce, self.cn = best.e, best.n
-        self.air_e, self.air_n = self.frame.to_enu(*self.offset.to_air(lat, lon))
+        self.air_e, self.air_n = self.sky_position(lat, lon, self.stream.snapshot()[0])
         # A line passing one radius to the right of the thermal, for a turn to the left.
         to_e, to_n = best.e - self.air_e, best.n - self.air_n
         d = math.hypot(to_e, to_n)
         aim = (best.e + radius * to_n / d, best.n - radius * to_e / d)
         self.line = AirLine(aim, self)
         print(f"  thermal at {best.lat:.5f}, {best.lon:.5f}: {d:.0f} m away, "
-              f"lift {best_score:+.2f} m/s on a circle of {radius:.0f} m", flush=True)
+              f"lift {best_score:+.2f} m/s on a circle of {radius:.0f} m; offset {self.offset.dlon:.4f} deg of longitude",
+              flush=True)
+
+    def sky_position(self, lat, lon, values):
+        """Where the glider is in the field's sky: in the air's frame, less the lean."""
+        e, n = self.frame.to_enu(*self.offset.to_air(lat, lon))
+        return e - values[LEAN_E], n - values[LEAN_N]
 
     def on_step(self, v, pilot):
         values = self.offset.read()
@@ -202,7 +373,9 @@ class CircleMission:
             self.choose(v[LAT], v[LON], v[AGL], t)
             self.state = "approach"
             pilot.guidance = self.line
-        self.air_e, self.air_n = self.frame.to_enu(*self.offset.to_air(v[LAT], v[LON]))
+        self.air_e, self.air_n = self.sky_position(v[LAT], v[LON], values)
+        self.oracle.append(self.field.lift_at(self.air_e, self.air_n, v[AGL], t, self.wstar, self.zi)
+                           - values[LIFT_CENTRE])
         self.air_track = (values[PSI] - v[BETA]) % 360.0
         d = math.hypot(self.ce - self.air_e, self.cn - self.air_n)
         if self.state == "approach" and self.line.remaining() < LEAD_M:
@@ -225,6 +398,10 @@ class CircleMission:
 
     def report(self, reason):
         print(f"circle: {reason}; {len(self.rows)} samples with the bank held")
+        if self.oracle:
+            k = len(self.oracle)
+            print(f"  the engine's lift minus the plugin's: RMS {math.sqrt(sum(x * x for x in self.oracle) / k):.3f} m/s, "
+                  f"mean {sum(self.oracle) / k:+.3f}, over {k} samples")
         if not self.rows:
             return
         turn = max(self.turn_s, 1.0)
@@ -250,10 +427,14 @@ class CircleMission:
               f"bank {statistics.fmean(abs(r['phi']) for r in self.rows):.0f} deg")
 
 
-def run_circle(api, wind_kt, from_deg, turns, bank, kmh, agl, radius):
+def run_circle(api, wind_kt, from_deg, turns, bank, kmh, agl, radius, lean=False, record=False, fresh=False):
     _, _, elev = KHOB
+    if fresh:  # a new flight with the same aircraft keeps the sky's offset; a reload clears it
+        api.command("sim/operation/reload_aircraft")
+        time.sleep(5.0)
     windy_start(api, elev + agl, kmh, 90.0, wind_kt, from_deg)
     api.set("xp_gliding/thermals_enabled", 1)
+    api.set(LEAN_ON, 1 if lean else 0)
     wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/zi_m")
     seed, day = int(api.get("xp_gliding/seed")), int(api.get("sim/time/local_date_days"))
     zulu0, sim0 = api.get("sim/time/zulu_time_sec"), api.get(SIM_TIME)
@@ -262,12 +443,15 @@ def run_circle(api, wind_kt, from_deg, turns, bank, kmh, agl, radius):
     mission = CircleMission(api, stream, kmh, bank, turns, wstar, zi, seed, day, plugin_sky(api), zulu0, sim0, radius)
     pilot = Pilot(api)
     try:
-        reason, _ = pilot.run(kmh, 900.0, settle_s=5.0, min_agl=250.0, bank_limit=bank + 25.0,
-                              on_step=mission.on_step, until=mission.done, quiet=True)
+        reason, log = pilot.run(kmh, 900.0, settle_s=5.0, min_agl=250.0, bank_limit=bank + 25.0,
+                                on_step=mission.on_step, until=mission.done, quiet=True, record=record)
+        if log:
+            print(f"  flight log: {log}, flown to {pilot.flown:.0f} s")
     except Exception as exc:
         reason = f"aborted: {exc}"
         release(api)
     stream.close()
+    api.set(LEAN_ON, 0)
     mission.report(reason)
 
 
@@ -286,12 +470,29 @@ def main(argv=None):
     p.add_argument("--kmh", type=float, default=95.0)
     p.add_argument("--agl", type=float, default=1000.0)
     p.add_argument("--radius", type=float, default=105.0)
+    p.add_argument("--lean", action="store_true")
+    p.add_argument("--record", action="store_true", help="with the flight logger on")
+    p.add_argument("--fresh", action="store_true", help="reload the aircraft first, so the sky's offset starts near 0")
+    p = sub.add_parser("layers")
+    p.add_argument("--wind-kt", type=float, default=15.0)
+    p.add_argument("--from-deg", type=float, default=270.0)
+    p.add_argument("--shear", action="store_true")
+    p.add_argument("--real", action="store_true", help="X-Plane's real weather instead of the wind asked for")
+    p = sub.add_parser("look")
+    p.add_argument("--wind-kt", type=float, default=25.0)
+    p.add_argument("--from-deg", type=float, default=270.0)
+    p.add_argument("--agl", type=float, default=700.0)
     args = parser.parse_args(argv)
     api = XPlaneWebAPI(timeout=30.0)
     if args.what == "measure":
         run_measure(api, args.wind_kt, args.from_deg, args.seconds)
+    elif args.what == "layers":
+        run_layers(api, args.wind_kt, args.from_deg, args.shear, args.real)
+    elif args.what == "look":
+        run_look(api, args.wind_kt, args.from_deg, args.agl)
     else:
-        run_circle(api, args.wind_kt, args.from_deg, args.turns, args.bank, args.kmh, args.agl, args.radius)
+        run_circle(api, args.wind_kt, args.from_deg, args.turns, args.bank, args.kmh, args.agl, args.radius,
+                   args.lean, args.record, args.fresh)
 
 
 if __name__ == "__main__":

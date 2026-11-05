@@ -5,9 +5,9 @@ import math
 import pytest
 
 from xp_gliding.adapter import aircraft, config
-from xp_gliding.adapter.core import AircraftState, Injection, Injector
+from xp_gliding.adapter.core import AircraftState, Injection, Injector, wind_layers
 from xp_gliding.engine.geo import LocalFrame, radii_of_curvature
-from xp_gliding.engine.wind import MAX_STEP_S, AirDrift
+from xp_gliding.engine.wind import LEAN_FRACTION, LEAN_MAX_SLOPE, LEAN_SMOOTH_S, MAX_STEP_S, AirDrift, Lean
 
 KHOB = (32.6875, -103.2170)
 NOON = 12 * 3600.0
@@ -186,3 +186,175 @@ def test_the_local_axes_of_the_wind_are_east_and_south():
     inj_.carry(s)
     assert inj_.drift.wind_e_ms == 3.0 and inj_.drift.wind_n_ms == -4.0
     assert inj_.drift.dlon_deg > 0.0 and inj_.drift.dlat_deg < 0.0
+
+
+# --- the lean ------------------------------------------------------------------------
+
+BASE = 1500.0
+
+
+def uniform(wind_e, wind_n=0.0, wstar=3.0, **kwargs):
+    lean = Lean(**kwargs)
+    lean.set_wind((0.0,), (wind_e,), (wind_n,), BASE, wstar, NOON)
+    return lean
+
+
+def test_with_no_wind_there_is_no_lean_exactly():
+    lean = uniform(0.0)
+    for z in (0.0, 500.0, 1500.0, 3000.0):
+        assert lean.at(z) == (0.0, 0.0)
+
+
+def test_before_any_wind_there_is_no_lean():
+    assert Lean().at(500.0) == (0.0, 0.0)
+
+
+def test_the_lift_is_upwind_of_the_cloud_and_more_so_when_low():
+    lean = uniform(7.7)  # toward the east
+    slope = LEAN_FRACTION * 7.7 / 3.0
+    assert lean.at(BASE)[0] == pytest.approx(0.0, abs=1e-9)
+    assert lean.at(500.0)[0] == pytest.approx(-slope * 1000.0, abs=0.1)
+    assert lean.at(1000.0)[0] == pytest.approx(-slope * 500.0, abs=0.1)
+    assert lean.at(500.0)[1] == 0.0
+
+
+def test_above_the_base_it_goes_on_with_no_kink():
+    lean = uniform(7.7)
+    below = lean.at(BASE - 50.0)[0]
+    above = lean.at(BASE + 50.0)[0]
+    assert above == pytest.approx(-below, abs=1e-6)
+
+
+@pytest.mark.parametrize("wind_e, wind_n", [(7.7, 0.0), (0.0, -7.7), (-5.0, 5.0)])
+def test_it_leans_against_the_wind_whatever_its_direction(wind_e, wind_n):
+    e, n = uniform(wind_e, wind_n).at(500.0)
+    assert e * wind_e + n * wind_n < 0.0
+    assert e * wind_n - n * wind_e == pytest.approx(0.0, abs=1e-6)
+
+
+def test_a_weaker_day_leans_more():
+    assert abs(uniform(7.7, wstar=2.0).at(500.0)[0]) > abs(uniform(7.7, wstar=4.0).at(500.0)[0])
+
+
+def test_a_stronger_wind_leans_more_up_to_a_limit():
+    assert abs(uniform(12.9).at(500.0)[0]) > abs(uniform(7.7).at(500.0)[0])
+    strong = uniform(50.0, 0.0).at(500.0)
+    assert strong[0] == pytest.approx(-LEAN_MAX_SLOPE * 1000.0, abs=0.1)
+    slanted = uniform(40.0, 30.0).at(500.0)
+    assert math.hypot(*slanted) == pytest.approx(LEAN_MAX_SLOPE * 1000.0, abs=0.1)
+
+
+def test_the_layers_shape_it():
+    lean = Lean()
+    # No wind up to 1000 m, then 10 m/s: nothing leans below 1000 m but what is above it.
+    lean.set_wind((1000.0, 1000.1), (0.0, 10.0), (0.0, 0.0), BASE, 3.0, NOON)
+    low, high = lean.at(200.0)[0], lean.at(1000.0)[0]
+    assert low == pytest.approx(high, abs=0.5)
+    assert high == pytest.approx(-LEAN_FRACTION * 10.0 / 3.0 * 500.0, abs=1.0)
+
+
+def test_a_wind_that_turns_with_height_turns_the_lean():
+    lean = Lean()
+    # East at the bottom, north at the top: the upper part leans south, and the lower also west.
+    lean.set_wind((500.0, 1500.0), (10.0, 0.0), (0.0, 10.0), BASE, 3.0, NOON)
+    e, n = lean.at(1400.0)
+    assert abs(e) < abs(n) and n < 0.0
+    e, n = lean.at(200.0)
+    assert e < -100.0 and n < -100.0
+
+
+def test_a_change_of_wind_moves_the_lift_gently():
+    lean = uniform(7.7)
+    before = lean.at(500.0)[0]
+    lean.set_wind((0.0,), (12.9,), (0.0,), BASE, 3.0, NOON + 5.0)
+    after = lean.at(500.0)[0]
+    goal = uniform(12.9).at(500.0)[0]
+    assert goal < after < before
+    assert after - before == pytest.approx((goal - before) * (1.0 - math.exp(-5.0 / LEAN_SMOOTH_S)), abs=1e-6)
+    for k in range(2, 200):
+        lean.set_wind((0.0,), (12.9,), (0.0,), BASE, 3.0, NOON + 5.0 * k)
+    assert lean.at(500.0)[0] == pytest.approx(goal, abs=0.01)
+
+
+def test_a_paused_clock_changes_nothing_and_a_jump_takes_the_new_wind_at_once():
+    lean = uniform(7.7)
+    before = lean.at(500.0)
+    lean.set_wind((0.0,), (12.9,), (0.0,), BASE, 3.0, NOON)
+    assert lean.at(500.0) == before
+    lean.set_wind((0.0,), (12.9,), (0.0,), BASE, 3.0, NOON + 3600.0)
+    assert lean.at(500.0)[0] == pytest.approx(uniform(12.9).at(500.0)[0], abs=1e-9)
+
+
+def test_it_is_a_pure_function_of_its_inputs():
+    a, b = uniform(7.7, 3.0), uniform(7.7, 3.0)
+    assert a.at(777.0) == b.at(777.0)
+
+
+def test_the_layers_of_x_plane_come_in_height_above_ground_and_where_the_wind_goes():
+    heights, east, north = wind_layers((2000.0, 500.0, 500.0, 1000.0), (10.0, 20.0, 30.0, 0.0),
+                                       (0.0, 270.0, 90.0, 180.0), 400.0)
+    assert heights == [100.0, 600.0, 1600.0]  # sorted, each height once
+    assert east[0] == pytest.approx(20.0 * 0.514444, abs=1e-3)  # from the west: toward the east
+    assert north[0] == pytest.approx(0.0, abs=1e-9)
+    assert east[2] == pytest.approx(0.0, abs=1e-9)
+    assert north[2] == pytest.approx(-10.0 * 0.514444, abs=1e-3)  # from the north: toward the south
+
+
+LAYERS = ([300.0 + 500.0 * k for k in range(13)], [15.0] * 13, [270.0] * 13)
+
+
+def test_off_by_default_the_layers_of_wind_change_nothing():
+    lat0, lon0 = near_a_thermal()
+    plain, off = injector(), injector()
+    s = state(lat0, lon0, NOON)
+    off.lean_update(s, *LAYERS, 1915.0)
+    assert frame(plain, s, True) == frame(off, s, True)
+    assert off.lean_e_m == 0.0
+
+
+def test_the_glider_feels_the_lift_upwind_of_where_it_would_be():
+    lat0, lon0 = near_a_thermal()
+    plain = injector(wind_enabled=True)
+    leaning = injector(lean_enabled=True)
+    s = state(lat0, lon0, NOON)
+    leaning.lean_update(s, *LAYERS, 1915.0)  # 800 m AGL
+    de, dn = leaning.lean.at(s.agl_m)
+    assert de < -100.0 and dn == pytest.approx(0.0, abs=1e-6)
+    upwind = state(*LocalFrame(lat0, lon0).to_latlon(de, dn), NOON)
+    leaning.lean_update(upwind, *LAYERS, 1915.0)
+    assert frame(leaning, upwind, True) == pytest.approx(frame(plain, s, True), abs=0.01)
+    assert leaning.lean_e_m == pytest.approx(de, abs=1e-6)
+
+
+def test_lean_on_in_calm_air_changes_nothing_exactly():
+    lat0, lon0 = near_a_thermal()
+    plain, leaning = injector(), injector(lean_enabled=True)
+    s = state(lat0, lon0, NOON)
+    leaning.lean_update(s, LAYERS[0], [0.0] * 13, LAYERS[2], 1915.0)
+    assert frame(leaning, s, True) == frame(plain, s, True)
+
+
+def test_with_the_wind_switched_off_nothing_leans():
+    lat0, lon0 = near_a_thermal()
+    plain, off = injector(wind_enabled=False), injector(wind_enabled=False, lean_enabled=True)
+    s = state(lat0, lon0, NOON)
+    off.lean_update(s, *LAYERS, 1915.0)
+    assert frame(off, s, True) == frame(plain, s, True)
+
+
+def test_a_layer_not_in_use_is_left_out_wherever_its_altitude_is():
+    # As X-Plane 12.4.3 gives them: four in use, and the rest at -1 kt among them.
+    heights, east, north = wind_layers((1268.0, 2030.0, 2945.0, 4774.0, 3011.0, 4207.0, 5572.0),
+                                       (15.0, 15.0, 15.0, 15.0, -1.0, -1.0, -1.0),
+                                       (270.0, 270.0, 270.0, 270.0, 0.0, 0.0, 0.0), 1116.0)
+    assert heights == pytest.approx([152.0, 914.0, 1829.0, 3658.0])
+    assert east == pytest.approx([15.0 * 0.514444] * 4)
+    assert north == pytest.approx([0.0] * 4, abs=1e-9)
+
+
+def test_with_no_layer_in_use_nothing_leans():
+    lat0, lon0 = near_a_thermal()
+    leaning = injector(lean_enabled=True)
+    s = state(lat0, lon0, NOON)
+    leaning.lean_update(s, [1000.0] * 3, [-1.0] * 3, [0.0] * 3, 1915.0)
+    assert leaning.lean.at(500.0) == (0.0, 0.0)

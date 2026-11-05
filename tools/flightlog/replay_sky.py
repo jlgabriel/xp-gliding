@@ -45,7 +45,7 @@ from xp_gliding.engine.markers import core_of  # noqa: E402
 COLUMNS = ("t_run_s", "t_zulu_s", "lat_deg", "lon_deg", "elev_m", "agl_m", "te_fpm", "tas_ms", "ias_kt",
            "phi_deg", "psi_deg", "wind_ms", "wind_dir_deg", "mass_kg", "xpg_lift_centre_ms",
            "xpg_lift_left_ms", "xpg_lift_right_ms", "xpg_roll_nm", "xpg_nearest_m", "xpg_nearest_core_ms")
-OPTIONAL = ("date_days", "xpg_seed", "xpg_sky_index", "xpg_dlat_deg", "xpg_dlon_deg")
+OPTIONAL = ("date_days", "xpg_seed", "xpg_sky_index", "xpg_dlat_deg", "xpg_dlon_deg", "xpg_lean_e_m", "xpg_lean_n_m")
 FPM_TO_MS = 0.00508
 FIT_STEP_S = 4.0
 NEAR_M = 290.0  # the log's nearest thermal is taken to be this one within this distance
@@ -250,9 +250,12 @@ def main():
     rows = np.unique(rows)
 
     if has_offset:
-        k = (math.pi / 180.0) * 6371000.0
-        e = east - log["xpg_dlon_deg"] * k * math.cos(math.radians(lat0))
-        n = north - log["xpg_dlat_deg"] * k
+        e, n = zip(*(frame.to_enu(a - da, o - do) for a, o, da, do in
+                     zip(log["lat_deg"], log["lon_deg"], log["xpg_dlat_deg"], log["xpg_dlon_deg"])))
+        e, n = np.array(e), np.array(n)
+        if len(log["xpg_lean_e_m"]) == len(t):  # the thermals' lean, if the plugin had it on
+            e = e - log["xpg_lean_e_m"]
+            n = n - log["xpg_lean_n_m"]
         centre, rms = fit_centre(e[rows], n[rows], log["xpg_nearest_m"][rows])
         constant = np.zeros(2)
     else:
@@ -266,7 +269,10 @@ def main():
     for d in ([day] if day is not None else range(366)):
         fields[d], found = find_thermal(frame, seed, d, sky, log, rows, lat, lon, centre, args.wstar, args.zi)
         candidates += found
-    candidates.sort(key=lambda c: c[0])
+    if has_offset:  # the place is known: the thermal is the one there. The core alone can be fooled
+        candidates.sort(key=lambda c: math.hypot(c[2].e - centre[0], c[2].n - centre[1]))  # by overlapping ones
+    else:
+        candidates.sort(key=lambda c: c[0])
     print("Candidates: core RMS (m/s), day, its offset from the fitted place (E, N, m)")
     for error, d, th in candidates[:6]:
         print(f"  {error:.3f}  {d:3d}  {th.e - centre[0]:7.0f} {th.n - centre[1]:7.0f}")

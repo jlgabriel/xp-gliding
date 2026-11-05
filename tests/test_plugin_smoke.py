@@ -9,6 +9,7 @@ and creates, moves and destroys the instances of the training markers and clouds
 import importlib
 import itertools
 import json
+import math
 import sys
 import types
 
@@ -45,6 +46,10 @@ DATA = {
     "sim/aircraft/engine/acf_num_engines": 0,
     "sim/weather/aircraft/wind_now_x_msc": 0.0,
     "sim/weather/aircraft/wind_now_z_msc": 0.0,
+    # Thirteen layers from near the ground up, 15 kt from the west in all of them by default.
+    "sim/weather/aircraft/wind_altitude_msl_m": [300.0 + 500.0 * k for k in range(13)],
+    "sim/weather/aircraft/wind_speed_kts": [15.0] * 13,
+    "sim/weather/aircraft/wind_direction_degt": [270.0] * 13,
 }
 
 
@@ -65,6 +70,12 @@ def make_fake_xp(tmp_path, data):
     xp.getDataf = xp.getDatad = lambda ref: float(data[ref])
     xp.getDatai = lambda ref: int(data[ref])
     xp.setDataf = lambda ref, v: data.__setitem__(ref, v)
+
+    def get_vector(ref, values, offset, count):
+        values.extend(data[ref][offset:offset + count])
+        return count
+
+    xp.getDatavf = get_vector
     xp.getSystemPath = lambda: str(tmp_path)
     xp.getNthAircraftModel = lambda i: ("ASK21.acf", data.get("acf_path", "ASK21.acf"))
 
@@ -725,6 +736,65 @@ def test_markers_are_drawn_where_the_wind_took_their_thermals(plugin):
     markers_tick(pi, data)
     assert th in pi.markers.shown
     assert xp.instances[pi.markers.shown[th].ring][1] != before
+
+
+# --- the lean ---------------------------------------------------------------------
+
+def test_thermals_do_not_lean_unless_asked(plugin):
+    pi, xp, data = plugin
+    assert dataref(xp, "lean_enabled") == 0
+    data["sim/weather/aircraft/wind_now_x_msc"] = 7.7
+    frame(pi, data)
+    assert dataref(xp, "lean/e_m") == 0.0 and dataref(xp, "lean/n_m") == 0.0
+
+
+def test_the_lean_comes_from_the_layers_of_wind_and_is_published(plugin):
+    pi, xp, data = plugin
+    dataref(xp, "lean_enabled", 1)
+    pi.next_lean = 0.0
+    frame(pi, data)
+    # 15 kt toward the east, w* 3, base at Allen's top of 2000 m, the glider well below it.
+    assert dataref(xp, "lean/e_m") < -100.0
+    assert dataref(xp, "lean/n_m") == pytest.approx(0.0, abs=1.0)
+
+
+def test_switching_the_lean_off_takes_it_away_and_the_menu_shows_it(plugin):
+    pi, xp, data = plugin
+    dataref(xp, "lean_enabled", 1)
+    pi.next_lean = 0.0
+    frame(pi, data)
+    assert dataref(xp, "lean/e_m") != 0.0
+    handler, attr = xp.handlers["xp_gliding/lean/toggle"]
+    handler("xp_gliding/lean/toggle", xp.CommandBegin, attr)
+    assert not pi.settings.lean_enabled
+    frame(pi, data)
+    assert dataref(xp, "lean/e_m") == 0.0
+
+
+def test_the_ring_is_at_the_lift_and_the_column_leans_from_the_cloud_through_it(plugin):
+    pi, xp, data = plugin
+    dataref(xp, "markers_enabled", 1)
+    markers_tick(pi, data)
+    th = next(iter(pi.markers.shown))
+    ring0 = xp.instances[pi.markers.shown[th].ring][1]
+    column0 = xp.instances[pi.markers.shown[th].column][1]
+    assert column0[3:] == (0.0, 0.0, 0.0)  # upright with no lean
+
+    dataref(xp, "lean_enabled", 1)
+    pi.next_lean = 0.0
+    frame(pi, data)
+    lean_e = dataref(xp, "lean/e_m")
+    assert lean_e < -100.0
+    markers_tick(pi, data)
+    th = next(iter(pi.markers.shown))
+    item = pi.markers.shown[th]
+    ring = xp.instances[item.ring][1]
+    column = xp.instances[item.column][1]
+    top_dy = column[1] - ring[1]
+    assert ring[0] - column[0] == pytest.approx(lean_e, abs=1e-3)  # local x is east
+    assert ring[2] == pytest.approx(column[2], abs=1.0)
+    assert column[3] == pytest.approx(math.degrees(math.atan2(-lean_e, top_dy)), abs=0.1)
+    assert column[4] == pytest.approx(270.0, abs=1.0)  # the bottom swings upwind, to the west
 
 
 # --- the settings menu ------------------------------------------------------------

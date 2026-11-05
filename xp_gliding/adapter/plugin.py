@@ -19,6 +19,7 @@ Commands (also in the menu):
   xp_gliding/toggle            plugin effect on / off
   xp_gliding/thermals/toggle   our thermals on / off, the plugin stays loaded (issue #30)
   xp_gliding/wind/toggle       XP12's wind carries the thermals, or they stay where they are
+  xp_gliding/lean/toggle       thermals lean with the wind (off by default, a first guess)
   xp_gliding/markers/toggle    training markers on / off (off by default)
   xp_gliding/clouds/toggle     cumulus on / off
   xp_gliding/hud/toggle        soaring HUD on / off
@@ -47,6 +48,7 @@ from .markers import TrainingMarkers
 from .xpio import SkyObjects, XPlaneIO
 
 SLOW_PERIOD_S = 1.0
+LEAN_PERIOD_S = 5.0  # X-Plane's layers of wind are read this often
 CLOUDS_PERIOD_S = 0.25  # cloud tiles load in small bites
 TAG = "[xp-gliding]"
 
@@ -60,6 +62,9 @@ DATAREFS = (
     ("wind/n_ms", "injector", "drift.wind_n_ms", "f", 0),
     ("wind/dlat_deg", "injector", "drift.dlat_deg", "f", 0),  # the sky's offset from the ground
     ("wind/dlon_deg", "injector", "drift.dlon_deg", "f", 0),
+    ("lean_enabled", "settings", "lean_enabled", "i", 1),
+    ("lean/e_m", "injector", "lean_e_m", "f", 0),  # the lift's centre at the glider, from its cloud
+    ("lean/n_m", "injector", "lean_n_m", "f", 0),
     ("roll_enabled", "settings", "roll_enabled", "i", 1),
     ("helix_enabled", "settings", "helix_enabled", "i", 1),
     ("markers_enabled", "settings", "markers_enabled", "i", 1),
@@ -193,6 +198,7 @@ class PythonInterface:
         self.next_slow = 0.0
         self.next_markers = 0.0
         self.next_clouds = 0.0
+        self.next_lean = 0.0
 
         self.datarefs = []
         for name, holder, attr, kind, writable in DATAREFS:
@@ -216,6 +222,8 @@ class PythonInterface:
              self.on_toggle, "thermals_enabled", "Thermals"),
             (xp.createCommand("xp_gliding/wind/toggle", "xp-gliding: thermals follow the wind on/off"),
              self.on_toggle, "wind_enabled", "Thermals follow the wind"),
+            (xp.createCommand("xp_gliding/lean/toggle", "xp-gliding: thermals lean with the wind on/off"),
+             self.on_toggle, "lean_enabled", "Thermals lean with the wind"),
             (xp.createCommand("xp_gliding/markers/toggle", "xp-gliding: training markers on/off"),
              self.on_toggle, "markers_enabled", "Training markers"),
             (xp.createCommand("xp_gliding/clouds/toggle", "xp-gliding: cumulus on/off"),
@@ -281,6 +289,8 @@ class PythonInterface:
         engines = self.io.engine_count()
         self.clouds.clear()  # a new flight: X-Plane may have dropped the particles
         self.injector.drift.reset()  # and the sky starts where the field drew it
+        self.injector.lean.reset()
+        self.next_lean = 0.0
         # At the main menu the "aircraft" is X-Plane's own folder: stay inert until
         # a real aircraft is loaded (a plane-loaded message follows).
         loaded = path.lower().endswith(".acf")
@@ -362,6 +372,12 @@ class PythonInterface:
         t0 = time.perf_counter()
         s = self.io.read_state(self.state)
         self.injector.carry(s)
+        if now >= self.next_lean:
+            self.next_lean = now + LEAN_PERIOD_S
+            if st.lean_enabled:
+                self.injector.lean_update(s, *self.io.wind_layers(), self.io.elevation_m())
+            else:
+                self.injector.lean.reset()
         if now >= self.next_slow:
             self.next_slow = now + SLOW_PERIOD_S
             self.next_markers = now + 0.5 * SLOW_PERIOD_S
@@ -376,7 +392,7 @@ class PythonInterface:
             self.next_markers = now + SLOW_PERIOD_S
             self.markers.update(self.injector.field, self.injector.frame, s, self.io.elevation_m(),
                                 self.io.local_position(), st.wstar_ms, st.zi_m, now,
-                                self.injector.drift)
+                                self.injector.drift, self.injector.lean_e_m, self.injector.lean_n_m)
         self.injector.step(s, self.out)
         self.io.apply(self.out)
         self.status.active = 1

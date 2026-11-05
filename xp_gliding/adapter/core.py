@@ -20,7 +20,9 @@ and find the nearest thermal for the instruments.
 
 The wind is X-Plane's. `Injector.carry` integrates it every frame into the offset between
 the ground and the air (`engine/wind.py`), and the field is only ever asked about the
-aircraft's position in the air's frame.
+aircraft's position in the air's frame. If the thermals lean (off by default), that position
+is also shifted by the lean at the aircraft's height, from X-Plane's layers of wind
+(`Injector.lean_update`, in the slow path).
 
 X-Plane's conventions (DataRefs.txt, XP 12.4.3): `faxil_plug_acf` positive
 pushes the aircraft *backward*, `fside_plug_acf` positive pushes it right,
@@ -38,9 +40,28 @@ import math
 from ..engine import injection as inj
 from ..engine.field import FieldConfig, ThermalField, sky_index, sky_named
 from ..engine.geo import LocalFrame
-from ..engine.wind import AirDrift
+from ..engine.wind import AirDrift, Lean
 
 NEAREST_MAX_M = 5000.0
+KT_TO_MS = 0.514444
+
+
+def wind_layers(altitudes_msl_m, speeds_kt, from_deg, ground_m):
+    """X-Plane's layers of wind as (heights above ground, east, north), ascending, in m and m/s.
+
+    Its direction is where the wind comes from, and the engine wants where it goes. A layer not
+    in use has a speed of -1 and an altitude that means nothing, among the ones in use (seen in
+    X-Plane 12.4.3 on 2026-11-05).
+    """
+    heights, east, north = [], [], []
+    for alt, speed, direction in sorted(zip(altitudes_msl_m, speeds_kt, from_deg)):
+        if speed < 0.0 or (heights and alt - ground_m <= heights[-1]):
+            continue  # the engine interpolates in height: the same height twice has no slope
+        a = math.radians(direction)
+        heights.append(alt - ground_m)
+        east.append(-speed * KT_TO_MS * math.sin(a))
+        north.append(-speed * KT_TO_MS * math.cos(a))
+    return heights, east, north
 
 
 class AircraftState:
@@ -144,6 +165,8 @@ class Injector:
         self.field = None
         self._field_key = None
         self.drift = AirDrift()
+        self.lean = Lean()
+        self.lean_e_m = self.lean_n_m = 0.0  # the lean at the aircraft, last frame: published
         self.nearest = Nearest()
 
     def set_geometry(self, geometry):
@@ -170,6 +193,26 @@ class Injector:
         else:
             self.drift.hold(s.sky_t_s)
 
+    def lean_update(self, s, altitudes_msl_m, speeds_kt, from_deg, msl_m):
+        """Every few seconds: X-Plane's layers of wind lean the sky, if that is on."""
+        st = self.settings
+        if not (st.lean_enabled and st.wind_enabled):
+            self.lean.reset()
+            return
+        heights, east, north = wind_layers(altitudes_msl_m, speeds_kt, from_deg, msl_m - s.agl_m)
+        if heights:
+            self.lean.set_wind(heights, east, north, sky_named(st.sky).cloud_base_zzi * st.zi_m,
+                               st.wstar_ms, s.sky_t_s)
+
+    def sky_position(self, s):
+        """Where the aircraft is in the field's sky (m in the local frame), whatever it feels."""
+        e, n = self.frame.to_enu(*self.drift.to_air(s.lat, s.lon))
+        if self.settings.lean_enabled and self.settings.wind_enabled:
+            self.lean_e_m, self.lean_n_m = self.lean.at(s.agl_m)
+            return e - self.lean_e_m, n - self.lean_n_m
+        self.lean_e_m = self.lean_n_m = 0.0
+        return e, n
+
     # --- about once a second ----------------------------------------------
 
     def slow_update(self, s):
@@ -188,7 +231,7 @@ class Injector:
         self.field.update(s.sky_t_s, lat, lon)
 
         near = self.nearest
-        e, n = self.frame.to_enu(lat, lon)
+        e, n = self.sky_position(s)
         th, r = self.field.nearest(e, n, s.sky_t_s, NEAREST_MAX_M)
         if th is None:
             near.distance_m, near.bearing_deg, near.core_ms = -1.0, 0.0, 0.0
@@ -212,8 +255,7 @@ class Injector:
         if self.uniform_ms != 0.0:
             wl = wc = wr = wt = self.uniform_ms
         elif st.thermals_enabled:
-            lat, lon = self.drift.to_air(s.lat, s.lon)
-            e, n = self.frame.to_enu(lat, lon)
+            e, n = self.sky_position(s)
             g.update(e, n, s.agl_m, s.psi_deg, s.phi_deg)
             f, t, wstar, zi = self.field, s.sky_t_s, st.wstar_ms, st.zi_m
             wc = f.lift_at(g.ce, g.cn, g.cz, t, wstar, zi)

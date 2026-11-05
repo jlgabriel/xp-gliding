@@ -141,6 +141,8 @@ XPG_DATAREFS = (
     ("xpg_sky_index", "xp_gliding/sky_index", "i"),
     ("xpg_dlat_deg", "xp_gliding/wind/dlat_deg", "f"),
     ("xpg_dlon_deg", "xp_gliding/wind/dlon_deg", "f"),
+    ("xpg_lean_e_m", "xp_gliding/lean/e_m", "f"),
+    ("xpg_lean_n_m", "xp_gliding/lean/n_m", "f"),
 )
 
 COLUMNS = (

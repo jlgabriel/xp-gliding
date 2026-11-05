@@ -1,6 +1,6 @@
 # Phase 3: wind
 
-The wind is X-Plane's. The plugin reads it and writes none. This records the first step of [the design](SPEC.md#wind), the wind carrying the sky, flown by the test pilot on 2026-11-05 at KHOB in the Laminar ASK 21 (`tools/testpilot/fly_wind.py`, `tools/cloudlab/fly_drag.py`), and then [by hand](#first-flight-by-hand) the same day: staying in a thermal is done, finding one by its cloud is not.
+The wind is X-Plane's. The plugin reads it and writes none. This records the first step of [the design](SPEC.md#wind), the wind carrying the sky, flown by the test pilot on 2026-11-05 at KHOB in the Laminar ASK 21 (`tools/testpilot/fly_wind.py`, `tools/cloudlab/fly_drag.py`), and then [by hand](#first-flight-by-hand) the same day: staying in a thermal is done, finding one by its cloud is not. The second step, [the lean](#the-lean), is built and checked by the test pilot, and nobody has flown it by hand.
 
 ## What was built
 
@@ -134,6 +134,101 @@ The median size stays at 1.07, and the air stays under the clouds as before (`cl
 - **`TOP` again read as wrong.** It is right: 1500 m minus AGL, within 17 m of the clouds' base here, since they take their ground height from the glider's when they are created. Why it looked wrong was not asked yet. The same thing happened on 2026-11-04 ([phase2.md](phase2.md#first-flight-by-hand)), so the label is a candidate for when the HUD is refined.
 - **Why the airbrakes open.** Laminar's script for this aircraft (`plugins/xlua/scripts/ask21_basics/ask21_basics.lua`) opens the airbrakes and the wheel brake at every flight start on the ground, and closes them above 10 ft. The two are linked, as in the real glider. A hardware lever does nothing until it moves, and moving up with the map does not run that code again. So a flight from the runway that is moved up with the map keeps them open until the lever is moved (here until 416 s, and everything before that is ignored above). It is the aircraft, not the plugin.
 
+## The lean
+
+Second step of the wind, built on 2026-11-05 and [checked by the test pilot](#the-lean-in-the-simulator) the same evening. **Nobody has flown it by hand:** *Thermals lean with the wind* in the menu is off by default, so the sky flown so far is unchanged. The FAA's handbook asks for the lift to be upwind of the cloud, further the stronger the wind, the weaker the thermals and the lower the glider (10-4), and for plumes that tilt in a steady wind (9-8). It gives no number for how much.
+
+**The form.** The field holds the sky as it is at the clouds' base. At a height z, all the lift is that sky shifted upwind by
+
+```math
+L(z) = \int_z^{base} \min\left(f \frac{U(z')}{w_*},\ s_{max}\right) dz'
+```
+
+with the wind's direction at each height, and f = 0.1 and a steepest slope `s_max` of 0.5 as first guesses (`engine/wind.py`, `Lean`). A cloud sits at the base, where L = 0, so it stays where it is. With no wind L is exactly 0. It is one lookup per frame, the same shift for every thermal, and `lean/e_m` and `lean/n_m` publish it for the flight log and `replay_sky.py`.
+
+**A departure from a real plume.** Its slope would be U / w\*, which is f = 1. This model leans a tenth of that because the point of the first step was to keep a glider with its thermal, and a pilot has to be able to follow the lean. Every thermal leaning alike is also a simplification: a stronger thermal should lean less than a weaker one on the same day.
+
+**How much can be followed.** `tools/engine_plots/lean_climb.py climb`: 110 thermals with a formed cloud (6 seeds), entering 60 m off centre at 500 m AGL, in the air's frame, at 35° and 90 km/h, w\* 3, base 1500 m. A point on a circle with the sink of `circle_climb.py`, not a flight model. The pilots are made up: one never corrects, *lazy* shifts up to 20 m every two turns with 45° of error, *good* shifts up to 40 m every turn with 25° of error. So compare rows with each other, and none of them with a flight. Median height gained, in metres:
+
+| Wind | f | Slope | `wide_carriers`: never, lazy, good | `medium_carriers`: never, lazy, good |
+| --- | --- | --- | --- | --- |
+| Any | 0 | 0 | 698, 700, 709 | 586, 648, 655 |
+| 15 kt | 0.05 | 0.13 | 682, 697, 704 | 514, 619, 649 |
+| 15 kt | 0.1 | 0.26 | 579, 656, 692 | 431, 561, 641 |
+| 15 kt | 0.2 | 0.51 | 415, 525, 649 | 300, 418, 606 |
+| 15 kt | 0.5 | 1.28 | 194, 267, 474 | 142, 210, 435 |
+| 15 kt | 1 (rigid) | 2.57 | 103, 134, 305 | 75, 107, 277 |
+| 25 kt | 0.05 | 0.21 | 608, 676, 701 | 454, 586, 644 |
+| 25 kt | 0.1 | 0.43 | 462, 571, 665 | 334, 464, 617 |
+| 25 kt | 0.2 | 0.86 | 281, 379, 570 | 199, 298, 516 |
+| 25 kt | 1 (rigid) | 4.30 | 63, 81, 194 | 47, 63, 176 |
+
+The rigid plume is out, as the arithmetic said: nobody climbs 300 m in it at 25 kt except a few of the *good* pilot's thermals. At f = 0.1 a pilot who centres loses 2–6% of the height, and one who never corrects loses 17–43%. So correcting pays, without being a fight: at a climb of 1.3 m/s the lift moves away at 0.3–0.6 m/s, 8–14 m per turn. On a weak day the lean is larger and the climbs are smaller: at w\* 2 and 25 kt, where `s_max` already limits it, the *good* pilot gains 363 m against 384 with no lean in `wide_carriers`, and 282 against 300 in `medium_carriers`.
+
+**What a pilot sees.** `lean_climb.py read`, the same thermals with a wind toward the east. Whether a pilot who ignores the wind and flies straight through the centre of the cloud, across the wind, feels +1 m/s, and how far upwind of the centre the lift is met flying into the wind (negative: before reaching the centre). At f = 0.1:
+
+| Wind | Height (m AGL) | Lift's centre upwind of the cloud's (m) | `wide_carriers`: feels +1, met at (m) | `medium_carriers`: feels +1, met at (m) | Lift's centre under the cloud's body |
+| --- | --- | --- | --- | --- | --- |
+| 15 kt | 500 | 257 | 54%, +25 | 18%, +75 | 100% |
+| 15 kt | 800 | 180 | 100%, −75 | 94%, −25 | 100% |
+| 15 kt | 1100 | 103 | 100%, −150 | 100%, −100 | 100% |
+| 25 kt | 500 | 430 | 24%, +188 | 19%, +250 | 66% |
+| 25 kt | 800 | 301 | 32%, +25 | 16%, +100 | 100% |
+| 25 kt | 1100 | 172 | 100%, −100 | 94%, −25 | 100% |
+
+With no lean every row is 100%. So a thermal that was always under the middle of its cloud now needs reading the wind when low: high up the centre of a cloud still works, low down and in more wind the pilot has to aim upwind, and the lift is still under the cloud nearly everywhere. f = 0.15 is where this starts to fail: at 25 kt and 500 m the lift's centre is under no cloud's body at all. That, with the table before, is why 0.1. `lean_climb.py section` draws it from the side, in `plots/lean_section.png`.
+
+**Other forms, not built.**
+
+- **A train of bubbles** from a source fixed to the ground: a glider stays with one, and meets the next one U × the time between them further upwind. About 1 km at 10 m/s and 100 s, so the same escape as a plume, in steps. With a source drifting with the air, there is no lean at all.
+- **A lean that follows each glider:** the lift stays with it. That breaks determinism, since the sky would depend on who is flying and how.
+- **Only moving the cloud** downwind of a vertical column: nothing to follow, but it is not lower-means-further, and the column stays vertical.
+
+**In shear.** `lean_climb.py shear`, f = 0.1. The lean comes from X-Plane's 13 layers of wind (`sim/weather/aircraft/wind_*`), read every 5 s, and takes about 60 s to reach a new wind, so no lift jumps. A wind that turns with height turns the lean, and a glider follows it as well as in a uniform wind: with the wind turning 90° from 500 to 1500 m, 571, 660 and 692 m in `wide_carriers`. So shear **does not make the climb harder** in this model: the sky still moves at the wind at the glider, and the lean's slope depends on the wind at each height, not on how fast it changes. The criterion that a pilot has to recentre in shear is met only as far as it is in a uniform wind.
+
+**Markers.** The ring goes to the lift's centre at the glider's height, and the column leans straight from the cloud through the ring (`markers.py`). So it is straight even if the lean is not, and the instance's pitch and heading are worked out from X-Plane's conventions, not seen yet.
+
+**By hand:** whether the upwind offset reads from the seat, and whether f = 0.1 is too much or too little. Terrain is not handled: the height is above the ground under the glider, so flying over a ridge moves L by the slope × the change in height. That is part of [the terrain under each thermal](SPEC.md#phased-roadmap), phase 4.
+
+**Cost:** in XPPython3's Python 3.12, outside X-Plane, about 0.4 µs for the lookup, once per frame, and about 30 µs to build the table, every 5 s. In the simulator, `frame_us` was 134–139 µs at the median with the lean on, not a proper comparison with it off.
+
+### The lean in the simulator
+
+The test pilot, 2026-11-05, KHOB, Laminar ASK 21, `wide_carriers`, w\* 3, zi 2000 m (`tools/testpilot/fly_wind.py`: `layers`, `look`, `circle --lean`). Not a judgement of how it feels.
+
+**The layers of wind agree with the wind at the glider.** The layer at the glider's height against `wind_now_*`, m/s:
+
+| Weather | Heights (m AGL) | Difference | The lean the plugin publishes against the engine's |
+| --- | --- | --- | --- |
+| Uniform 15 kt | 140–1490 | 0.00 | Within 0.1 m |
+| 25 kt at the clouds, 5 to 50 kt from 500 to 12000 ft above the field | 141–2493 | 0.00 | Within 0.3 m |
+| X-Plane's real weather (about 30 kt that evening) | 139–2483 | 1.3–1.6 | Within 0.2 m |
+
+**It found a mistake the tests could not.** A layer not in use has a speed of −1 kt, a direction of 0 and a meaningless altitude, among the layers in use. They were read as wind: 2487 m AGL in a uniform 15 kt read 0.5 m/s toward the north. `wind_layers` now leaves them out, and a test pins it.
+
+**The same thermal with the lean off and on.** The same start with the aircraft reloaded first, entering around the lift's centre at the height of entry, then 35° and 95 km/h with no correction for ten turns:
+
+| Wind | Lean | Lift's centre from the cloud at entry | Height gained | Climb, turn 1 and turn 10 (m/s) | Circle's centre from the lift's centre, turn 1 and turn 10 (m) |
+| --- | --- | --- | --- | --- | --- |
+| 15 kt | Off | 0 | +156 m, 554 to 710 AGL | +0.54, +0.94 | 67, 94 |
+| 15 kt | On | About 245 m | +156 m, 547 to 703 AGL | +0.53, +1.08 | 73, 138 |
+| 25 kt | Off | 0 | +145 m, 545 to 690 AGL | +0.51, +0.93 | 73, 106 |
+| 25 kt | On | About 420 m | +162 m, 528 to 690 AGL | +0.52, +1.24 | 80, 174 |
+
+- **The glider climbs the same with the lean,** though its circle is hundreds of metres from where it would be with the lift under the cloud. One thermal, flown once each way, and a climb that is weak for this thermal, so it says the lean costs nothing over 226 s, not more.
+- **The circle falls behind as the arithmetic says:** the slope × the height gained is 40 m at 15 kt and 69 m at 25 kt, and turn 10 is 44 m and 68 m further off than with the lean off.
+- **The sink is the same,** 1.5 m/s, and the plugin's lift is the engine's within 0.002 m/s RMS in all four flights. So the [offline tables](#the-lean) ask the right lift of the right place, at this height.
+- **Not flown:** a climb with corrections, or as high as it goes. In shear only the layers were checked, not a circle.
+
+**The marker.** With the lean off, the column is straight up under the cloud. Turned on at 25 kt about 600 m AGL, the lean was 384 m, and the column leaned with its bottom upwind, through a ring moved upwind and up to its cloud, seen on two screenshots. The ring is where the lift is: the distance to it in the sky and on the scene agree within 0.4 m.
+
+**The flight log** has `xpg_lean_e_m` and `xpg_lean_n_m`, and `replay_sky.py` rebuilds the flight with them. It now uses the exact conversion, and picks the thermal by place when the log has the offset: this flight's thermal overlaps another, which fooled its match by the core, by 1.6 m/s.
+
+**Found in passing:**
+
+- **A new flight with the same aircraft keeps the sky's offset,** at least through the web API: no plane-loaded message comes, and after several flights it stood at 0.16° of longitude, about 15 km. So the sky goes on rather than starting again, which does no harm, but it is not what this phase said. Reloading the aircraft clears it. Missions that compare flights need `--fresh`.
+- **The first circle of a session ran at a mean bank of 43° instead of 35°,** with the lean off, and sank about 0.3 m/s more. The seven circles after it held 35°. Not understood; it has nothing to do with the lean, which was off.
+
 ## Cost
 
 Sampled once each, at the end of a flight, not a proper comparison: `frame_us` 132–160 µs with about 220 clouds moving (118–132 µs in phase 1, before clouds and wind), and the largest cloud update seen is 1.2–2.2 ms, as before this work, since tiles load in that path too. `tools/testpilot/fly_clouds.py cost` has not been run in wind. The HUD with the wind costs 281 µs to draw (265 µs before).
@@ -143,7 +238,7 @@ Sampled once each, at the end of a flight, not a proper comparison: `frame_us` 1
 - **By hand:** finding a thermal by its cloud in wind, with the markers off, now that [a bigger cloud is usually a stronger thermal](#first-flight-by-hand). This is what is left of the phase's first criterion. It is also the first look at the new sizes.
 - **A climb as high as it goes,** in wind. The thermal of the first flight died before one was made.
 - **A climb through shear.** The sky moves at the wind at the glider, so a glider stays with its thermal at any height, by construction. Whether a sky that depends slightly on the glider's height shows anywhere has not been checked. Not flown in a circle.
-- **Tilt:** the lift upwind of the cloud, and having to recentre in shear. Nothing yet; see the [design](SPEC.md#wind).
+- **The lean, by hand:** whether it reads from the seat, and f. [Checked by the test pilot](#the-lean-in-the-simulator), and off by default.
 - **Which wind in strong shear:** only the wind at the glider has been tried.
 - **The menu's submenus** read well in X-Plane ("excellent", Juan Luis), and each showed the right setting, but changing a sky in flight has not been tried.
 - **Time acceleration** and a change of clock: tested offline, not flown.

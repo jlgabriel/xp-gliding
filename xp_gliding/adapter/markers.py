@@ -36,6 +36,7 @@ from ..engine.markers import (SIZES_M, all_objects, column_object, ring_object,
                               select_markers, size_class, strength_class)
 
 SELECT_PERIOD_S = 5.0
+MIN_LEAN_HEIGHT_M = 50.0  # closer to its top than this, a column stays upright
 OBJECT_COUNT = len(all_objects())
 
 
@@ -119,28 +120,42 @@ class TrainingMarkers:
 
     # --- about once a second ---------------------------------------------------
 
-    def update(self, field, frame, s, msl_m, local, wstar, zi, now, drift):
+    def update(self, field, frame, s, msl_m, local, wstar, zi, now, drift, lean_e_m=0.0, lean_n_m=0.0):
         """Bring the markers up to date for the aircraft state s, at msl_m metres MSL.
 
         local: the aircraft's (x, y, z) in X-Plane's local coordinates, for the probe.
+        lean_*: the lift's centre at the aircraft's height, from its cloud (`engine.wind.Lean`).
+        The ring goes there, and the column leans from the cloud through it.
         """
         self.closed = False
         if self.failed or not self._ready():
             return
         t0 = time.perf_counter()
         e, n = frame.to_enu(*drift.to_air(s.lat, s.lon))
+        e -= lean_e_m
+        n -= lean_n_m
         st = self.status
         if now >= self._next_select:
             self._next_select = now + SELECT_PERIOD_S
             self._reconcile(select_markers(field, e, n, s.agl_m, s.sky_t_s, wstar, zi, self.shown))
             st.select_us = (time.perf_counter() - t0) * 1e6
         top_dy = field.config.sky.cloud_base_zzi * zi - s.agl_m  # the column's top, above the glider
+        # The column hangs from its top, so its pitch swings the bottom toward its heading.
+        lean_m = math.hypot(lean_e_m, lean_n_m)
+        pitch = heading = 0.0
+        if lean_m > 0.0 and top_dy > MIN_LEAN_HEIGHT_M:
+            pitch = math.degrees(math.atan2(lean_m, top_dy))
+            heading = math.degrees(math.atan2(lean_e_m, lean_n_m)) % 360.0
         best_r, best_x, best_y, best_z, best = math.inf, 0.0, 0.0, 0.0, None
         for item in self.shown.values():
             th = item.thermal
             x, y, z = self.sky.world_to_local(*drift.to_ground(th.lat, th.lon), msl_m)
+            # Local axes: x east, z south. The column starts at the cloud, and the ring is at
+            # the lift's centre at this height.
+            self.sky.set_position(item.column, x, y + top_dy, z, pitch=pitch, heading=heading)
+            x += lean_e_m
+            z -= lean_n_m
             self.sky.set_position(item.ring, x, y, z)
-            self.sky.set_position(item.column, x, y + top_dy, z)
             r = math.hypot(e - th.e, n - th.n)
             if r < best_r:
                 best_r, best_x, best_y, best_z, best = r, x, y, z, item

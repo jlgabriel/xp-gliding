@@ -19,6 +19,7 @@ DEFAULTS = {
     "enabled": True,  # plugin effect on at start
     "thermals_enabled": True,  # our thermals (issue #30: off keeps the plugin loaded)
     "wind_enabled": True,  # XP12's wind carries the thermals, clouds and markers
+    "lean_enabled": False,  # thermals lean with the wind's layers (a first guess, not flown)
     "roll_enabled": True,  # gust roll moment from the spanwise lift gradient
     "helix_enabled": True,  # cancel the climbing-turn overbanking of the energy force
     "markers_enabled": False,  # training mode: draw a ring and a column over nearby thermals

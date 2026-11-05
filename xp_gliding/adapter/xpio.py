@@ -36,6 +36,8 @@ STATE = (
     ("wind_z_ms", "sim/weather/aircraft/wind_now_z_msc", "f"),
 )
 
+WIND_LAYERS = 13  # sim/weather/aircraft/wind_*: float[13]
+
 
 class XPlaneIO:
     def __init__(self):
@@ -51,6 +53,9 @@ class XPlaneIO:
         self._engines = xp.findDataRef("sim/aircraft/engine/acf_num_engines")
         self._elevation = xp.findDataRef("sim/flightmodel/position/elevation")
         self._local = tuple(xp.findDataRef("sim/flightmodel/position/local_" + c) for c in "xyz")
+        self._wind_alt = xp.findDataRef("sim/weather/aircraft/wind_altitude_msl_m")
+        self._wind_speed = xp.findDataRef("sim/weather/aircraft/wind_speed_kts")
+        self._wind_from = xp.findDataRef("sim/weather/aircraft/wind_direction_degt")
 
     def frozen(self):
         """True while paused or in replay: no force is applied then."""
@@ -82,6 +87,13 @@ class XPlaneIO:
     def local_position(self):
         """Aircraft (x, y, z) in X-Plane's local coordinates. Only the slow path needs it."""
         return tuple(xp.getDatad(ref) for ref in self._local)
+
+    def wind_layers(self):
+        """Altitudes MSL (m), speeds (kt) and where the wind comes from (deg). Not per frame."""
+        layers = [], [], []
+        for ref, values in zip((self._wind_alt, self._wind_speed, self._wind_from), layers):
+            xp.getDatavf(ref, values, 0, WIND_LAYERS)
+        return layers
 
     def engine_count(self):
         return xp.getDatai(self._engines)
@@ -123,8 +135,8 @@ class SkyObjects:
         return xp.worldToLocal(lat, lon, msl_m)
 
     @staticmethod
-    def set_position(instance, x, y, z, data=None):
-        xp.instanceSetPosition(instance, (x, y, z, 0.0, 0.0, 0.0), data)
+    def set_position(instance, x, y, z, data=None, pitch=0.0, heading=0.0):
+        xp.instanceSetPosition(instance, (x, y, z, pitch, heading, 0.0), data)
 
     @staticmethod
     def auto_shift(instance):

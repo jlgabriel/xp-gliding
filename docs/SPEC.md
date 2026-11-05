@@ -456,14 +456,19 @@ In progress (decided by Juan Luis, 2026-11-05; results in [phase3.md](phase3.md)
 Thermals and clouds keep the positions they were generated with, in a frame that moves with the air. The engine gets one offset D(t), the wind integrated over time, and everything else follows: lift is sampled at the glider's position minus D, and clouds and markers are drawn at their position plus D. In a uniform wind, glider and thermal travel together and a circle needs no correction.
 
 - **Nothing changes without wind:** D = 0 is today's sky, thermal for thermal.
-- **Determinism:** seed, date, place, time and D give the same sky. D starts at 0 when the flight starts, and is published as a dataref so the test pilot's oracles can rebuild the sky.
+- **Determinism:** seed, date, place, time and D give the same sky, shifted by the lean if that is on. D starts at 0 when the aircraft is loaded, and a new flight with the same aircraft keeps it, at least through the web API ([phase3.md](phase3.md#the-lean-in-the-simulator)). Both are published as datarefs so the test pilot's oracles can rebuild the sky.
 - **No jumps:** the wind changing moves nothing at once, only the rate D grows at. Pause stops it.
 - **Tiles:** the field looks up tiles by position in the air's frame, so it does not need to search further for thermals that have drifted.
 - **Which wind:** the adapter passes a wind and the engine does not care which. In a uniform wind all candidates agree. In shear they differ: a sky moving at one layer's speed runs away from a glider at another height at the difference between the two. The first candidate is the wind at the glider (`wind_now_*`), which keeps it with its thermal at any height, at the price of a sky that depends slightly on the glider's height. To decide by flying.
 - **Clouds now move:** each gets a new position about once a second in wind, a quarter of them per update, and none in calm air. No cost seen so far; not measured properly.
 - **Particles:** with `DRAG` 0 they stay where they were emitted, and a moving emitter left a trail of about 2 km at 25 kt. With `DRAG` 1, XP12's wind carries them, and clouds stay compact, also in the one shear tried ([phase3.md](phase3.md#clouds-in-wind)).
 
-**Second step: shear and tilt.** The form is open. A rigid column tilted by the rise time (10 m/s of wind and 3 m/s of rise give 3.3 km of offset per km of height) and carried with the air would move away from a climbing glider at U·c/w: 5 m/s with U = 10 m/s and a climb of half of w, probably too fast to fly (arithmetic, not flown). Real air is closer to bubbles, where a glider stays with its bubble and the cloud was fed by earlier ones. What has to be right is what a pilot sees: the lift upwind of the cloud, more so when low, and having to recentre in shear.
+**Second step: the lean.** Built, checked by the test pilot, not flown by hand, off by default ([phase3.md](phase3.md#the-lean)). A rigid column tilted by the rise time (10 m/s of wind and 3 m/s of rise give 3.3 km of offset per km of height) and carried with the air moves away from a climbing glider at U·c/w: 5 m/s with U = 10 m/s and a climb of half of w. Offline, a simulated pilot who centres well gains less than half the height in it at 15 kt, and about a quarter at 25 kt. What has to be right is what a pilot sees: the lift upwind of the cloud, more so when low, in more wind and on a weaker day.
+
+- **Form (`engine/wind.py`, `Lean`):** the field is the sky at the clouds' base, and at a height z all its lift is shifted upwind by L(z), the integral from z to the base of f·U/w\*, from X-Plane's layers of wind, with f = 0.1 and a slope of at most 0.5. First guesses, and a documented departure from a real plume, whose slope would be U/w\*, so f = 1.
+- **Offline:** a pilot who centres loses 2–6% of the height at 15–25 kt, and the lift is met upwind of a cloud when low and under it when high.
+- **In the simulator** ([phase3.md](phase3.md#the-lean-in-the-simulator)): the same thermal, ten turns with no correction, gains the same height with and without it (+156 and +156 m at 15 kt, +145 and +162 m at 25 kt), and the circle falls behind by the slope × the height gained.
+- **Shear does not make the climb harder yet,** because the sky still moves at the wind at the glider. Whether it should is for flying to say.
 
 **Streets** come after that, once a uniform wind and shear fly well.
 
@@ -499,7 +504,7 @@ What a pilot needs to feel and work a thermal. It stays as it is until the model
 
 Worked on in parallel with the model (Juan Luis, 2026-11-05): *Plugins → xp-gliding* should let the pilot choose the plugin's settings, so flying never needs an edit of `config.json` and a restart.
 
-- **Switches:** plugin, thermals, thermals follow the wind, markers, cumulus, HUD, each also a command. Each new piece of the model that needs one gets its item when it is built.
+- **Switches:** plugin, thermals, thermals follow the wind, thermals lean with the wind (off by default), markers, cumulus, HUD, each also a command. Each new piece of the model that needs one gets its item when it is built.
 - **Submenus** (`config.MENU_CHOICES`, built 2026-11-05, nobody has chosen anything in them yet): the sky by name, the strength and depth of the day, the seed.
 - **Saved:** what is chosen in the menu is written to `config.json`, so the next session starts from it.
 - **Method:** plain XPLM submenus with check marks and a few values to choose from, since they cost nothing per frame. A window with sliders only if the flying asks for it, and without imgui if possible: XPPython3's reload crashes after imgui.
@@ -561,7 +566,10 @@ Rewritten on 2026-11-05 around good thermals. **This stage is the model only** (
    - [x] By hand in a uniform wind: stay in a thermal (Juan Luis, 2026-11-05, 15 kt, [phase3.md](phase3.md#first-flight-by-hand): about 1 km over the ground in 90 s, still in the thermal; felt the roll on entry; the centring aid is right in wind).
    - [x] What a cloud's size says about its thermal: a bigger cloud meant a weaker thermal (correlation −0.75), and now usually means a stronger one (+0.80), offline, not yet seen in flight ([phase3.md](phase3.md#first-flight-by-hand)).
    - [ ] By hand in a uniform wind: find a thermal by its cloud, with the markers off.
-   - [ ] Shear: which wind carries the sky, tilt, lift upwind of the cloud.
+   - [x] The lean, offline (2026-11-05, [phase3.md](phase3.md#the-lean)): lift upwind of the cloud, more when low, off by default.
+   - [x] The lean in the simulator, by the test pilot (2026-11-05, [phase3.md](phase3.md#the-lean-in-the-simulator)): the layers of wind, the column's direction, the same thermal with it off and on. A climb with corrections and a circle in shear were not flown.
+   - [ ] The lean by hand: does it read from the seat, is f = 0.1 right?
+   - [ ] Shear: which wind carries the sky, and whether the pilot should have to recentre more than in a uniform wind.
    - *Done when:* in a steady 15–20 kt wind a thermal can be found by its cloud and worked by hand as in calm air, and in shear the pilot has to recentre without losing it.
 4. **A sound sky**
    - [ ] Fly `wide_carriers` and `medium_carriers` (x1.5, nearer the FAA handbook's typical size, [phase2.md](phase2.md#against-the-faas-handbook-and-a-narrower-sky)), with a recorded climb as high as it goes, and choose the default sky. Juan Luis found one thermal by looking at a cloud, markers off, and climbed (2026-11-05, told, not recorded): the first sign of phase 2's criterion.
@@ -615,7 +623,8 @@ These questions do not have an answer yet; they are resolved in the phase indica
 - [ ] Global land-cover and elevation data sources, and their licenses. (phase 6)
 - [x] Is `sim/weather/aircraft/wind_now_*` the wind that moves the glider? **Yes,** within 0.02 m/s at 15 and 25 kt, and it points where the air goes (2026-11-05, [phase3.md](phase3.md)).
 - [ ] Which wind should carry the sky in shear: the one at the glider, or a layer's? (phase 3, by flying)
-- [ ] What form should tilt take, so the lift is upwind of the cloud without running away from a climbing glider? (phase 3, by flying)
+- [ ] What form should tilt take, so the lift is upwind of the cloud without running away from a climbing glider? (phase 3, by flying) Candidate, offline: the whole sky shifted upwind with height, a tenth of a plume's slope ([phase3.md](phase3.md#the-lean)).
+- [x] Do the layers `sim/weather/aircraft/wind_*` agree with `wind_now_*` at the glider's height? **Yes,** exactly in a wind set by hand, within 1.3–1.6 m/s in real weather. A layer not in use reads −1 kt, at an altitude that means nothing (2026-11-05, [phase3.md](phase3.md#the-lean-in-the-simulator)).
 - [x] Does a moving emitter leave a trail, and does a drag above 0 let XP12's wind carry the particles? **Yes to both** (2026-11-05, [phase3.md](phase3.md#clouds-in-wind)): `DRAG` 1 keeps clouds whole at 25 kt.
 - [x] How to draw an on-screen instrument from XPPython3 under Vulkan, and at what cost? **A plain XPLM window, raw OpenGL, a display list, X-Plane's font for small text:** 75 µs per frame for the test scene, against ~500 µs with xpgl or imgui; the HUD as built costs 265 µs, mostly one TrueType number. Avionics popups draw every frame even on demand. Measured 2026-11-03/04 ([hud.md](hud.md)).
 - [x] Does X-Plane reset the `_plug_acf` datarefs every flight-model cycle? **Effectively yes** (test B, 2026-11-03): Alex's add-to-current-value force gives exactly one application per frame; it would run away otherwise. A plugin reading them after the flight model sees 0, so they cannot be used to observe another plugin's force.
