@@ -51,7 +51,7 @@ from analyze_flightlog import flying_rows, load_rows  # noqa: E402
 from control import OrbitHold  # noqa: E402
 from fly_phase1 import (AGL, IAS, SIM_TIME, TAS, OracleOrbits, read_settings,  # noqa: E402
                         report_orbit, restore)
-from pilot import LOG_DIR, Pilot, release  # noqa: E402
+from pilot import LOG_DIR, Pilot, plugin_sky, release  # noqa: E402
 from xp_gliding.engine import markers as mk  # noqa: E402
 from xp_gliding.engine.field import FieldConfig, ThermalField  # noqa: E402
 from xp_gliding.engine.geo import LocalFrame  # noqa: E402
@@ -231,7 +231,7 @@ def run_orbit(api, minutes, msl, course, seed, kmh, bank):
     zulu0 = api.get("sim/time/zulu_time_sec")
     sim0 = api.get("sim/time/total_flight_time_sec")
     frame = LocalFrame(lat, lon)
-    field = ThermalField(FieldConfig(seed=seed, day=day), frame)
+    field = ThermalField(FieldConfig(seed=seed, day=day, sky=plugin_sky(api)), frame)
     stream = XPlaneStream(api, WATCH)
     stream.wait_for(WATCH)
     oracle = MarkedOrbits(api, field, zulu0, sim0, kmh, bank, wstar, zi, stream=stream)
@@ -344,7 +344,8 @@ def run_keep(api, minutes, msl, heading, seed, kmh, bank):
     zulu0 = api.get("sim/time/zulu_time_sec")
     sim0 = api.get(SIM_TIME)
     frame = LocalFrame(lat, lon)
-    field = ThermalField(FieldConfig(seed=seed, day=int(api.get("sim/time/local_date_days"))), frame)
+    field = ThermalField(FieldConfig(seed=seed, day=int(api.get("sim/time/local_date_days")),
+                                     sky=plugin_sky(api)), frame)
     field.update(zulu0, lat, lon)
     z = api.get(AGL)
     chosen = mk.select_markers(field, 0.0, 0.0, z, zulu0, wstar, zi)

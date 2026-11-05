@@ -155,15 +155,23 @@ class SkyProfile:
 # The skies that can be chosen by name (`"sky"` in the plugin's config.json).
 SKIES = {
     "default": SkyProfile(),
-    # Not flown yet, a first guess to judge by flying. Measured offline (docs/phase2.md).
+    # First guesses to judge by flying, measured offline and flown a little (docs/phase2.md).
     "wide_carriers": SkyProfile(carrier_stretch=2.0, blue_keep=0.15, blue_gain=0.6, blue_stretch=0.75,
                                 cloud_base_zzi=0.75),
+    "medium_carriers": SkyProfile(carrier_stretch=1.5, blue_keep=0.15, blue_gain=0.6, blue_stretch=0.75,
+                                  cloud_base_zzi=0.75),
 }
+SKY_NAMES = tuple(SKIES)  # in a fixed order, to say which one in a dataref
 
 
 def sky_named(name):
     """The profile of that name; the default one for a name it does not know."""
     return SKIES.get(name, SKIES["default"])
+
+
+def sky_index(name):
+    """The place of that sky in SKY_NAMES; the default one's for a name it does not know."""
+    return SKY_NAMES.index(name) if name in SKIES else SKY_NAMES.index("default")
 
 
 class FieldConfig:

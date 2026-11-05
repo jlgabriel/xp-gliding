@@ -1,7 +1,7 @@
 """Check the centring aid on logged circles against the engine's real thermal.
 
 Usage:
-    python tools/hudlab/check_aid.py LOG.csv [LOG.csv ...] [--seed 1] [--day 305]
+    python tools/hudlab/check_aid.py LOG.csv [LOG.csv ...] [--seed 1] [--day 305] [--sky default]
 
 Replays each log through `Vario` and `CentringAid` as the HUD does, and at every moment the
 aid is valid rebuilds where the circle's centre was (mean position over the last turn) and,
@@ -21,14 +21,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from replay_vario import KT_TO_KMH, read_log  # noqa: E402
 from xp_gliding.adapter.vario import ASK21_LAMINAR, SAMPLE_PERIOD_S, CentringAid, Vario  # noqa: E402
-from xp_gliding.engine.field import FieldConfig, ThermalField  # noqa: E402
+from xp_gliding.engine.field import SKIES, FieldConfig, ThermalField  # noqa: E402
 from xp_gliding.engine.geo import LocalFrame  # noqa: E402
 
 BANDS = ((0, 15), (15, 30), (30, 60), (60, 100), (100, 200))
 MIN_BANK_DEG = 25.0
 
 
-def replay(path, seed, day):
+def replay(path, seed, day, sky):
     vario, aid = Vario(ASK21_LAMINAR), CentringAid()
     frame, field = None, None
     track = []  # (east, north, heading turned so far)
@@ -44,7 +44,7 @@ def replay(path, seed, day):
         lat, lon, zulu = float(row["lat_deg"]), float(row["lon_deg"]), float(row["t_zulu_s"])
         if frame is None:
             frame = LocalFrame(lat, lon)
-            field = ThermalField(FieldConfig(seed=seed, day=day), frame)
+            field = ThermalField(FieldConfig(seed=seed, day=day, sky=SKIES[sky]), frame)
         if zulu >= next_field:
             next_field = zulu + 5.0
             field.update(zulu, lat, lon)
@@ -81,8 +81,9 @@ def main():
     parser.add_argument("logs", nargs="+")
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--day", type=int, default=305)
+    parser.add_argument("--sky", default="default", choices=sorted(SKIES))
     args = parser.parse_args()
-    samples = [s for path in args.logs for s in replay(path, args.seed, args.day)]
+    samples = [s for path in args.logs for s in replay(path, args.seed, args.day, args.sky)]
     print(f"{len(samples)} samples with the aid valid, circling")
     print("| Circle off centre (m) | Samples | Median abs direction error (deg) | Within 45 deg | "
           "Median amp (m/s) |")

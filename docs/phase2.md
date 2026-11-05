@@ -171,7 +171,7 @@ His idea: thermals with a cloud about twice as wide and as strong as they are, w
 
 The environment sink is not a number to pick. It follows from conservation of mass (`mean_flux_gain`, closed form, compared with a large sample in a test).
 
-**How to choose it.** In the plugin, add `"sky": "wide_carriers"` to `Output/xp-gliding/config.json` and restart; a config without the key, or with a name it does not know, flies the default sky. In the tools, `--sky wide_carriers`, and `--set carrier_stretch=1.75` to try other numbers. The test pilot's missions rebuild the field with `FieldConfig(seed, day)`, so they have no `--sky` yet and their oracle would see the default sky's lift.
+**How to choose it.** In the plugin, add `"sky": "wide_carriers"` to `Output/xp-gliding/config.json` and restart; a config without the key, or with a name it does not know, flies the default sky. In the tools, `--sky wide_carriers`, and `--set carrier_stretch=1.75` to try other numbers. The test pilot's missions read the plugin's sky from the dataref `xp_gliding/sky_index`, so their oracle sees the same lift (not flown yet); `tools/hudlab/check_aid.py` takes `--sky`.
 
 **Two deviations from Allen, on record as the others are:**
 
@@ -234,11 +234,42 @@ Other seeds agree (`cloud_climb.py`, 31°, 500 and 800 m AGL): seed 2, +2.3 and 
 
 **What it may cost.** The centring cues get weaker, since the wide core is flat. On a 106 m circle, the first harmonic of the lift with the centre 60 m off is 0.43 m/s against 1.88 today at 550 m AGL, and at 1000 m 0.17 against 1.31; the HUD's centring aid was reliable from about 60 m off centre in today's sky ([hud.md](hud.md)). The steepest difference across a 17 m span halves, from 0.75 to 0.37 m/s, so the roll on entering a thermal will be softer. Neither has been flown. Nothing was changed in the HUD.
 
+### Against the FAA's handbook, and a narrower sky
+
+The FAA's *Glider Flying Handbook* (FAA-H-8083-13B, chapters 9 and 10) gives no climb rates by height, but it says what thermals are like, and it does not all agree with `wide_carriers`.
+
+| The handbook | Our sky | Reading |
+| --- | --- | --- |
+| Lift near a cloud's base often grows a lot under a concave part of the cloud, from especially warm air (10-2) | Allen's lift fades toward the base | Against the model: see [the top of the climb](#the-numbers) |
+| Thermals widen as they rise (9-8), so steeper turns low down (10-6) | They do | Agrees |
+| A typical thermal is 500-1000 ft across, about 150-300 m, and it varies a lot (9-8) | At half peak: 220 m today, 328 m at x1.5, 436 m at x2 | x2 is well over it. It does not say how diameter is measured |
+| Blue thermals can be as strong as those with a cumulus; found by chance (10-2) | Few, at 0.6 of the strength | The few are right; the weakness is a choice |
+| The shallowest bank at minimum sink is the best, but size and turbulence usually do not allow it (10-6) | At x2 a 31° turn is as good as 45° | x2 may be too easy |
+| Several thermals can feed one cloud (10-1) | One thermal to a cloud | Not in the model. It could also explain a wide cloud, without a wide thermal |
+| More sink often means a thermal is near (10-5), and there can be heavy sink beside a cloud (10-4) | Almost none beside a thermal below mid height | Not in the model |
+
+Juan Luis also felt that x2 may have been a little easy. So there is a second sky to compare, `medium_carriers`: the same in every number but `carrier_stretch` 1.5. Measured with the same tools:
+
+| | Today | `medium_carriers` | `wide_carriers` |
+| --- | --- | --- | --- |
+| Half-peak radius at 550 m AGL (m) | 110 | 164 | 218 |
+| Climb at 31°, 83 km/h, 500 and 800 m | +0.5, +0.7 | +2.0, +1.9 | +2.7, +2.3 |
+| The same 60 m off centre | +0.2, +0.4 | +1.5, +1.4 | +2.4, +2.2 |
+| Climb at 45°, 85 km/h, 500 and 800 m | +1.9, +1.6 | +2.3, +1.9 | +2.5, +2.2 |
+| Air at +2 under a cloud, 500-1300 m | 26-34% | 95-100% | 97-100% |
+| Marked columns with their own cloud, 500-1300 m | 11-12% | 39-85% | 39-85% |
+| Next carrier closer than the sum of half-peak radii | 3-4% | 7-11% | 12-18% |
+| Sink at 800 m AGL | −0.28 | −0.08 | −0.14 |
+| Passes at +1 m/s or more: per km, median width | 0.37-0.48, 140 m | 0.10-0.13, 240-360 m | 0.11-0.15, 280-480 m |
+| Top of the climb at 31°, m AGL | 1250 | 1450 | 1450 |
+
+At x1.5 a steeper turn pays again at 500 m, as the handbook says, and every cloud still gives more than +1 at 31° at these heights. Not flown yet.
+
 ### First flight by hand
 
 Juan Luis, 2026-11-04, Santiago, Laminar ASK 21, with `carrier_stretch` 2 and the blue thermals as above, before the base was lowered. The log's lift matches the rebuilt field within 0.001 m/s, so it was this sky.
 
-- **The airbrakes were fully out for the first part**, which nothing showed at first: he felt the glider heavy and ended about 70 m above the ground. Straight flight at 85 km/h sank 1.9-2.4 m/s, and the HUD's netto read −2 for it, in air that was not moving. Why they were out was not found. With them closed, measured the same way: −1.00 m/s against 0.98 from the polar. So that part says nothing about the sky, except that in 20 s means he met +2.2 to +2.8 m/s while circling, and that the flight log has no column for the airbrakes.
+- **The airbrakes were fully out for the first part**, which nothing showed at first: he felt the glider heavy and ended about 70 m above the ground. Straight flight at 85 km/h sank 1.9-2.4 m/s, and the HUD's netto read −2 for it, in air that was not moving. Why they were out was not found. With them closed, measured the same way: −1.00 m/s against 0.98 from the polar. So that part says nothing about the sky, except that in 20 s means he met +2.2 to +2.8 m/s while circling. The flight log now has a `speedbrake_ratio` column.
 - **High up, he found almost no thermals.** At about 1540 m AGL, with clouds still above him, the nearest cores gave +0.1 to +0.6 m/s. That is what the model says, and it is why the base came down: the clouds promised lift where there was none.
 - **The HUD's `TOP` read as wrong to him.** It is the height left up to the top, so it grows as the glider sinks: +1748 m at 70 m AGL. It is right, but the label does not say so.
 

@@ -28,6 +28,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))  # repository root
 
 from control import SpeedHold  # noqa: E402
+from xp_gliding.engine.field import SKIES, SKY_NAMES  # noqa: E402
 from xp_gliding.engine.geo import LocalFrame  # noqa: E402
 from xpweb import XPlaneStream  # noqa: E402
 
@@ -37,6 +38,8 @@ STALE_S = 1.0
 MAX_PAUSE_S = 20.0
 THETA_REF_RANGE = (0.0, 5.0)  # deg
 LOGGER_TOGGLE = "xp_gliding/flightlog/toggle"
+LOGGER_AUTO = "xp_gliding/flightlog/auto"
+LOGGER_RECORDING = "xp_gliding/flightlog/recording"
 LOG_DIR = r"D:\Laminar\XP12-Last-Release\X-Plane 12\Output\xp-gliding\flightlogs"
 
 OVERRIDES = ("sim/operation/override/override_joystick_pitch",
@@ -80,6 +83,26 @@ def release(api):
 def track_deg(v):
     """Course over the ground from X-Plane's local velocity (x east, z south)."""
     return math.degrees(math.atan2(v[VX], -v[VZ])) % 360.0
+
+
+def take_over_logger(api):
+    """The logger records flights by itself: keep it from starting, end what it started."""
+    try:
+        api.set(LOGGER_AUTO, 0)
+        if api.get(LOGGER_RECORDING):
+            api.command(LOGGER_TOGGLE)
+            time.sleep(0.1)
+    except KeyError:  # a logger from before 0.5.0
+        pass
+
+
+def plugin_sky(api):
+    """The sky the plugin is flying, so that an oracle sees the same lift."""
+    try:
+        return SKIES[SKY_NAMES[int(api.get("xp_gliding/sky_index"))]]
+    except KeyError:
+        print("the plugin does not say its sky (older than this tool): assuming the default", flush=True)
+        return SKIES["default"]
 
 
 def latest_log():
@@ -196,6 +219,7 @@ class Pilot:
                 if not dry_run:
                     stream.set_many({YOKE[0]: pitch, YOKE[1]: roll, YOKE[2]: yaw})
                 if record and not recording and self.flown >= settle_s:
+                    take_over_logger(api)
                     before = latest_log()
                     api.command(LOGGER_TOGGLE)
                     recording = True

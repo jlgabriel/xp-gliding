@@ -5,7 +5,7 @@ import pytest
 from xp_gliding.adapter import aircraft, config
 from xp_gliding.adapter.core import (AircraftState, Injection, Injector, NativeThermalGuard)
 from xp_gliding.engine import injection as inj
-from xp_gliding.engine.field import sky_named
+from xp_gliding.engine.field import SKY_NAMES, sky_named
 
 # The wing parts of Laminar's ASK 21 (XP 12.4.3 ASK21.acf), lengths in feet.
 ASK21_ACF = """\
@@ -183,6 +183,8 @@ def test_the_sky_comes_from_the_settings_by_name():
     wide.settings.sky = "default"
     wide.slow_update(state())
     assert wide.field.config.sky is sky_named("default")
+    assert wide.sky_index == SKY_NAMES.index("default")
+    assert injector(sky="medium_carriers").sky_index == SKY_NAMES.index("medium_carriers")
     # A name it does not know is the default sky, not a failure.
     other = injector(sky="nope")
     other.slow_update(state())

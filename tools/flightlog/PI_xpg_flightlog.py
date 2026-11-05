@@ -10,6 +10,13 @@ Commands (bind them to joystick buttons in X-Plane):
   xp_gliding/flightlog/toggle   start / stop recording
   xp_gliding/flightlog/mark     increment the segment mark (start/end of a test)
 
+Since 0.5.0 it also records by itself (`AutoRecord`), because the best flights were the
+ones nobody remembered to record: a glider in the air starts a log, and landing or loading
+a new flight ends it. Stopping a log by hand holds this off until the next flight. It costs
+about 150 MB per hour of flight. `xp_gliding/flightlog/recording` says whether it is
+recording, and writing 0 to `xp_gliding/flightlog/auto` turns the automatic part off until
+X-Plane restarts, which the test pilot does so that its own start and stop stay its own.
+
 Logs go to `Output/xp-gliding/flightlogs/flightlog_YYYYMMDD_HHMMSS.csv`.
 
 Two flight loops run while recording: one before the flight model reads the
@@ -39,7 +46,7 @@ import time
 
 import xp
 
-LOGGER_VERSION = "0.4.0"
+LOGGER_VERSION = "0.5.0"
 FLUSH_EVERY_ROWS = 300
 
 # (column, dataref, type) read after the flight model
@@ -70,6 +77,7 @@ STATE_DATAREFS = (
     ("native_thermal_ms", "sim/weather/aircraft/thermal_rate_ms", "f"),
     ("sun_pitch_deg", "sim/graphics/scenery/sun_pitch_degrees", "f"),
     ("beta_deg", "sim/flightmodel/position/beta", "f"),
+    ("speedbrake_ratio", "sim/cockpit2/controls/speedbrake_ratio", "f"),
 )
 
 FORCE_DATAREFS = (
@@ -181,6 +189,58 @@ def _fmt(value):
     return ""
 
 
+class AutoRecord:
+    """When to record without being asked. Pure logic, one `step` about a second apart.
+
+    A log starts once a glider has been in the air for a moment, so a flight loading on
+    the runway or a powered aircraft records nothing, and ends once it has sat on the
+    ground for a while. Only a log started here is ended here. Time paused does not count.
+    """
+
+    START, STOP = 1, 2
+    AIRBORNE_AGL_M = 10.0
+    GROUND_AGL_M = 3.0
+    GROUND_SPEED_MS = 1.0
+    START_AFTER_S = 2.0
+    STOP_AFTER_S = 20.0
+
+    def __init__(self):
+        self.enabled = True
+        self.held = False  # stopped by hand: not again until the next flight
+        self.started_here = False
+        self.airborne_s = 0.0
+        self.ground_s = 0.0
+
+    def stopped_by_hand(self):
+        self.held = True
+        self.started_here = False
+
+    def new_flight(self):
+        """A flight or aircraft was loaded. Returns STOP if a log of ours should end."""
+        self.held = False
+        self.airborne_s = self.ground_s = 0.0
+        if self.started_here:
+            self.started_here = False
+            return self.STOP
+        return None
+
+    def step(self, dt, recording, is_glider, agl_m, ground_speed_ms, paused):
+        if not self.enabled or paused:
+            return None
+        self.airborne_s = self.airborne_s + dt if agl_m > self.AIRBORNE_AGL_M else 0.0
+        on_ground = agl_m < self.GROUND_AGL_M and ground_speed_ms < self.GROUND_SPEED_MS
+        self.ground_s = self.ground_s + dt if on_ground else 0.0
+        if recording:
+            if self.started_here and (not is_glider or self.ground_s >= self.STOP_AFTER_S):
+                self.started_here = False
+                return self.STOP
+            return None
+        if is_glider and not self.held and self.airborne_s >= self.START_AFTER_S:
+            self.started_here = True
+            return self.START
+        return None
+
+
 class PythonInterface:
     def XPluginStart(self):
         self.Name = "xp-gliding flight log"
@@ -223,15 +283,30 @@ class PythonInterface:
                                               readRefCon=attr, writeRefCon=attr)
             self.alex_refs.append(ref)
 
+        self.auto = AutoRecord()
+        self.auto_refs = (xp.findDataRef("sim/aircraft/engine/acf_num_engines"),
+                          xp.findDataRef("sim/flightmodel/position/y_agl"),
+                          xp.findDataRef("sim/flightmodel/position/groundspeed"),
+                          xp.findDataRef("sim/time/paused"),
+                          xp.findDataRef("sim/time/is_in_replay"))
+        self.own_refs = [
+            xp.registerDataAccessor("xp_gliding/flightlog/recording", xp.Type_Int, 0,
+                                    readInt=self._read_recording),
+            xp.registerDataAccessor("xp_gliding/flightlog/auto", xp.Type_Int, 1,
+                                    readInt=self._read_auto, writeInt=self._write_auto),
+        ]
+
         self.pre_loop = xp.createFlightLoop(self.before_fm, xp.FlightLoop_Phase_BeforeFlightModel, None)
         self.post_loop = xp.createFlightLoop(self.after_fm, xp.FlightLoop_Phase_AfterFlightModel, None)
+        self.auto_loop = xp.createFlightLoop(self.auto_step, xp.FlightLoop_Phase_AfterFlightModel, None)
         return self.Name, self.Sig, self.Desc
 
     def XPluginStop(self):
         self.stop_recording()
         xp.destroyFlightLoop(self.pre_loop)
         xp.destroyFlightLoop(self.post_loop)
-        for ref in self.alex_refs:
+        xp.destroyFlightLoop(self.auto_loop)
+        for ref in self.alex_refs + self.own_refs:
             xp.unregisterDataAccessor(ref)
         xp.unregisterCommandHandler(self.toggle_cmd, self.on_toggle, 1, None)
         xp.unregisterCommandHandler(self.mark_cmd, self.on_mark, 1, None)
@@ -239,13 +314,39 @@ class PythonInterface:
         xp.removeMenuItem(xp.findPluginsMenu(), self.menu_item)
 
     def XPluginEnable(self):
+        xp.scheduleFlightLoop(self.auto_loop, 1.0, 1)
         return 1
 
     def XPluginDisable(self):
+        xp.scheduleFlightLoop(self.auto_loop, 0, 1)
         self.stop_recording()
 
     def XPluginReceiveMessage(self, inFromWho, inMessage, inParam):
-        pass
+        if inMessage == xp.MSG_AIRPORT_LOADED or (inMessage == xp.MSG_PLANE_LOADED and inParam == 0):
+            if self.auto.new_flight() == AutoRecord.STOP:
+                self.stop_recording()
+
+    # --- recording by itself ---------------------------------------------------
+
+    def auto_step(self, sinceLast, elapsedTime, counter, refCon):
+        engines, agl, speed, paused, replay = self.auto_refs
+        action = self.auto.step(sinceLast, self.file is not None, xp.getDatai(engines) == 0,
+                                xp.getDataf(agl), xp.getDataf(speed),
+                                xp.getDatai(paused) != 0 or xp.getDatai(replay) != 0)
+        if action == AutoRecord.START:
+            self.start_recording()
+        elif action == AutoRecord.STOP:
+            self.stop_recording()
+        return 1.0
+
+    def _read_recording(self, refCon):
+        return int(self.file is not None)
+
+    def _read_auto(self, refCon):
+        return int(self.auto.enabled)
+
+    def _write_auto(self, refCon, value):
+        self.auto.enabled = bool(value)
 
     # --- commands -----------------------------------------------------------
 
@@ -254,6 +355,7 @@ class PythonInterface:
             if self.file is None:
                 self.start_recording()
             else:
+                self.auto.stopped_by_hand()
                 self.stop_recording()
         return 1
 

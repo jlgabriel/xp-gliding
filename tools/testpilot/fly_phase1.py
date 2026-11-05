@@ -63,7 +63,7 @@ from airstart import KHOB, air_start  # noqa: E402
 from analyze_flightlog import flying_rows, linear_slope, load_rows  # noqa: E402
 from audit_native import ThermalHunter  # noqa: E402
 from control import Circle, Gains, OrbitHold  # noqa: E402
-from pilot import LOG_DIR, Pilot, release  # noqa: E402
+from pilot import LOG_DIR, Pilot, plugin_sky, release  # noqa: E402
 from polar import polar_sink  # noqa: E402
 from xp_gliding.engine.field import FieldConfig, ThermalField  # noqa: E402
 from xp_gliding.engine.geo import LocalFrame  # noqa: E402
@@ -390,7 +390,7 @@ def run_orbit(api, minutes, msl, course, seed, kmh, bank):
     day = int(api.get("sim/time/local_date_days"))
     zulu0, sim0 = api.get("sim/time/zulu_time_sec"), api.get(SIM_TIME)
     frame = LocalFrame(lat, lon)
-    field = ThermalField(FieldConfig(seed=seed, day=day), frame)
+    field = ThermalField(FieldConfig(seed=seed, day=day, sky=plugin_sky(api)), frame)
     print(f"engine thermals: w* {wstar:.1f} m/s, zi {zi:.0f} m AGL, seed {seed}, day {day}; "
           f"orbits at {bank:.0f} deg and {kmh:.0f} km/h", flush=True)
     oracle = OracleOrbits(api, field, zulu0, sim0, kmh, bank, wstar, zi)

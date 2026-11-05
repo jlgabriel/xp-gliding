@@ -32,7 +32,7 @@ the spanwise gradient for the roll moment (checks the roll sign).
 import math
 
 from ..engine import injection as inj
-from ..engine.field import FieldConfig, ThermalField, sky_named
+from ..engine.field import FieldConfig, ThermalField, sky_index, sky_named
 from ..engine.geo import LocalFrame
 
 NEAREST_MAX_M = 5000.0
@@ -142,6 +142,10 @@ class Injector:
         self.geometry = geometry
         self.samples = inj.SampleGeometry(geometry.span_m, geometry.tail_arm_m)
         self.clp = inj.roll_damping(geometry.aspect_ratio, geometry.taper)
+
+    @property
+    def sky_index(self):
+        return sky_index(self.settings.sky)
 
     def reset_field(self):
         """Forget the loaded thermals (they are regenerated identically on demand)."""

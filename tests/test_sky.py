@@ -231,3 +231,18 @@ def test_wide_carriers_have_their_base_within_reach():
     assert base < f.LIFT_TOP_ZZI * ZI
     w = updraft.updraft_velocity(0.0, base, ZI, WSTAR, 1.36, 1.35)
     assert 1.0 < w < 2.0
+
+
+def test_medium_carriers_differ_from_wide_only_in_the_width():
+    medium = f.SKIES["medium_carriers"]
+    assert medium.carrier_stretch == 1.5 and WIDE.carrier_stretch == 2.0
+    for name in f.SkyProfile.__slots__:
+        if name != "carrier_stretch":
+            assert getattr(medium, name) == getattr(WIDE, name)
+
+
+def test_sky_index_names_every_sky():
+    assert f.SKY_NAMES[0] == "default"
+    for name in f.SKIES:
+        assert f.SKY_NAMES[f.sky_index(name)] == name
+    assert f.sky_index("nope") == 0

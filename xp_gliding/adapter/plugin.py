@@ -78,6 +78,7 @@ DATAREFS = (
     ("seed", "settings", "seed", "i", 1),
     ("wstar_ms", "settings", "wstar_ms", "f", 1),
     ("zi_m", "settings", "zi_m", "f", 1),
+    ("sky_index", "injector", "sky_index", "i", 0),  # the place of the sky in engine.field.SKY_NAMES
     ("debug/uniform_ms", "injector", "uniform_ms", "f", 1),
     ("debug/dw_dy", "injector", "debug_dwdy", "f", 1),
     ("active", "status", "active", "i", 0),

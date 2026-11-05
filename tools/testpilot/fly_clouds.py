@@ -48,7 +48,7 @@ from airstart import KHOB, air_start, weather  # noqa: E402
 from control import OrbitHold  # noqa: E402
 from fly_phase1 import OracleOrbits, report_orbit  # noqa: E402
 from analyze_flightlog import flying_rows, load_rows  # noqa: E402
-from pilot import AGL, IAS, LAT, LOG_DIR, LON, SIM_TIME, TAS, Pilot, release  # noqa: E402
+from pilot import AGL, IAS, LAT, LOG_DIR, LON, SIM_TIME, TAS, Pilot, plugin_sky, release  # noqa: E402
 from thread_cpu import main_thread, thread_times, xplane_pid  # noqa: E402
 from xp_gliding.engine import clouds as cl  # noqa: E402
 from xp_gliding.engine.field import FieldConfig, ThermalField  # noqa: E402
@@ -247,7 +247,7 @@ def run_under(api, msl, count, kmh, heading):
     zulu0 = api.get("sim/time/zulu_time_sec")
     sim0 = api.get(SIM_TIME)
     frame = LocalFrame(lat, lon)
-    catalog = cl.CloudCatalog(FieldConfig(seed=seed, day=day), frame)
+    catalog = cl.CloudCatalog(FieldConfig(seed=seed, day=day, sky=plugin_sky(api)), frame)
     while catalog.update(zulu0, lat, lon):
         pass
 
@@ -332,7 +332,7 @@ def run_climb(api, msl, minutes, kmh, bank, heading):
     day = int(api.get("sim/time/local_date_days"))
     zulu0, sim0 = api.get("sim/time/zulu_time_sec"), api.get(SIM_TIME)
     frame = LocalFrame(lat, lon)
-    config = FieldConfig(seed=seed, day=day)
+    config = FieldConfig(seed=seed, day=day, sky=plugin_sky(api))
     catalog = cl.CloudCatalog(config, frame)
     while catalog.update(zulu0, lat, lon):
         pass
