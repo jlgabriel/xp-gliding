@@ -23,6 +23,7 @@ import traceback
 
 import xp
 
+from ..engine.field import sky_named
 from .vario import SAMPLE_PERIOD_S, CentringAid, Vario, height_to_top, polar_for
 
 WIDTH, HEIGHT = 170, 300
@@ -188,7 +189,8 @@ class Hud:
         self._te_text = f"{vario.te_ms:+.1f}"
         self._netto_text = f"NET {vario.netto_ms:+.1f}" if vario.has_netto else "NET --"
         self._average_text = f"AVG {vario.average_ms:+.1f}"
-        self._top_text = f"TOP {height_to_top(self.settings.zi_m, getf(self._agl)):+.0f} m"
+        base_zzi = sky_named(self.settings.sky).cloud_base_zzi
+        self._top_text = f"TOP {height_to_top(self.settings.zi_m, getf(self._agl), base_zzi):+.0f} m"
 
     # --- every frame ----------------------------------------------------------------
 

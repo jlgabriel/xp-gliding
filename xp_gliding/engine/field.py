@@ -65,6 +65,9 @@ RGAIN_RANGE = (0.5, 2.0)
 CARRIER_MIN_FLUX = 2.0
 CARRIER_MIN_LIFE_S = 720.0
 
+# Allen's mean updraft dies here (Eq. 11), which is where clouds have their base by default.
+LIFT_TOP_ZZI = 1.0 / 1.1
+
 BLUE_STREAM = 1  # last part of the key of the second random stream, for thinning
 
 
@@ -124,20 +127,25 @@ class SkyProfile:
       no cloud to mark them, and at Allen's density they hold most of the good air, so they
       pull a pilot away from the clouds. The density of `FieldConfig` stays the number drawn.
     - `blue_gain` and `blue_stretch` make those that remain weaker and narrower.
+    - `cloud_base_zzi` is the height of the clouds' base, as z/zi. It changes no lift. At the
+      default the base is where Allen's lift reaches zero, so no glider can ever get there:
+      climbs end about 400 m below it. A lower base is where a typical thermal runs out.
 
     The environment sink follows from all this by conservation of mass (`mean_flux_gain`),
     so it is an outcome and not a parameter.
     """
 
-    __slots__ = ("carrier_stretch", "carrier_gain", "blue_keep", "blue_gain", "blue_stretch")
+    __slots__ = ("carrier_stretch", "carrier_gain", "blue_keep", "blue_gain", "blue_stretch",
+                 "cloud_base_zzi")
 
     def __init__(self, carrier_stretch=1.0, carrier_gain=1.0, blue_keep=1.0, blue_gain=1.0,
-                 blue_stretch=1.0):
+                 blue_stretch=1.0, cloud_base_zzi=LIFT_TOP_ZZI):
         self.carrier_stretch = float(carrier_stretch)
         self.carrier_gain = float(carrier_gain)
         self.blue_keep = float(blue_keep)
         self.blue_gain = float(blue_gain)
         self.blue_stretch = float(blue_stretch)
+        self.cloud_base_zzi = float(cloud_base_zzi)
 
     @property
     def max_stretch(self):
@@ -148,7 +156,8 @@ class SkyProfile:
 SKIES = {
     "default": SkyProfile(),
     # Not flown yet, a first guess to judge by flying. Measured offline (docs/phase2.md).
-    "wide_carriers": SkyProfile(carrier_stretch=2.0, blue_keep=0.15, blue_gain=0.6, blue_stretch=0.75),
+    "wide_carriers": SkyProfile(carrier_stretch=2.0, blue_keep=0.15, blue_gain=0.6, blue_stretch=0.75,
+                                cloud_base_zzi=0.75),
 }
 
 

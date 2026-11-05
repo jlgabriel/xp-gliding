@@ -28,13 +28,14 @@ MAX_GAP_S = 1.0
 THERMAL_TOP_RATIO = 1.0 / 1.1  # Allen's mean updraft dies here, as a fraction of zi
 
 
-def height_to_top(zi_m, agl_m):
+def height_to_top(zi_m, agl_m, top_ratio=THERMAL_TOP_RATIO):
     """Metres from the aircraft up to the day's thermal top; negative above it.
 
     The day's forecast, as a pilot would know it from the cloud base: it says nothing
     about any particular thermal, and uses the same zi the engine does (m above ground).
+    top_ratio is the sky's cloud base as z/zi.
     """
-    return zi_m * THERMAL_TOP_RATIO - agl_m
+    return zi_m * top_ratio - agl_m
 
 
 class Polar:

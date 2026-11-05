@@ -30,7 +30,7 @@ Nothing here imports `xp`: the SDK calls are in `xpio.SkyObjects`.
 import math
 import time
 
-from ..engine.markers import (SIZES_M, TOP_ZZI, all_objects, column_object, ring_object,
+from ..engine.markers import (SIZES_M, all_objects, column_object, ring_object,
                               select_markers, size_class, strength_class)
 
 SELECT_PERIOD_S = 5.0
@@ -132,7 +132,7 @@ class TrainingMarkers:
             self._next_select = now + SELECT_PERIOD_S
             self._reconcile(select_markers(field, e, n, s.agl_m, s.sky_t_s, wstar, zi, self.shown))
             st.select_us = (time.perf_counter() - t0) * 1e6
-        top_dy = TOP_ZZI * zi - s.agl_m  # the column's top, above the glider
+        top_dy = field.config.sky.cloud_base_zzi * zi - s.agl_m  # the column's top, above the glider
         best_r, best_x, best_y, best_z, best = math.inf, 0.0, 0.0, 0.0, None
         for item in self.shown.values():
             th = item.thermal

@@ -158,3 +158,4 @@ def test_height_to_top_matches_where_the_engine_stops_the_mean_updraft():
     assert height_to_top(2000.0, 1000.0) == pytest.approx(2000.0 / 1.1 - 1000.0)
     assert updraft.mean_updraft(1.0 / 1.1, 3.0) == pytest.approx(0.0, abs=0.01)
     assert height_to_top(2000.0, 1900.0) < 0.0
+    assert height_to_top(2000.0, 1000.0, 0.75) == pytest.approx(500.0)

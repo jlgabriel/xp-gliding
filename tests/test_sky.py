@@ -45,7 +45,9 @@ def test_unknown_sky_name_is_the_default():
     assert f.sky_named("nope") is f.SKIES["default"]
     assert f.sky_named("wide_carriers") is WIDE
     default = f.SKIES["default"]
-    assert all(getattr(default, name) == 1.0 for name in f.SkyProfile.__slots__)
+    assert default.cloud_base_zzi == f.LIFT_TOP_ZZI == cl.TOP_ZZI == markers.TOP_ZZI
+    assert all(getattr(default, name) == 1.0 for name in f.SkyProfile.__slots__
+               if name != "cloud_base_zzi")
 
 
 def test_clouds_and_field_agree_on_who_carries_one():
@@ -211,3 +213,21 @@ def test_cloud_size_does_not_follow_the_stretch():
     drawn = f.Thermal(LAT, LON, 0.0, 1000.0, 1.0, 1.25, 1.0, 1.0)
     wide = f.Thermal(LAT, LON, 0.0, 1000.0, 1.0, 1.25, 1.0, 2.0)
     assert cl.cloud_scale(wide) == cl.cloud_scale(drawn) == 1.0
+
+
+def test_the_cloud_base_moves_no_lift():
+    low = f.SkyProfile(carrier_stretch=2.0, blue_keep=0.15, blue_gain=0.6, blue_stretch=0.75,
+                       cloud_base_zzi=0.5)
+    high = f.SkyProfile(carrier_stretch=2.0, blue_keep=0.15, blue_gain=0.6, blue_stretch=0.75)
+    a, b = make_field(low), make_field(high)
+    assert a.environment_sink(900.0, WSTAR, ZI) == b.environment_sink(900.0, WSTAR, ZI)
+    for e, n, z in ((0.0, 0.0, 500.0), (420.0, -730.0, 1200.0), (-1100.0, 650.0, 1700.0)):
+        assert a.lift_at(e, n, z, T, WSTAR, ZI) == b.lift_at(e, n, z, T, WSTAR, ZI)
+
+
+def test_wide_carriers_have_their_base_within_reach():
+    """The base is below where the lift ends, and a median carrier still has lift there."""
+    base = WIDE.cloud_base_zzi * ZI
+    assert base < f.LIFT_TOP_ZZI * ZI
+    w = updraft.updraft_velocity(0.0, base, ZI, WSTAR, 1.36, 1.35)
+    assert 1.0 < w < 2.0

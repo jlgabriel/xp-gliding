@@ -20,7 +20,7 @@ Nothing here imports `xp`: the SDK calls are in `xpio.SkyObjects`.
 import math
 import time
 
-from ..engine.clouds import (CREATE, DESTROY, RATE, TOP_ZZI, CloudCatalog, CloudPlanner, cloud_scale)
+from ..engine.clouds import CREATE, DESTROY, RATE, CloudCatalog, CloudPlanner, cloud_scale
 
 OBJECT = "cumulus"
 PLAN_PERIOD_S = 5.0  # choosing the clouds, once the sky is complete
@@ -126,7 +126,7 @@ class CumulusClouds:
         for action, th, rate in actions:
             if action == CREATE:
                 instance = self.sky.create(self.obj, ("xp_gliding/clouds/rate", "xp_gliding/clouds/scale"))
-                base_m = ground_m + TOP_ZZI * zi
+                base_m = ground_m + self.config.sky.cloud_base_zzi * zi
                 self.instances[th] = (instance, base_m)
                 self._set(instance, th, base_m, rate)
                 self.sky.auto_shift(instance)

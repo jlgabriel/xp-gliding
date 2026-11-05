@@ -96,7 +96,7 @@ def main(argv=None):
                 row(f"{label}, {z:.0f} m, {bank:.0f}° {kmh:.0f} km/h", radius,
                     [mean_lift(th, z, radius) for th in thermals], sink)
 
-    base = cl.TOP_ZZI * args.zi
+    base = sky.cloud_base_zzi * args.zi
     print(f"\nHow high under a formed cloud (base at {base:.0f} m AGL, {len(formed)} clouds):")
     print("| Turn | Top of the climb, median (m AGL) | p10 | p90 | Below the base, median (m) | Never climbs |")
     print("| --- | --- | --- | --- | --- | --- |")
