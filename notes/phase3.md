@@ -423,7 +423,7 @@ Sampled once each, at the end of a flight, not a proper comparison: `frame_us` 1
 - **The lean, by hand:** whether it reads from the seat, and f. [Checked by the test pilot](#the-lean-in-the-simulator), and off by default.
 - **Which wind carries the sky in shear:** [measured in flight](#which-wind-carries-the-sky-in-shear), and the wind at the glider kept (Juan Luis, 2026-11-06). Clouds [flown by the test pilot](#which-wind-carries-the-sky-in-shear): under the wind at the glider they do not stretch, even in strong shear, against the arithmetic. By hand: do they stay on their lift through a climb, and do they do the same from a chase view?
 - **The menu's submenus** read well in X-Plane ("excellent", Juan Luis), and each showed the right setting, but changing a sky in flight has not been tried.
-- **Time acceleration** and a change of clock: tested offline, not flown.
+- **Time acceleration** and a change of clock: [flown by the test pilot](phase4.md#the-clock-and-the-sims-speed) at twice the speed and with a jump of two hours. How it looks has not been checked.
 
 ## Found in passing
 

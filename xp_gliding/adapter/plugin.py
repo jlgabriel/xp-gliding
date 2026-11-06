@@ -84,6 +84,8 @@ DATAREFS = (
     ("clouds/update_us_max", "clouds", "status.update_us_max", "f", 0),
     ("clouds/plan_us", "clouds", "status.plan_us", "f", 0),
     ("clouds/nearest_m", "clouds", "status.nearest_m", "f", 0),
+    ("clouds/nearest_base_m", "clouds", "status.nearest_base_m", "f", 0),
+    ("clouds/nearest_scale", "clouds", "status.nearest_scale", "f", 0),
     ("clouds/level_m", "clouds", "status.level_m", "f", 0),
     ("clouds/raised", "clouds", "status.raised", "i", 0),
     ("clouds/base_max_m", "clouds", "status.base_max_m", "f", 0),
@@ -102,7 +104,8 @@ DATAREFS = (
     ("seed", "settings", "seed", "i", 1),
     ("wstar_ms", "settings", "wstar_ms", "f", 1),
     ("zi_m", "settings", "zi_m", "f", 1),
-    ("sky_index", "injector", "sky_index", "i", 0),  # the place of the sky in engine.field.SKY_NAMES
+    # The place of the sky in engine.field.SKY_NAMES. Tools can write it; that is not saved.
+    ("sky_index", "injector", "sky_index", "i", 1),
     ("debug/uniform_ms", "injector", "uniform_ms", "f", 1),
     ("debug/dw_dy", "injector", "debug_dwdy", "f", 1),
     ("active", "status", "active", "i", 0),
@@ -116,6 +119,8 @@ DATAREFS = (
     ("dw_dy_helix", "out", "dw_dy_helix", "f", 0),
     ("force_n", "out", "force_n", "f", 0),
     ("roll_nm", "out", "roll_nm", "f", 0),
+    ("water/checked", "injector", "water_checked", "i", 0),
+    ("water/rejected", "injector", "water_rejected", "i", 0),
     ("nearest/distance_m", "injector", "nearest.distance_m", "f", 0),
     ("nearest/bearing_deg", "injector", "nearest.bearing_deg", "f", 0),
     ("nearest/core_ms", "injector", "nearest.core_ms", "f", 0),
@@ -201,6 +206,7 @@ class PythonInterface:
         self.status = Status()
         self.markers = TrainingMarkers(SkyObjects(), lambda text: print(f"{TAG} {text}"))
         self.clouds = CumulusClouds(SkyObjects("clouds"), lambda text: print(f"{TAG} {text}"))
+        self.injector.is_wet = self.clouds.sky.is_wet  # one probe for both
         self.hud = Hud(self.settings, lambda text: print(f"{TAG} {text}"))
         self.eligible = False
         self.failed = False
@@ -301,6 +307,7 @@ class PythonInterface:
         engines = self.io.engine_count()
         self.clouds.clear()  # a new flight: X-Plane may have dropped the particles
         self.injector.drift.reset()  # and the sky starts where the field drew it
+        self.injector.reset_field()  # which ground each thermal was born over depends on that
         self.injector.lean.reset()
         self.injector.sky_wind = None
         self.next_lean = 0.0

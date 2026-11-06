@@ -69,7 +69,7 @@ def test_default_density_is_allen_at_zi_ref():
 def test_accept_predicate_removes_without_shifting_the_rest():
     cfg = f.FieldConfig(seed=3)
     everything = f.generate_tile(cfg, -1673, -3548, 24)
-    east_half = f.generate_tile(cfg, -1673, -3548, 24, accept=lambda lat, lon: lon > -70.95)
+    east_half = f.generate_tile(cfg, -1673, -3548, 24, accept=lambda lat, lon, birth: lon > -70.95)
     assert 0 < len(east_half) < len(everything)
     kept = {(th.lat, th.lon) for th in everything if th.lon > -70.95}
     assert {(th.lat, th.lon) for th in east_half} == kept

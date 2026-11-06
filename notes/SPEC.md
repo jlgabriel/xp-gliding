@@ -437,7 +437,7 @@ The engine's thermal model lives in `xp_gliding/engine/` and is tested outside t
 
 - Deterministic with a seed (date + area) for reproducibility.
 - Distance conversion with cos(lat).
-- No thermals over water. The engine takes an `accept(lat, lon)` filter, but the adapter does not build one yet, so today there are thermals over the sea (phase 4).
+- No thermals over water: built ([phase4.md](phase4.md#no-thermals-over-water)). What counts is the ground under a thermal at its birth, and any water does, a pond as much as the sea. Born over land, a thermal can drift out over the sea.
 - A cloud's height over uneven ground: built ([phase3.md](phase3.md#clouds-over-uneven-ground)). The higher of a level for the area and the highest ground under it and along its drift, plus 300 m (rule approved by Juan Luis, 2026-11-06). The numbers are first guesses, and the level will come from XP12's atmosphere (phase 5).
 - The terrain under each thermal, not under the glider, for the top of its lift (phase 6).
 - Later, [terrain triggers](#terrain-triggers) (phase 6).
@@ -577,10 +577,10 @@ Rewritten on 2026-11-05 around good thermals. **This stage is the model only** (
    - [ ] Shear: which wind carries the sky, and whether the pilot should have to recentre more than in a uniform wind. The wind at the clouds' base is built behind a setting and compared by the test pilot (2026-11-06, [phase3.md](phase3.md#which-wind-carries-the-sky-in-shear)); Juan Luis kept the wind at the glider (2026-11-06). Clouds under it flown by the test pilot the same day: no stretch seen in gentle or strong shear, against the arithmetic. Still to come: a flight by hand.
    - *Done when:* in a steady 15–20 kt wind a thermal can be found by its cloud and worked by hand as in calm air, and in shear the pilot has to recentre without losing it.
 4. **A sound sky**
-   - [ ] Fly `wide_carriers` and `medium_carriers` (x1.5, nearer the FAA handbook's typical size, [phase2.md](phase2.md#against-the-faas-handbook-and-a-narrower-sky)), with a recorded climb as high as it goes, and choose the default sky. Juan Luis found one thermal by looking at a cloud, markers off, and climbed (2026-11-05, told, not recorded): the first sign of phase 2's criterion.
+   - [ ] Fly `wide_carriers` and `medium_carriers` (x1.5, nearer the FAA handbook's typical size, [phase2.md](phase2.md#against-the-faas-handbook-and-a-narrower-sky)), with a recorded climb as high as it goes, and choose the default sky. Juan Luis found one thermal by looking at a cloud, markers off, and climbed (2026-11-05, told, not recorded): the first sign of phase 2's criterion. A climb to the base by the test pilot (2026-11-06, [phase4.md](phase4.md#how-high-does-a-climb-go)): 14 m over it, in one of the strongest thermals; offline a typical one stops 100-175 m under it at 35° and 95 km/h, and most reach it flown tighter and slower.
    - [ ] Test F (phase 1): the feel, by hand.
    - [x] The height of clouds over the ground, by the test pilot (2026-11-06, [phase3.md](phase3.md#clouds-over-uneven-ground)). Not yet seen near a hill by hand.
-   - [ ] No thermals over water. Terrain probes can tell, and cost little ([phase3.md](phase3.md#clouds-over-uneven-ground)); the flag also marks small water.
+   - [x] No thermals over water, by the test pilot (2026-11-06, [phase4.md](phase4.md#no-thermals-over-water)): about 30% of thermals go at a coast, 0.2% inland. Not looked at by hand.
    - [ ] Fly next to XP12's own cumulus, or say plainly that they should not be mixed. Also dusk and a shift of the local origin ([list](phase2.md#still-open)).
    - *Done when:* there is a default sky chosen by flying, test F is judged, and nothing in the sky contradicts the terrain or XP12's clouds.
 5. **The day**
@@ -605,7 +605,7 @@ Rewritten on 2026-11-05 around good thermals. **This stage is the model only** (
    - [x] On/off items for the plugin, thermals, markers, cumulus and HUD.
    - [x] A switch for the wind.
    - [x] Sky, strength and depth of the day, seed, saved to `config.json`. Tested offline, and loads in X-Plane.
-   - [ ] Used by hand, including a change of sky in flight.
+   - [ ] Used by hand, including a change of sky in flight. The change itself flown by the test pilot (2026-11-06, [phase4.md](phase4.md#changing-the-sky-in-flight)): clouds go and new ones fill, no errors; in a thermal the force steps once, with no change in normal acceleration.
    - *Done when:* a flight never needs an edit of `config.json`.
 
 ## Open questions and verifications

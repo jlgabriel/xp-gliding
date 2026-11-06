@@ -41,9 +41,9 @@ The wind carries the whole sky from outside (`wind.py`): this module is in the a
 The lean is from outside too: the field is the sky at the clouds' base, and whoever asks at a
 height shifts the point by `wind.Lean` first.
 
-Not modeled yet: daily cycle of w* and zi
-(phase 5), terrain triggers (phase 6). Water and other no-thermal ground can be excluded with an optional
-`accept(lat, lon)` predicate; the adapter does not build one yet (phase 4).
+Not modeled yet: daily cycle of w* and zi (phase 5), terrain triggers (phase 6). Ground where no
+thermal is born (the adapter: water) is excluded with an optional `accept(lat, lon, birth)`
+predicate, which never shifts the random stream.
 """
 
 import math
@@ -303,7 +303,7 @@ def generate_tile(config, i, j, slot, accept=None):
             if thin is not None and thin.uniform() >= sky.blue_keep:
                 continue
             gain, stretch = sky.blue_gain, sky.blue_stretch
-        if accept is not None and not accept(lat, lon):
+        if accept is not None and not accept(lat, lon, birth):
             continue
         thermals.append(Thermal(lat, lon, birth, birth + life, wgain, rgain, gain, stretch))
     return thermals

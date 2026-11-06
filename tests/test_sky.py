@@ -84,7 +84,7 @@ def test_accept_does_not_change_who_is_thinned():
     config = f.FieldConfig(seed=3, day=307, sky=WIDE)
     everything = f.generate_tile(config, *TILE)
     cut = sorted(th.lon for th in everything)[len(everything) // 2]
-    half = f.generate_tile(config, *TILE, accept=lambda lat, lon: lon > cut)
+    half = f.generate_tile(config, *TILE, accept=lambda lat, lon, birth: lon > cut)
     assert {key(th) for th in half} == {key(th) for th in everything if th.lon > cut}
 
 

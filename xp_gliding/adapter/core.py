@@ -26,8 +26,15 @@ is also shifted by the lean at the aircraft's height, from X-Plane's layers of w
 
 Which wind carries the sky. By default the wind at the aircraft, so in shear it stays with its
 thermal at any height. With `wind_at_clouds` (off by default, notes/phase3.md) it is the wind at
-the clouds' base, from the same layers (`Injector.sky_wind_update`): emitters and particles then
-move together, and the aircraft moves through the sky at the difference.
+the clouds' base, from the same layers (`Injector.sky_wind_update`): the emitters move with it,
+and the aircraft moves through the sky at the difference. Particles appear to go on moving at
+about the wind at the aircraft, so in shear they fall behind their emitters (flown, read from
+screenshots).
+
+No thermal is born over water (`Injector.accept_thermal`). A thermal keeps its place in the air,
+so what counts is the ground under it at its birth, worked out in the present wind: the field and
+the clouds load the same thermal at different times, and in a steady wind must agree about it.
+Born over land, it can drift out over the sea.
 
 X-Plane's conventions (DataRefs.txt, XP 12.4.3): `faxil_plug_acf` positive
 pushes the aircraft *backward*, `fside_plug_acf` positive pushes it right,
@@ -43,7 +50,7 @@ the spanwise gradient for the roll moment (checks the roll sign).
 import math
 
 from ..engine import injection as inj
-from ..engine.field import FieldConfig, ThermalField, sky_index, sky_named
+from ..engine.field import SKY_NAMES, FieldConfig, ThermalField, sky_index, sky_named
 from ..engine.geo import LocalFrame
 from ..engine.wind import AirDrift, Lean, layer_wind
 
@@ -174,6 +181,8 @@ class Injector:
         self.lean_e_m = self.lean_n_m = 0.0  # the lean at the aircraft, last frame: published
         self.sky_wind = None  # (east, north) at the clouds' base, if that carries the sky
         self.nearest = Nearest()
+        self.is_wet = None  # is_wet(lat, lon), set by the plugin: the terrain is not ours to read
+        self.water_checked = self.water_rejected = 0  # thermals asked about, and left out
 
     def set_geometry(self, geometry):
         self.geometry = geometry
@@ -184,10 +193,23 @@ class Injector:
     def sky_index(self):
         return sky_index(self.settings.sky)
 
+    @sky_index.setter
+    def sky_index(self, index):
+        if 0 <= index < len(SKY_NAMES):
+            self.settings.sky = SKY_NAMES[index]
+
     def reset_field(self):
         """Forget the loaded thermals (they are regenerated identically on demand)."""
         self.field = None
         self._field_key = None
+
+    def accept_thermal(self, lat, lon, birth):
+        """The field's filter. Called as tiles load, and only for thermals not thinned out."""
+        self.water_checked += 1
+        if self.is_wet(*self.drift.to_ground_at(lat, lon, birth)):
+            self.water_rejected += 1
+            return False
+        return True
 
     # --- the wind ---------------------------------------------------------
 
@@ -245,7 +267,7 @@ class Injector:
         if self.field is None or key != self._field_key:
             self.frame = LocalFrame(lat, lon)
             config = FieldConfig(seed=st.seed, day=s.day, range_m=st.range_m, sky=sky_named(st.sky))
-            self.field = ThermalField(config, self.frame)
+            self.field = ThermalField(config, self.frame, self.accept_thermal if self.is_wet else None)
             self._field_key = key
         elif self.frame.distance_to_origin(lat, lon) > st.recentre_m:
             self.frame = LocalFrame(lat, lon)

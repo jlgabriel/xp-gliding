@@ -168,6 +168,7 @@ def make_fake_xp(tmp_path, data):
 
     # Terrain probes: the ground is xp.ground(lat, lon), or None where none is loaded.
     xp.ground = lambda lat, lon: 1116.0
+    xp.wet = lambda lat, lon: False
     xp.ProbeY = 0
     xp.ProbeHitTerrain = 0
     xp.probes = []
@@ -180,7 +181,7 @@ def make_fake_xp(tmp_path, data):
         assert probe is not None
         lat, lon = 32.0 - z / 110000.0, x / 90000.0 - 103.0
         ground = xp.ground(lat, lon)
-        return types.SimpleNamespace(result=2 if ground is None else 0, locationX=x,
+        return types.SimpleNamespace(result=2 if ground is None else 0, is_wet=xp.wet(lat, lon), locationX=x,
                                      locationY=(ground or 0.0) - 1000.0, locationZ=z)
 
     xp.createProbe = create_probe
@@ -305,6 +306,7 @@ def markers_tick(pi, data):
 def test_markers_are_off_by_default(plugin):
     pi, xp, data = plugin
     assert dataref(xp, "markers_enabled") == 0
+    pi.injector.is_wet = None  # the field's own use of the terrain is not the markers'
     for _ in range(3):
         markers_tick(pi, data)
     assert not xp.instances and not xp.objects
@@ -548,6 +550,8 @@ def test_clouds_are_on_by_default_and_fill_the_sky_over_many_updates(plugin):
     assert all("xp_gliding/assets/clouds/cumulus.obj" in p for p in xp.objects.values())
     assert set(xp.instances) == xp.shifted
     assert dataref(xp, "clouds/nearest_m") >= 0.0
+    assert dataref(xp, "clouds/nearest_base_m") >= dataref(xp, "clouds/level_m") > 0.0
+    assert 0.6 <= dataref(xp, "clouds/nearest_scale") <= 1.4
 
 
 def test_clouds_carry_their_rate_and_scale_at_the_base_of_the_clouds(plugin):
@@ -626,9 +630,42 @@ def test_the_level_stays_for_a_sky_and_is_new_with_the_next(plugin):
     assert dataref(xp, "clouds/level_m") == pytest.approx(level + 300.0)
 
 
+def test_a_tool_can_change_the_sky_without_saving_it(plugin):
+    pi, xp, data = plugin
+    with open(pi.config_path, encoding="utf-8") as f:
+        before = f.read()
+    pi.injector.sky_index = 2
+    assert dataref(xp, "sky_index") == 2
+    pi.injector.sky_index = 99
+    assert dataref(xp, "sky_index") == 2  # no such sky
+    with open(pi.config_path, encoding="utf-8") as f:
+        assert f.read() == before
+
+
+def test_no_thermal_or_cloud_is_born_over_water(plugin):
+    pi, xp, data = plugin
+    xp.wet = lambda lat, lon: lon > -103.0  # the sea, east of the glider
+    fill_sky(pi, data)
+    field = pi.injector.field
+    assert dataref(xp, "water/rejected") > 0 and dataref(xp, "water/checked") > dataref(xp, "water/rejected")
+    thermals = list(field.thermals())
+    clouds = list(pi.clouds.catalog.thermals())
+    assert thermals and clouds
+    assert all(th.lon <= -103.0 for th in thermals)
+    assert all(th.lon <= -103.0 for th in clouds)
+
+
+def test_water_needs_ground_to_be_water(plugin):
+    pi, xp, data = plugin
+    xp.ground = lambda lat, lon: None  # the terrain's flag means nothing where nothing is loaded
+    xp.wet = lambda lat, lon: True
+    fill_sky(pi, data)
+    assert dataref(xp, "water/rejected") == 0 and dataref(xp, "water/checked") > 0
+
+
 def test_the_probe_is_made_once_and_goes_with_the_plugin(plugin):
     pi, xp, data = plugin
-    assert not xp.probes  # nothing asked of the terrain before a cloud needs it
+    assert not xp.probes  # nothing asked of the terrain before a flight needs it
     fill_sky(pi, data)
     assert len(xp.probes) == 1
     pi.clouds.shutdown()

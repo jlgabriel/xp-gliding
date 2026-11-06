@@ -37,13 +37,15 @@ class CloudStatus:
 
     __slots__ = ("count", "created", "destroyed", "rate_changes", "moved", "tiles_missing",
                  "update_us", "update_us_max", "plan_us", "nearest_m", "rate_dummy", "scale_dummy",
-                 "level_m", "raised", "base_max_m", "ground_misses", "base_us", "base_us_max")
+                 "level_m", "raised", "base_max_m", "ground_misses", "base_us", "base_us_max",
+                 "nearest_base_m", "nearest_scale")
 
     def __init__(self):
         self.count = self.created = self.destroyed = self.rate_changes = self.moved = 0
         self.tiles_missing = 0
         self.update_us = self.update_us_max = self.plan_us = 0.0
         self.nearest_m = -1.0  # the nearest drawn cloud, for tools
+        self.nearest_base_m = self.nearest_scale = -1.0  # its height (m MSL) and size
         # The object's emitter reads these names, which are per instance. They exist so the
         # object finds them when it loads; their own value is never used.
         self.rate_dummy = self.scale_dummy = 0.0
@@ -123,7 +125,7 @@ class CumulusClouds:
             soon = self.catalog.missing or self.more
             wait = FILLING_PLAN_PERIOD_S if soon else PLAN_PERIOD_S
             self._next_plan = now + min(wait, self.planner.next_change - t)
-            st.nearest_m = min((math.hypot(th.e - e, th.n - n) for th in self.instances), default=-1.0)
+            self._note_nearest(e, n)
             st.plan_us = (time.perf_counter() - t0) * 1e6
         else:
             self.catalog.update(t, lat, lon)
@@ -132,6 +134,17 @@ class CumulusClouds:
         st.count = len(self.instances)
         st.update_us = (time.perf_counter() - t0) * 1e6
         st.update_us_max = max(st.update_us_max, st.update_us)
+
+    def _note_nearest(self, e, n):
+        """For tools: the nearest drawn cloud, how far, how high and how big. Once per plan."""
+        st = self.status
+        th = min(self.instances, key=lambda c: math.hypot(c.e - e, c.n - n), default=None)
+        if th is None:
+            st.nearest_m = st.nearest_base_m = st.nearest_scale = -1.0
+        else:
+            st.nearest_m = math.hypot(th.e - e, th.n - n)
+            st.nearest_base_m = self.instances[th][1]
+            st.nearest_scale = cloud_scale(th)
 
     def _set(self, instance, th, base_m, rate, drift):
         x, y, z = self.sky.world_to_local(*drift.to_ground(th.lat, th.lon), base_m)
@@ -204,7 +217,7 @@ class CumulusClouds:
         self._moved_at = (0.0, 0.0)
         self.planner.clear()
         self.status.count = 0
-        self.status.nearest_m = -1.0
+        self.status.nearest_m = self.status.nearest_base_m = self.status.nearest_scale = -1.0
         self._next_plan = 0.0
 
     def shutdown(self):

@@ -350,6 +350,7 @@ class CircleMission:
         self.rows = []
         self.oracle = []  # the engine's lift at the glider, minus the plugin's
         self.ground_start = None
+        self.wanted = None  # wanted(thermal, t): only these can be chosen
 
     def choose(self, lat, lon, z, t):
         self.frame = LocalFrame(*self.offset.to_air(lat, lon))
@@ -359,7 +360,7 @@ class CircleMission:
         best, best_score = None, -math.inf
         for th in self.field.alive(t):
             d = math.hypot(th.e, th.n)
-            if d > 2500.0 or th.death - t < 900.0:
+            if d > 2500.0 or th.death - t < 900.0 or (self.wanted and not self.wanted(th, t)):
                 continue
             ring = statistics.fmean(
                 self.field.lift_at(th.e + radius * math.cos(a), th.n + radius * math.sin(a), z, t,

@@ -82,6 +82,17 @@ class AirDrift:
     def to_ground(self, lat, lon):
         return lat + self.dlat_deg, wrap_lon_deg(lon + self.dlon_deg)
 
+    def to_ground_at(self, lat, lon, t_s):
+        """Where a point of the air is over the ground at another time, if this wind holds.
+
+        In a steady wind the answer does not depend on when it is asked.
+        """
+        dt = 0.0 if self._last_t is None else t_s - self._last_t
+        m, n = radii_of_curvature(lat)
+        k = math.degrees(dt)
+        return (lat + self.dlat_deg + k * self.wind_n_ms / m,
+                wrap_lon_deg(lon + self.dlon_deg + k * self.wind_e_ms / (n * max(math.cos(math.radians(lat)), 1e-6))))
+
 
 def _interpolate(x, xs, ys):
     """Linear in xs (ascending), and constant beyond its ends."""

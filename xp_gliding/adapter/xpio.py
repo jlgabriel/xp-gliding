@@ -119,12 +119,21 @@ class SkyObjects:
         """The ground's height at a place, m MSL; None where no ground is loaded, which begins
         at about 125 km from the glider (notes/phase3.md). Far from the local origin one probe
         lands a little beside the place: within about 20 m of height at 40 km, in the Andes."""
-        if self._probe is None:
-            self._probe = xp.createProbe(xp.ProbeY)
-        info = xp.probeTerrainXYZ(self._probe, *xp.worldToLocal(lat, lon, 0.0))
+        info = self._probed(lat, lon)
         if info.result != xp.ProbeHitTerrain:
             return None
         return xp.localToWorld(info.locationX, info.locationY, info.locationZ)[2]
+
+    def is_wet(self, lat, lon):
+        """Is this place on water, a pond or a river as much as the sea? Not where no ground is
+        loaded (notes/phase3.md)."""
+        info = self._probed(lat, lon)
+        return info.result == xp.ProbeHitTerrain and bool(info.is_wet)
+
+    def _probed(self, lat, lon):
+        if self._probe is None:
+            self._probe = xp.createProbe(xp.ProbeY)
+        return xp.probeTerrainXYZ(self._probe, *xp.worldToLocal(lat, lon, 0.0))
 
     def release_probe(self):
         if self._probe is not None:

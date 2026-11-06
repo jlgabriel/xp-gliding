@@ -46,7 +46,7 @@ import time
 
 import xp
 
-LOGGER_VERSION = "0.6.0"
+LOGGER_VERSION = "0.7.0"
 FLUSH_EVERY_ROWS = 300
 
 # (column, dataref, type) read after the flight model
@@ -79,6 +79,7 @@ STATE_DATAREFS = (
     ("beta_deg", "sim/flightmodel/position/beta", "f"),
     ("speedbrake_ratio", "sim/cockpit2/controls/speedbrake_ratio", "f"),
     ("date_days", "sim/time/local_date_days", "i"),
+    ("t_local_s", "sim/time/local_time_sec", "f"),
 )
 
 FORCE_DATAREFS = (
@@ -143,6 +144,18 @@ XPG_DATAREFS = (
     ("xpg_dlon_deg", "xp_gliding/wind/dlon_deg", "f"),
     ("xpg_lean_e_m", "xp_gliding/lean/e_m", "f"),
     ("xpg_lean_n_m", "xp_gliding/lean/n_m", "f"),
+    ("xpg_wstar_ms", "xp_gliding/wstar_ms", "f"),
+    ("xpg_zi_m", "xp_gliding/zi_m", "f"),
+    ("xpg_wind_at_clouds", "xp_gliding/wind_at_clouds", "i"),
+    # The clouds, which rebuilding the sky cannot give: their height reads the ground
+    # (tools/flightlog/read_flight.py). Updated every few seconds, not per frame.
+    ("xpg_cloud_level_m", "xp_gliding/clouds/level_m", "f"),
+    ("xpg_cloud_raised", "xp_gliding/clouds/raised", "i"),
+    ("xpg_cloud_created", "xp_gliding/clouds/created", "i"),
+    ("xpg_cloud_base_max_m", "xp_gliding/clouds/base_max_m", "f"),
+    ("xpg_cloud_nearest_m", "xp_gliding/clouds/nearest_m", "f"),
+    ("xpg_cloud_nearest_base_m", "xp_gliding/clouds/nearest_base_m", "f"),
+    ("xpg_cloud_nearest_scale", "xp_gliding/clouds/nearest_scale", "f"),
 )
 
 COLUMNS = (

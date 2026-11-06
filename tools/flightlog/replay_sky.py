@@ -45,7 +45,10 @@ from xp_gliding.engine.markers import core_of  # noqa: E402
 COLUMNS = ("t_run_s", "t_zulu_s", "lat_deg", "lon_deg", "elev_m", "agl_m", "te_fpm", "tas_ms", "ias_kt",
            "phi_deg", "psi_deg", "wind_ms", "wind_dir_deg", "mass_kg", "xpg_lift_centre_ms",
            "xpg_lift_left_ms", "xpg_lift_right_ms", "xpg_roll_nm", "xpg_nearest_m", "xpg_nearest_core_ms")
-OPTIONAL = ("date_days", "xpg_seed", "xpg_sky_index", "xpg_dlat_deg", "xpg_dlon_deg", "xpg_lean_e_m", "xpg_lean_n_m")
+OPTIONAL = ("date_days", "t_local_s", "xpg_seed", "xpg_sky_index", "xpg_dlat_deg", "xpg_dlon_deg", "xpg_lean_e_m",
+            "xpg_lean_n_m", "xpg_markers", "xpg_wstar_ms", "xpg_zi_m", "xpg_wind_at_clouds", "xpg_cloud_level_m",
+            "xpg_cloud_raised", "xpg_cloud_created", "xpg_cloud_base_max_m", "xpg_cloud_nearest_m",
+            "xpg_cloud_nearest_base_m", "xpg_cloud_nearest_scale")
 FPM_TO_MS = 0.00508
 FIT_STEP_S = 4.0
 NEAR_M = 290.0  # the log's nearest thermal is taken to be this one within this distance

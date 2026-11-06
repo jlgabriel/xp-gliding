@@ -39,6 +39,33 @@ def test_air_and_ground_are_inverse():
     assert d.to_ground(*d.to_air(*KHOB)) == pytest.approx(KHOB, abs=1e-12)
 
 
+def test_where_the_air_is_at_another_time():
+    drift = AirDrift()
+    drift.advance(10.0, -5.0, 33.0, 100.0)
+    m, n = radii_of_curvature(33.0)
+    lat, lon = drift.to_ground_at(33.0, -70.0, 200.0)
+    assert (lat - 33.0) * math.radians(1.0) * m == pytest.approx(-500.0, abs=1.0)
+    assert (lon + 70.0) * math.radians(1.0) * n * math.cos(math.radians(33.0)) == pytest.approx(1000.0, abs=1.0)
+
+
+def test_in_a_steady_wind_it_does_not_matter_when_one_asks():
+    drift = AirDrift()
+    drift.advance(8.0, 3.0, 33.0, 0.0)
+    first = drift.to_ground_at(33.1, -70.1, -600.0)
+    for t in range(1, 1200):
+        drift.advance(8.0, 3.0, 33.0, float(t))
+    later = drift.to_ground_at(33.1, -70.1, -600.0)
+    # Within 20 m: the sky is carried at the latitude of the glider, not of this thermal.
+    assert later[0] == pytest.approx(first[0], abs=2e-4)
+    assert later[1] == pytest.approx(first[1], abs=2e-4)
+
+
+def test_with_no_wind_a_thermal_is_where_it_was_drawn():
+    drift = AirDrift()
+    drift.hold(100.0)
+    assert drift.to_ground_at(33.0, -70.0, 900.0) == (33.0, -70.0)
+
+
 def test_the_longitude_wraps_at_the_date_line():
     d = AirDrift()
     d.advance(0.0, 0.0, 0.0, NOON)

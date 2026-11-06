@@ -93,7 +93,8 @@ def test_the_airbrakes_are_a_column(logger):
 
 def test_a_log_can_rebuild_the_sky(logger):
     module, _ = logger
-    for column in ("date_days", "xpg_seed", "xpg_sky_index", "xpg_dlat_deg", "xpg_dlon_deg"):
+    for column in ("date_days", "t_local_s", "xpg_seed", "xpg_sky_index", "xpg_dlat_deg", "xpg_dlon_deg",
+                   "xpg_wstar_ms", "xpg_zi_m", "xpg_cloud_level_m", "xpg_cloud_nearest_base_m"):
         assert column in module.COLUMNS
 
 
