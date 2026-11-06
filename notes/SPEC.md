@@ -423,6 +423,8 @@ The engine's thermal model lives in `xp_gliding/engine/` and is tested outside t
 **Cloud shadow**
 
 - Under cloudy areas (XP12 weather coverage), less thermal activity. Forces the pilot to read the sky.
+- A visible shadow on the ground under our own clouds: tried in a lab and set aside (Juan Luis, 2026-11-06; [shadows.md](shadows.md)). Particles do not seem to cast one. A shape with `ATTR_draped` drew nothing through XPLMInstance in X-Plane 12.4.3. Hidden geometry in the sky does cast X-Plane's own shadow, but it reaches about 250 m from the camera unless two private, global datarefs are raised, and it comes out nearly black with a sharp edge. *Verify, if it comes back:* a mesh of quads fitted to the terrain with probes, the one way not tried.
+  - A shadow belongs where the sun puts it, not under the cloud: height / tan(sun's elevation) away, towards the side opposite the sun. Seen to hold with `sim/graphics/scenery/sun_pitch_degrees` and `sun_heading_degrees`, by eye.
 
 **Variety**
 
@@ -581,7 +583,7 @@ Rewritten on 2026-11-05 around good thermals. **This stage is the model only** (
 5. **The day**
    - [ ] Cloud base and strength from XP12's weather instead of two fixed settings.
    - [ ] Daily cycle.
-   - [ ] Cloud shadow.
+   - [ ] Cloud shadow: less lift under cloudy areas. The visible shadow on the ground is set aside ([shadows.md](shadows.md)).
    - [ ] Streets, if phase 3 leaves them within reach.
    - *Done when:* two different days in XP12 give two different skies, and a pilot can tell from the air.
 6. **Terrain triggers** ([design](#terrain-triggers))
