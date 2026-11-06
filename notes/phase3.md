@@ -277,6 +277,79 @@ The test pilot, 2026-11-05, KHOB, Laminar ASK 21, `wide_carriers`, w\* 3, zi 200
 - **A new flight with the same aircraft keeps the sky's offset,** at least through the web API: no plane-loaded message comes, and after several flights it stood at 0.16° of longitude, about 15 km. So the sky goes on rather than starting again, which does no harm, but it is not what this phase said. Reloading the aircraft clears it. Missions that compare flights need `--fresh`.
 - **The first circle of a session ran at a mean bank of 43° instead of 35°,** with the lean off, and sank about 0.3 m/s more. The seven circles after it held 35°. Not understood; it has nothing to do with the lean, which was off.
 
+## Which wind carries the sky in shear
+
+Asked and measured on 2026-11-06, for Juan Luis to decide. Nothing here has been flown by hand. The default has not changed: the wind at the glider. **The clouds were not looked at:** the session ended before the flights for it, so A's price below is arithmetic. `fly_wind.py stretch` is written for that, and has not been run.
+
+**The candidates.** A is today's: the wind at the glider (`wind_now_*`). B is the wind at the clouds' base, from X-Plane's layers at the clouds' level: *Sky moves with the wind at the clouds* in the menu, `wind_at_clouds` in `config.json`, off by default. Under B `drift.wind_e_ms` and `wind_n_ms` are that wind, so a cloud's path in `engine/clouds.py` reads it too.
+
+**How fast does a glider leave its thermal under B?** At the difference between the wind at its height and the wind at the base. The estimate of about 70 m per turn with 3 m/s holds, and the simulator gave exactly 70 m. It is largest low down and nothing at the base. `shear_climb.py slip`, a turn of 25 s at 35° and 90 km/h, m/s and metres per turn:
+
+| Wind | At 500 m | 800 m | 1100 m | 1400 m |
+| --- | --- | --- | --- | --- |
+| Gentle: 9 to 15 kt, from 500 to 1500 m | 3.1, 76 | 2.2, 54 | 1.2, 31 | 0.3, 8 |
+| Middle: 3 to 15 kt, the same heights | 6.2, 153 | 4.3, 109 | 2.5, 63 | 0.6, 16 |
+| Strong: 5 to 50 kt, from 500 to 12000 ft | 7.9, 195 | 6.3, 159 | 3.9, 100 | 1.0, 26 |
+
+**Offline: how much can be climbed?** `shear_climb.py climb`, `lean_climb.py`'s method: 110 thermals with a formed cloud, entering 60 m off centre at 500 m AGL, w\* 3, `wide_carriers`, a point on a circle with made-up pilots, so compare rows with each other and none with a flight. Two pilots are added: *hard* rolls out for up to 4 s of every turn, up to 100 m; *habit* is the same and learns to repeat its correction. Median height gained, in metres, then the recentring in metres per turn:
+
+| Wind | Carried by | Never corrects | Lazy | Good | Hard | Habit |
+| --- | --- | --- | --- | --- | --- | --- |
+| Uniform 15 kt | A or B, the same | 698, 0 | 700, 2 | 709, 3 | 712, 4 | |
+| Gentle | A | 698, 0 | 700, 2 | 709, 3 | 712, 4 | |
+| Gentle | B | 103, 0 | 110, 7 | 133, 29 | 500, 43 | 465, 48 |
+| Gentle backwards, 15 to 9 kt | B | 114, 0 | 121, 7 | 158, 30 | 518, 43 | |
+| Gentle turning, 15 kt and 25° | B | 91, 0 | 94, 7 | 114, 29 | 498, 50 | |
+| Middle | B | 50, 0 | 50, 4 | 54, 18 | 59, 42 | 54, 31 |
+| Strong | A | 698, 0 | 700, 2 | 709, 3 | 712, 4 | |
+| Strong | B | 41, 0 | 41, 4 | 43, 14 | 44, 30 | 43, 24 |
+
+- **A's climb does not depend on the shear at all,** by construction, with the lean off.
+- **With B only the *hard* pilot climbs in gentle shear, and not always:** 69% reach 300 m against 96%, with 84 m at p10 against 421. In the middle and strong cases nobody does: they leave the thermal before the climb reduces the slip.
+- **`medium_carriers` is worse:** gentle 51, 52, 63, 360 m with B against 586, 648, 655, 637 m with A. **So is a weak day:** at w\* 2 and gentle, 34, 36 and 42 m with B against 366, 384 and 388 m with A.
+- **The lean does not make up for it.** It adds when the wind grows with height (gentle, *hard*: 500 m without, 449 with) and takes away a little when it falls (518 and 562). It moves the lift at about 0.3 m/s, against 3 m/s of slip, and the two have different causes: one goes with the climb, the other with time.
+
+**In the simulator: a circle with no correction.** `fly_wind.py shear`, KHOB, `wide_carriers`, w\* 3, zi 2000 m, the same thermal and the same start with the aircraft reloaded, 35° and 95 km/h, ten turns:
+
+| Shear | Carried by | Height gained | Climb, turn 1 and turn 10 (m/s) | Wind at glider minus the sky's (m/s) | Circle's movement through the sky, net (m per turn) |
+| --- | --- | --- | --- | --- | --- |
+| Gentle | A | +156 m, 561 to 717 AGL | +0.58, +0.92 | 0.00 | Not worked out: flown before this measure |
+| Gentle | B | −270 m, 564 to 295 AGL | −0.02, −1.56 | 2.9–3.1 | 70 |
+| Strong | A | +154 m, 560 to 715 AGL | +0.57, +0.93 | 0.00 | 1 |
+| Strong | B | −349 m, 572 to 222 AGL | −1.02, −1.54 | 7.5–9.2 | 191 |
+
+The slip goes on growing in strong shear because the glider, out of the lift, sinks into slower air. Under A the flight is the one flown in a uniform wind on 2026-11-05 (+156 m at 15 kt), so the shear costs nothing, as designed. Under B the circle is out of the lift by the third turn in gentle shear (+0.43 m/s of lift), and it starts about 100 m further off, since the glider slips during the roll in. The lift at the glider matches the engine's within 0.002 m/s RMS in all four, so the plugin carries the sky as it says.
+
+**In the simulator: a circle with corrections.** A pilot in the script reads the lift around the last turn with no noise, and rolls out toward its strongest side for up to 4 s of the next turn, up to 100 m:
+
+| Shear, turns | Starting at (m AGL) | Carried by | Height gained | Corrections, mean (m) | Wind at glider minus the sky's (m/s) | Circle's centre from the thermal, first and last turn (m) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Gentle, 14 | 560 | A | +218 m, 560 to 778 AGL | 26 | 0.00 | 79, 43 |
+| Gentle, 14 | 565 | B | +36 m, 565 to 600 AGL | 72 | 2.9–3.1 | 170, 317 |
+| Gentle, 12 | 955 | B | +85 m, 955 to 1039 AGL | 38 | 1.5–1.7 | 123, 334 |
+| Strong, 10 | 572 | B | −350 m, 572 to 222 AGL | 60, only one | 7.5–9.2 | 320, 1995 |
+
+- **Under A** the same corrections centre the circle, to 14–45 m from turn 3 on, and it climbs at about +0.7 m/s throughout.
+- **Under B low down** they use most of what is allowed and do not hold it: the circle never comes back. The climb at the end of that flight (+1.7 m/s at turns 13 and 14) comes about 300 m from the thermal it started in, and it was not worked out whose lift that was.
+- **Under B higher up,** with 1.7 m/s of slip, the corrections slow the fall to about 20 m per turn and do not stop it. The climb at the end (+1.3 m/s at turn 12, 334 m from the thermal) was not worked out either. A was not flown at this height, so there is nothing to set it against.
+- **In strong shear under B** a correction hardly happens: the circle is out of the lift, with nothing to read, by the second turn.
+
+One flight each, with an entry that is worse under B, so this shows no more than how hard it is. **Not known:** whether a human does better. The script has a perfect vario and no idea of the wind, and a pilot who sees the drift could do what no script here does.
+
+**The price of A: what clouds do.** By arithmetic, from a particle's mean life of 180 s, a particle ends the difference × the life from its emitter, and the cloud's body is about half of that from its thermal (`shear_climb.py clouds`). Stretch and shift in metres, with the cloud at 1500 m AGL:
+
+| Wind | Glider at 500 m | 800 m | 1100 m | 1400 m |
+| --- | --- | --- | --- | --- |
+| Gentle | 556, 278 | 389, 194 | 222, 111 | 56, 28 |
+| Middle | 1111, 556 | 778, 389 | 444, 222 | 111, 56 |
+| Strong | 1415, 708 | 1142, 571 | 709, 354 | 177, 89 |
+
+With the wind growing with height the thermal ends up upwind of its cloud's body, more so when the glider is low, which is the direction the FAA's handbook describes (10-4), by accident. With the wind falling with height it is the other way round. The stretch goes away as the glider nears the base, since then emitters and particles move alike.
+
+**Also under B.** In X-Plane's real weather the layer at the glider's height differs from `wind_now_*` by 1.3–1.6 m/s ([above](#the-lean-in-the-simulator)). If that holds at the base too, B has a slip of about 30 m per turn with no shear in the layers. On the runway the sky would move at the layers' 15 kt, not the 9 kt there. Neither was flown.
+
+**Something between them (C), not built.** Offline, a sky that gives the glider at most 1 m/s of slip climbs well whatever the shear: 294, 356, 566, 670 m in gentle and in strong, with 19–23 m of recentring per turn. It would give what the phase's criterion literally asks, a pilot who has to recentre in shear without losing the thermal. But it does not fix the clouds: in strong shear they stretch by about 1200 m instead of 1400 m. So it is a question of how flying should feel, not a repair of A or B, and worth building only if by hand the shear under A feels too easy. Half of the difference is worse than that in gentle shear (217, 260, 584, 677 m) and fails in strong (78, 82, 92, 163 m).
+
 ## Clouds over uneven ground
 
 Built on 2026-11-06, the rule Juan Luis approved that morning. Checked by the test pilot, not flown by hand.
@@ -329,7 +402,7 @@ Sampled once each, at the end of a flight, not a proper comparison: `frame_us` 1
 - **Clouds and lift over uneven ground:** the clouds' height is [built](#clouds-over-uneven-ground), and has not been seen near a hill by hand. The lift still ends at zi above the ground under the glider (phase 6).
 - **A climb through shear, by hand.** [Flown by the test pilot](#which-wind-carries-the-sky-in-shear), in a circle, under both winds. Whether a sky that depends slightly on the glider's height shows anywhere has not been checked.
 - **The lean, by hand:** whether it reads from the seat, and f. [Checked by the test pilot](#the-lean-in-the-simulator), and off by default.
-- **Which wind in strong shear:** only the wind at the glider has been tried.
+- **Which wind carries the sky in shear:** [measured in flight](#which-wind-carries-the-sky-in-shear), and Juan Luis's to decide. Do clouds stretch as the arithmetic says, and does it show? Not looked at: `fly_wind.py stretch`, under both winds, and by hand.
 - **The menu's submenus** read well in X-Plane ("excellent", Juan Luis), and each showed the right setting, but changing a sky in flight has not been tried.
 - **Time acceleration** and a change of clock: tested offline, not flown.
 

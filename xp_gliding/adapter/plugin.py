@@ -20,6 +20,8 @@ Commands (also in the menu):
   xp_gliding/thermals/toggle   our thermals on / off, the plugin stays loaded (issue #30)
   xp_gliding/wind/toggle       XP12's wind carries the thermals, or they stay where they are
   xp_gliding/lean/toggle       thermals lean with the wind (off by default, a first guess)
+  xp_gliding/wind/clouds/toggle  the sky moves with the wind at the clouds, not at the glider
+                               (off by default, to compare in shear)
   xp_gliding/markers/toggle    training markers on / off (off by default)
   xp_gliding/clouds/toggle     cumulus on / off
   xp_gliding/hud/toggle        soaring HUD on / off
@@ -58,7 +60,8 @@ DATAREFS = (
     ("enabled", "settings", "enabled", "i", 1),
     ("thermals_enabled", "settings", "thermals_enabled", "i", 1),
     ("wind_enabled", "settings", "wind_enabled", "i", 1),
-    ("wind/e_ms", "injector", "drift.wind_e_ms", "f", 0),
+    ("wind_at_clouds", "settings", "wind_at_clouds", "i", 1),
+    ("wind/e_ms", "injector", "drift.wind_e_ms", "f", 0),  # the wind that carries the sky
     ("wind/n_ms", "injector", "drift.wind_n_ms", "f", 0),
     ("wind/dlat_deg", "injector", "drift.dlat_deg", "f", 0),  # the sky's offset from the ground
     ("wind/dlon_deg", "injector", "drift.dlon_deg", "f", 0),
@@ -230,6 +233,9 @@ class PythonInterface:
              self.on_toggle, "wind_enabled", "Thermals follow the wind"),
             (xp.createCommand("xp_gliding/lean/toggle", "xp-gliding: thermals lean with the wind on/off"),
              self.on_toggle, "lean_enabled", "Thermals lean with the wind"),
+            (xp.createCommand("xp_gliding/wind/clouds/toggle",
+                              "xp-gliding: the sky moves with the wind at the clouds, not at the glider"),
+             self.on_toggle, "wind_at_clouds", "Sky moves with the wind at the clouds"),
             (xp.createCommand("xp_gliding/markers/toggle", "xp-gliding: training markers on/off"),
              self.on_toggle, "markers_enabled", "Training markers"),
             (xp.createCommand("xp_gliding/clouds/toggle", "xp-gliding: cumulus on/off"),
@@ -296,6 +302,7 @@ class PythonInterface:
         self.clouds.clear()  # a new flight: X-Plane may have dropped the particles
         self.injector.drift.reset()  # and the sky starts where the field drew it
         self.injector.lean.reset()
+        self.injector.sky_wind = None
         self.next_lean = 0.0
         # At the main menu the "aircraft" is X-Plane's own folder: stay inert until
         # a real aircraft is loaded (a plane-loaded message follows).
@@ -380,8 +387,11 @@ class PythonInterface:
         self.injector.carry(s)
         if now >= self.next_lean:
             self.next_lean = now + LEAN_PERIOD_S
+            layers = self.io.wind_layers() if st.lean_enabled or st.wind_at_clouds else None
+            if st.wind_at_clouds:
+                self.injector.sky_wind_update(s, *layers, self.io.elevation_m(), self.clouds.level_m)
             if st.lean_enabled:
-                self.injector.lean_update(s, *self.io.wind_layers(), self.io.elevation_m())
+                self.injector.lean_update(s, *layers, self.io.elevation_m())
             else:
                 self.injector.lean.reset()
         if now >= self.next_slow:

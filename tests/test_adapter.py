@@ -105,6 +105,43 @@ def run(inj_, s):
     return inj_.step(s, Injection())
 
 
+def test_the_sky_is_carried_by_the_wind_at_the_clouds_only_when_asked():
+    def flown(**settings):
+        inj_ = injector(**settings)
+        inj_.sky_wind = (9.0, 0.0)  # at the clouds: it must not matter with the setting off
+        s = state()
+        s.wind_x_ms = 5.0
+        for k in range(11):
+            s.sky_t_s = 1000.0 + k
+            inj_.carry(s)
+        return inj_.drift.dlon_deg
+
+    glider, clouds = flown(), flown(wind_at_clouds=True)
+    assert clouds / glider == pytest.approx(9.0 / 5.0)
+
+
+def test_with_no_wind_at_the_clouds_read_yet_the_wind_at_the_glider_carries_the_sky():
+    inj_ = injector(wind_at_clouds=True)
+    s = state()
+    s.wind_x_ms = 5.0
+    s.sky_t_s = 1000.0
+    inj_.carry(s)
+    assert inj_.drift.wind_e_ms == 5.0
+
+
+def test_the_wind_at_the_clouds_does_not_depend_on_the_glider_when_they_have_a_level():
+    def wind(agl, msl):
+        inj_ = injector(wind_at_clouds=True)
+        s = state(agl=agl)
+        inj_.sky_wind_update(s, [1000.0, 3000.0], [10.0, 30.0], [270.0, 270.0], msl, 2000.0)
+        return inj_.sky_wind
+
+    low, high = wind(300.0, 1400.0), wind(1400.0, 2500.0)
+    assert low == high
+    assert low[0] == pytest.approx(20.0 * 0.514444)
+    assert low[1] == pytest.approx(0.0, abs=1e-9)
+
+
 def test_uniform_lift_delivers_the_power_of_rising_air_forward():
     inj_ = injector()
     inj_.uniform_ms = 1.5

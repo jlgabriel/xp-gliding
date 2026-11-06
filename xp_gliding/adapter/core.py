@@ -24,6 +24,11 @@ aircraft's position in the air's frame. If the thermals lean (off by default), t
 is also shifted by the lean at the aircraft's height, from X-Plane's layers of wind
 (`Injector.lean_update`, in the slow path).
 
+Which wind carries the sky. By default the wind at the aircraft, so in shear it stays with its
+thermal at any height. With `wind_at_clouds` (off by default, notes/phase3.md) it is the wind at
+the clouds' base, from the same layers (`Injector.sky_wind_update`): emitters and particles then
+move together, and the aircraft moves through the sky at the difference.
+
 X-Plane's conventions (DataRefs.txt, XP 12.4.3): `faxil_plug_acf` positive
 pushes the aircraft *backward*, `fside_plug_acf` positive pushes it right,
 `fnrml_plug_acf` positive pushes it up, `L_plug_acf` positive rolls right.
@@ -40,7 +45,7 @@ import math
 from ..engine import injection as inj
 from ..engine.field import FieldConfig, ThermalField, sky_index, sky_named
 from ..engine.geo import LocalFrame
-from ..engine.wind import AirDrift, Lean
+from ..engine.wind import AirDrift, Lean, layer_wind
 
 NEAREST_MAX_M = 5000.0
 KT_TO_MS = 0.514444
@@ -167,6 +172,7 @@ class Injector:
         self.drift = AirDrift()
         self.lean = Lean()
         self.lean_e_m = self.lean_n_m = 0.0  # the lean at the aircraft, last frame: published
+        self.sky_wind = None  # (east, north) at the clouds' base, if that carries the sky
         self.nearest = Nearest()
 
     def set_geometry(self, geometry):
@@ -187,11 +193,27 @@ class Injector:
 
     def carry(self, s):
         """Every frame, first: X-Plane's wind moves the sky as it moves the aircraft."""
-        if self.settings.wind_enabled:
+        if not self.settings.wind_enabled:
+            self.drift.hold(s.sky_t_s)
+        elif self.settings.wind_at_clouds and self.sky_wind is not None:
+            self.drift.advance(self.sky_wind[0], self.sky_wind[1], s.lat, s.sky_t_s)
+        else:
             # Local axes: x east, z south (engine/geo.py).
             self.drift.advance(s.wind_x_ms, -s.wind_z_ms, s.lat, s.sky_t_s)
-        else:
-            self.drift.hold(s.sky_t_s)
+
+    def sky_wind_update(self, s, altitudes_msl_m, speeds_kt, from_deg, msl_m, level_m=None):
+        """Every few seconds, if the wind at the clouds carries the sky: read it from the layers.
+
+        level_m: the clouds' level (m MSL), if they have one yet; if not, where they would have it.
+        With no layer in use it stays with the wind at the aircraft.
+        """
+        heights, east, north = wind_layers(altitudes_msl_m, speeds_kt, from_deg, 0.0)
+        if not heights:
+            self.sky_wind = None
+            return
+        if level_m is None:
+            level_m = msl_m - s.agl_m + sky_named(self.settings.sky).cloud_base_zzi * self.settings.zi_m
+        self.sky_wind = layer_wind(level_m, heights, east, north)
 
     def lean_update(self, s, altitudes_msl_m, speeds_kt, from_deg, msl_m):
         """Every few seconds: X-Plane's layers of wind lean the sky, if that is on."""

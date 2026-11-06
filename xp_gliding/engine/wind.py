@@ -94,6 +94,11 @@ def _interpolate(x, xs, ys):
     return ys[-1]
 
 
+def layer_wind(z, heights_m, east_ms, north_ms):
+    """The wind at a height, from layers of wind (ascending): (east, north), in m/s."""
+    return _interpolate(z, heights_m, east_ms), _interpolate(z, heights_m, north_ms)
+
+
 class Lean:
     """Where the lift's centre is at each height, from the cloud above it, in metres.
 

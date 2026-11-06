@@ -129,9 +129,21 @@ def formed_clouds(seeds, sky, hour=19.1, day=306, range_m=8000.0):
     return found
 
 
-def climb(field, th, t0, sky, entry_m, pilot, rng, top_m):
-    """Fly it: (height gained, mean climb, median distance from circle to lift's centre)."""
-    _, every, max_shift, error_deg = pilot
+def climb(field, th, t0, sky, entry_m, pilot, rng, top_m, slip=None):
+    """Fly it: (height gained, mean climb, median distance from circle to lift's centre, metres
+    of recentring per turn).
+
+    slip(z): (east, north) in m/s, how fast the glider moves through the sky's frame at height z,
+    when the sky is not carried by the wind at the glider (`shear_climb.py`). A pilot is
+    (name, turns between corrections, largest shift, error of the direction), and may add the
+    shift per m/s of swing in the vario (30 unless it says) and how much of each correction it
+    keeps doing on the following turns, having noticed that it keeps sliding off (none unless
+    it says).
+    """
+    _, every, max_shift, error_deg, *rest = pilot
+    gain = rest[0] if rest else 30.0
+    memory = rest[1] if len(rest) > 1 else 0.0
+    habit_e = habit_n = 0.0
     z = entry_m
     a = rng.uniform(0.0, 2.0 * math.pi)
     ce0, cn0 = sky.centre(th.e, th.n, z)
@@ -140,6 +152,7 @@ def climb(field, th, t0, sky, entry_m, pilot, rng, top_m):
     vario = None
     samples = []
     since_shift = 0.0
+    shifted = turned = 0.0
     best_z, best_t = z, t0
     away = []
     t = t0
@@ -149,8 +162,13 @@ def climb(field, th, t0, sky, entry_m, pilot, rng, top_m):
         w = sky.lift(field, x, y, z, t)
         vario = w if vario is None else vario + (w - vario) * DT_S / VARIO_LAG_S
         samples.append((theta, vario))
+        if slip is not None:
+            se, sn = slip(z)
+            cx += se * DT_S
+            cy += sn * DT_S
         z += (w - sink) * DT_S
         theta += omega * DT_S
+        turned += omega * DT_S
         t += DT_S
         since_shift += DT_S
         ce, cn = sky.centre(th.e, th.n, z)
@@ -167,14 +185,23 @@ def climb(field, th, t0, sky, entry_m, pilot, rng, top_m):
             c = sum(v * math.cos(p) for p, v in last) * 2.0 / len(last)
             s = sum(v * math.sin(p) for p, v in last) * 2.0 / len(last)
             amp = math.hypot(c, s)
+            se = sn = 0.0
             if amp > 0.15:
                 best = math.atan2(s, c) - omega * VARIO_LAG_S + math.radians(rng.gauss(0.0, error_deg))
-                shift = min(max_shift, amp * 30.0)
-                cx += shift * math.cos(best)
-                cy += shift * math.sin(best)
+                shift = min(max_shift, amp * gain)
+                se, sn = shift * math.cos(best), shift * math.sin(best)
+            se, sn = se + habit_e, sn + habit_n
+            habit_e, habit_n = habit_e + memory * (se - habit_e), habit_n + memory * (sn - habit_n)
+            size = math.hypot(se, sn)
+            if size > max_shift:
+                se, sn = se * max_shift / size, sn * max_shift / size
+            cx += se
+            cy += sn
+            shifted += math.hypot(se, sn)
             since_shift = 0.0
     gained = best_z - entry_m
-    return gained, gained / max(best_t - t0, 1.0), st.median(away) if away else 0.0
+    per_turn = shifted / max(turned / (2.0 * math.pi), 1.0)
+    return gained, gained / max(best_t - t0, 1.0), st.median(away) if away else 0.0, per_turn
 
 
 def climb_row(label, sky, clouds, entry, top):

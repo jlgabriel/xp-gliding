@@ -888,6 +888,117 @@ def test_the_ring_is_at_the_lift_and_the_column_leans_from_the_cloud_through_it(
     assert column[4] == pytest.approx(270.0, abs=1.0)  # the bottom swings upwind, to the west
 
 
+# --- which wind carries the sky ---------------------------------------------------
+
+def shear_layers(data):
+    """9 kt below 1000 m MSL, then more with height: 15 kt from 3000 m up, all from the west."""
+    data["sim/weather/aircraft/wind_altitude_msl_m"] = [1000.0, 3000.0] + [-1.0] * 11
+    data["sim/weather/aircraft/wind_speed_kts"] = [9.0, 15.0] + [-1.0] * 11
+    data["sim/weather/aircraft/wind_direction_degt"] = [270.0, 270.0] + [0.0] * 11
+
+
+def test_by_default_the_wind_at_the_glider_carries_the_sky_whatever_the_layers(plugin):
+    pi, xp, data = plugin
+    assert dataref(xp, "wind_at_clouds") == 0
+    shear_layers(data)
+    data["sim/weather/aircraft/wind_now_x_msc"] = 5.0
+    data["sim/weather/aircraft/wind_now_z_msc"] = -2.0  # toward the north
+    frame(pi, data)
+    assert dataref(xp, "wind/e_ms") == 5.0 and dataref(xp, "wind/n_ms") == 2.0
+
+
+def test_the_wind_at_the_clouds_comes_from_the_layers_at_their_level(plugin):
+    pi, xp, data = plugin
+    shear_layers(data)
+    data["sim/weather/aircraft/wind_now_x_msc"] = 1.0  # at the glider: it must not matter
+    dataref(xp, "wind_at_clouds", 1)
+    pi.next_lean = 0.0
+    frame(pi, data)
+    # With no clouds yet, where they would be: 1116 m of ground and Allen's top of a 2000 m zi.
+    expected = 9.0 + (1116.0 + 2000.0 / 1.1 - 1000.0) / 2000.0 * 6.0
+    frame(pi, data)
+    assert dataref(xp, "wind/e_ms") == pytest.approx(expected * 0.514444, abs=1e-3)
+    assert dataref(xp, "wind/n_ms") == pytest.approx(0.0, abs=1e-6)
+    # With clouds, at their level, wherever the glider is.
+    pi.clouds.level_m = 2000.0
+    pi.next_lean = 0.0
+    data["sim/flightmodel/position/elevation"] += 500.0
+    frame(pi, data)
+    frame(pi, data)
+    assert dataref(xp, "wind/e_ms") == pytest.approx(12.0 * 0.514444, abs=1e-3)
+
+
+def test_the_height_of_a_cloud_reads_the_wind_that_carries_the_sky(plugin):
+    pi, xp, data = plugin
+    shear_layers(data)
+    data["sim/weather/aircraft/wind_now_x_msc"] = 0.0  # calm at the glider
+    dataref(xp, "wind_at_clouds", 1)
+    pi.next_lean = 0.0
+    lon0 = data["sim/flightmodel/position/longitude"]
+    # A hill to the east: only a cloud that drifts will be raised for it, and only under
+    # the wind at the clouds, since the glider's is calm.
+    start, end = lon0 + 0.10, lon0 + 0.15
+    xp.ground = lambda lat, lon: 4000.0 if start < lon < end else 1116.0
+    fill_sky(pi, data)
+    upwind = [e[1] for th, e in pi.clouds.instances.items() if th.lon < start - 0.01]
+    assert any(b == pytest.approx(4300.0) for b in upwind)
+
+
+def test_with_no_shear_the_offset_is_the_same_with_the_setting_on_or_off(plugin):
+    pi, xp, data = plugin
+    wind = 15.0 * 0.514444  # the layers of the fixture: 15 kt from 270 at every height
+    data["sim/weather/aircraft/wind_now_x_msc"] = wind
+    pi.next_lean = 0.0
+    frame(pi, data)
+    off = (dataref(xp, "wind/e_ms"), dataref(xp, "wind/n_ms"))
+    dataref(xp, "wind_at_clouds", 1)
+    pi.next_lean = 0.0
+    frame(pi, data)
+    frame(pi, data)
+    on = (dataref(xp, "wind/e_ms"), dataref(xp, "wind/n_ms"))
+    assert on == pytest.approx(off, abs=1e-4)
+
+
+def test_no_layers_in_use_leaves_the_wind_at_the_glider(plugin):
+    pi, xp, data = plugin
+    data["sim/weather/aircraft/wind_speed_kts"] = [-1.0] * 13
+    data["sim/weather/aircraft/wind_now_x_msc"] = 3.0
+    dataref(xp, "wind_at_clouds", 1)
+    pi.next_lean = 0.0
+    frame(pi, data)
+    frame(pi, data)
+    assert dataref(xp, "wind/e_ms") == 3.0
+
+
+def test_the_setting_has_a_switch_in_the_menu_saved_and_taken_back_at_once(plugin):
+    pi, xp, data = plugin
+    shear_layers(data)
+    data["sim/weather/aircraft/wind_now_x_msc"] = 1.0
+    handler, attr = xp.handlers["xp_gliding/wind/clouds/toggle"]
+    handler("xp_gliding/wind/clouds/toggle", xp.CommandBegin, attr)
+    assert pi.settings.wind_at_clouds
+    assert saved(pi)["wind_at_clouds"] is True
+    assert "Sky moves with the wind at the clouds" in checked(xp, "xp-gliding")
+    pi.next_lean = 0.0
+    frame(pi, data)
+    frame(pi, data)
+    assert dataref(xp, "wind/e_ms") != 1.0
+    handler("xp_gliding/wind/clouds/toggle", xp.CommandBegin, attr)
+    frame(pi, data)
+    frame(pi, data)
+    assert dataref(xp, "wind/e_ms") == 1.0
+
+
+def test_a_new_aircraft_forgets_the_wind_at_the_clouds(plugin):
+    pi, xp, data = plugin
+    dataref(xp, "wind_at_clouds", 1)
+    pi.next_lean = 0.0
+    frame(pi, data)
+    assert pi.injector.sky_wind is not None
+    pi.load_aircraft()
+    assert pi.injector.sky_wind is None
+
+
 # --- the settings menu ------------------------------------------------------------
 
 def choose(xp, title, label):

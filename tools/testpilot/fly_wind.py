@@ -6,6 +6,18 @@ Usage (X-Plane running with the xp-gliding plugin):
         [--bank 35] [--kmh 95] [--agl 1000] [--lean] [--record]
     python tools/testpilot/fly_wind.py layers [--wind-kt 15] [--from-deg 270] [--shear]
     python tools/testpilot/fly_wind.py look [--wind-kt 25] [--from-deg 270] [--agl 700]
+    python tools/testpilot/fly_wind.py shear [--profile gentle] [--at-clouds] [--correct] [--turns 10]
+        [--agl 600] [--bank 35] [--kmh 95] [--fresh] [--record]
+    python tools/testpilot/fly_wind.py stretch [--profile gentle] [--at-clouds] [--agl 800] [--seconds 280]
+
+shear: the circle below in a wind that changes with height, carried by the wind at the glider or
+(--at-clouds) at the clouds. With no correction it shows how fast the circle falls off the
+thermal. With --correct a pilot reads the lift around the last turn and rolls out for up to 4 s
+of the next turn toward its strongest side, up to 100 m per turn (`shear_climb.py`'s hard pilot,
+with a perfect vario and no error of direction).
+
+stretch: do clouds stretch? A straight flight across the wind for longer than a particle lives,
+with screenshots from the front. The glider sinks about 1 m/s through the shear.
 
 layers: do `sim/weather/aircraft/wind_*`, which the thermals' lean reads, agree with the wind at
 the glider? Short flights at several heights, comparing the layer at the glider's height with
@@ -75,6 +87,15 @@ LAYER_ALT, LAYER_SPEED, LAYER_FROM = ("sim/weather/aircraft/wind_altitude_msl_m"
 # Layers in feet above the field, and their share of --wind-kt.
 UNIFORM = ((500.0, 1.0), (3000.0, 1.0), (6000.0, 1.0), (12000.0, 1.0))
 SHEAR = ((500.0, 0.2), (3000.0, 0.5), (6000.0, 1.2), (12000.0, 2.0))
+# 3 m/s of difference across the climb at 15 kt: 9 kt up to 500 m above the field, 15 kt from 1500 m.
+GENTLE = ((500.0, 0.6), (1640.0, 0.6), (4921.0, 1.0), (12000.0, 1.0))
+# (layers, the wind asked for, in kt)
+PROFILES = {"uniform": (UNIFORM, 15.0), "gentle": (GENTLE, 15.0), "strong": (SHEAR, 25.0)}
+AT_CLOUDS = "xp_gliding/wind_at_clouds"
+SKY_E, SKY_N = "xp_gliding/wind/e_ms", "xp_gliding/wind/n_ms"
+MAX_SHIFT_M = 100.0  # the most a correction shifts the circle in one turn
+SHIFT_PER_MS = 60.0  # metres of shift per m/s of swing in the lift around the last turn
+ROLL_OUT_BANK = 5.0  # deg, while shifting
 
 
 def wind_toward(kt, from_deg):
@@ -427,6 +448,167 @@ class CircleMission:
               f"bank {statistics.fmean(abs(r['phi']) for r in self.rows):.0f} deg")
 
 
+class ShearMission(CircleMission):
+    """The circle, in shear: it also records how the circle falls off the thermal, and may correct."""
+
+    def __init__(self, *args, correct=False):
+        super().__init__(*args)
+        self.correct = correct
+        self.turn_start = self.roll_out_until = 0.0
+        self.pending = None  # (track to roll out on, seconds)
+        self.shifts = []
+        self.slip = []  # the wind at the glider minus the one that carries the sky
+
+    def on_step(self, v, pilot):
+        super().on_step(v, pilot)
+        if self.state != "free":
+            return
+        values = self.stream.snapshot()[0]
+        row = self.rows[-1]
+        row["slip"] = math.hypot(values[WIND_X] - values[SKY_E], -values[WIND_Z] - values[SKY_N])
+        # The centre of the circle at this moment: a turn to the left, so one radius left of the
+        # track. Averaging positions over a turn that is not quite closed wobbles by 20 m or more.
+        left = math.radians(self.air_track - 90.0)
+        row["centre_e"] = row["e"] + self.radius * math.sin(left)
+        row["centre_n"] = row["n"] + self.radius * math.cos(left)
+        if self.correct:
+            self.recentre(pilot)
+
+    def recentre(self, pilot):
+        if self.turn_start == 0.0:
+            self.turn_start = pilot.flown
+        if self.roll_out_until:
+            if pilot.flown >= self.roll_out_until:
+                self.roll_out_until = 0.0
+                pilot.guidance = FixedBank(-self.bank)
+            return
+        if self.pending:
+            track, seconds = self.pending
+            # A turn to the left: the track falls, so start a little before it. It takes a moment to roll.
+            if 0.0 <= wrap180(self.air_track - track) <= 25.0:
+                self.pending = None
+                self.roll_out_until = pilot.flown + seconds
+                pilot.guidance = FixedBank(-ROLL_OUT_BANK)
+            return
+        if pilot.flown - self.turn_start >= self.turn_s:
+            rows = [r for r in self.rows if r["flown"] >= self.turn_start]
+            self.turn_start = pilot.flown
+            ce = statistics.fmean(r["e"] for r in rows)
+            cn = statistics.fmean(r["n"] for r in rows)
+            angles = [math.atan2(r["n"] - cn, r["e"] - ce) for r in rows]
+            c = 2.0 * statistics.fmean(r["lift"] * math.cos(a) for r, a in zip(rows, angles))
+            s = 2.0 * statistics.fmean(r["lift"] * math.sin(a) for r, a in zip(rows, angles))
+            shift = min(MAX_SHIFT_M, math.hypot(c, s) * SHIFT_PER_MS)
+            speed = max(rows[-1]["ias"] / 3.6, 10.0)
+            if shift > 10.0:
+                # Toward the strongest side. Math angle to compass bearing.
+                self.pending = ((90.0 - math.degrees(math.atan2(s, c))) % 360.0, shift / speed)
+                self.shifts.append(shift)
+
+    def done(self, v, pilot):
+        return super().done(v, pilot) and not self.roll_out_until
+
+    def report(self, reason):
+        super().report(reason)
+        if not self.rows:
+            return
+        turn = max(self.turn_s, 1.0)
+        start = self.rows[0]["flown"]
+        print("  turn | climb m/s | lift m/s | wind at glider minus the sky's m/s | circle's centre: "
+              "from the thermal m, moved since the last turn m")
+        last = None
+        centres = []
+        for k in range(self.turns):
+            rows = [r for r in self.rows if start + k * turn <= r["flown"] < start + (k + 1) * turn and "centre_e" in r]
+            if len(rows) < 10:
+                break
+            ce = statistics.fmean(r["centre_e"] for r in rows)
+            cn = statistics.fmean(r["centre_n"] for r in rows)
+            step = math.hypot(ce - last[0], cn - last[1]) if last else float("nan")
+            last = ce, cn
+            centres.append(last)
+            print(f"  {k + 1:4d} | {statistics.fmean(r['te'] for r in rows):+9.2f} | "
+                  f"{statistics.fmean(r['lift'] for r in rows):+8.2f} | "
+                  f"{statistics.fmean(r.get('slip', 0.0) for r in rows):6.2f} | "
+                  f"{math.hypot(ce - self.ce, cn - self.cn):6.0f} {step:6.0f}")
+        if len(centres) > 1:
+            net = math.hypot(centres[-1][0] - centres[0][0], centres[-1][1] - centres[0][1])
+            print(f"  the circle moved {net / (len(centres) - 1):.0f} m per turn through the sky, net")
+        if self.correct:
+            print(f"  corrections: {len(self.shifts)}, mean {statistics.fmean(self.shifts) if self.shifts else 0.0:.0f} m "
+                  f"of the {MAX_SHIFT_M:.0f} m allowed")
+
+
+def run_shear(api, profile, at_clouds, correct, from_deg, turns, bank, kmh, agl, radius, record, fresh):
+    _, _, elev = KHOB
+    layers, wind_kt = PROFILES[profile]
+    if fresh:
+        api.command("sim/operation/reload_aircraft")
+        time.sleep(5.0)
+    windy_start(api, elev + agl, kmh, 90.0, wind_kt, from_deg, layers)
+    api.set("xp_gliding/thermals_enabled", 1)
+    api.set(LEAN_ON, 0)
+    api.set(AT_CLOUDS, 1 if at_clouds else 0)
+    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/zi_m")
+    seed, day = int(api.get("xp_gliding/seed")), int(api.get("sim/time/local_date_days"))
+    zulu0, sim0 = api.get("sim/time/zulu_time_sec"), api.get(SIM_TIME)
+    stream = XPlaneStream(api, EXTRA + (SKY_E, SKY_N))
+    stream.wait_for(EXTRA)
+    mission = ShearMission(api, stream, kmh, bank, turns, wstar, zi, seed, day, plugin_sky(api), zulu0, sim0,
+                           radius, correct=correct)
+    pilot = Pilot(api)
+    print(f"shear: {profile}, carried by the wind at the {'clouds' if at_clouds else 'glider'}, "
+          f"{'correcting' if correct else 'no correction'}", flush=True)
+    try:
+        reason, log = pilot.run(kmh, 900.0, settle_s=5.0, min_agl=200.0, bank_limit=bank + 25.0,
+                                on_step=mission.on_step, until=mission.done, quiet=True, record=record)
+        if log:
+            print(f"  flight log: {log}, flown to {pilot.flown:.0f} s")
+    except Exception as exc:
+        reason = f"aborted: {exc}"
+        release(api)
+    stream.close()
+    mission.report(reason)
+    api.set(AT_CLOUDS, 0)
+
+
+def run_stretch(api, profile, at_clouds, from_deg, agl, seconds, kmh=90.0):
+    _, _, elev = KHOB
+    layers, wind_kt = PROFILES[profile]
+    api.command("sim/operation/reload_aircraft")
+    time.sleep(5.0)
+    heading = (from_deg + 90.0) % 360.0  # across the wind, so a stretch runs across the view
+    windy_start(api, elev + agl, kmh, heading, wind_kt, from_deg, layers)
+    api.set(AT_CLOUDS, 1 if at_clouds else 0)
+    api.set(LEAN_ON, 0)
+    api.set("xp_gliding/markers_enabled", 0)
+    api.set("xp_gliding/thermals_enabled", 1)
+    stream = XPlaneStream(api, EXTRA + (SKY_E, SKY_N))
+    stream.wait_for(EXTRA)
+    print(f"stretch: {profile}, carried by the wind at the {'clouds' if at_clouds else 'glider'}", flush=True)
+    api.command(FRONT_VIEW)
+    times = [30.0, 120.0, 200.0, seconds]
+    box = {"next": 0}
+
+    def on_step(v, pilot):
+        if box["next"] < len(times) and pilot.flown >= times[box["next"]]:
+            box["next"] += 1
+            api.command(SCREENSHOT)
+            values = stream.snapshot()[0]
+            print(f"  {pilot.flown:5.0f} s: screenshot, {v[AGL]:.0f} m AGL; at the glider "
+                  f"{values[WIND_X]:+.2f}, {-values[WIND_Z]:+.2f} m/s, the sky's {values[SKY_E]:+.2f}, "
+                  f"{values[SKY_N]:+.2f}", flush=True)
+
+    pilot = Pilot(api)
+    try:
+        reason, _ = pilot.run(kmh, seconds + 5.0, settle_s=5.0, min_agl=150.0, on_step=on_step, quiet=True)
+    finally:
+        stream.close()
+        api.command(COCKPIT_VIEW)
+        api.set(AT_CLOUDS, 0)
+    print(f"stretch: {reason}")
+
+
 def run_circle(api, wind_kt, from_deg, turns, bank, kmh, agl, radius, lean=False, record=False, fresh=False):
     _, _, elev = KHOB
     if fresh:  # a new flight with the same aircraft keeps the sky's offset; a reload clears it
@@ -482,9 +664,32 @@ def main(argv=None):
     p.add_argument("--wind-kt", type=float, default=25.0)
     p.add_argument("--from-deg", type=float, default=270.0)
     p.add_argument("--agl", type=float, default=700.0)
+    p = sub.add_parser("shear")
+    p.add_argument("--profile", choices=sorted(PROFILES), default="gentle")
+    p.add_argument("--at-clouds", action="store_true", help="the wind at the clouds carries the sky")
+    p.add_argument("--correct", action="store_true")
+    p.add_argument("--from-deg", type=float, default=270.0)
+    p.add_argument("--turns", type=int, default=10)
+    p.add_argument("--bank", type=float, default=35.0)
+    p.add_argument("--kmh", type=float, default=95.0)
+    p.add_argument("--agl", type=float, default=600.0)
+    p.add_argument("--radius", type=float, default=105.0)
+    p.add_argument("--record", action="store_true")
+    p.add_argument("--fresh", action="store_true")
+    p = sub.add_parser("stretch")
+    p.add_argument("--profile", choices=sorted(PROFILES), default="gentle")
+    p.add_argument("--at-clouds", action="store_true")
+    p.add_argument("--from-deg", type=float, default=270.0)
+    p.add_argument("--agl", type=float, default=800.0)
+    p.add_argument("--seconds", type=float, default=280.0)
     args = parser.parse_args(argv)
     api = XPlaneWebAPI(timeout=30.0)
-    if args.what == "measure":
+    if args.what == "shear":
+        run_shear(api, args.profile, args.at_clouds, args.correct, args.from_deg, args.turns, args.bank, args.kmh,
+                  args.agl, args.radius, args.record, args.fresh)
+    elif args.what == "stretch":
+        run_stretch(api, args.profile, args.at_clouds, args.from_deg, args.agl, args.seconds)
+    elif args.what == "measure":
         run_measure(api, args.wind_kt, args.from_deg, args.seconds)
     elif args.what == "layers":
         run_layers(api, args.wind_kt, args.from_deg, args.shear, args.real)
