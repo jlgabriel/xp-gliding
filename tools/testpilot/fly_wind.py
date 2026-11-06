@@ -17,7 +17,8 @@ of the next turn toward its strongest side, up to 100 m per turn (`shear_climb.p
 with a perfect vario and no error of direction).
 
 stretch: do clouds stretch? A straight flight across the wind for longer than a particle lives,
-with screenshots from the front. The glider sinks about 1 m/s through the shear.
+with screenshots from the front. The glider sinks about 1 m/s through the shear. A SHOT line per
+screenshot gives the camera and the thermals with a cloud, to draw each emitter on it.
 
 layers: do `sim/weather/aircraft/wind_*`, which the thermals' lean reads, agree with the wind at
 the glider? Short flights at several heights, comparing the layer at the glider's height with
@@ -47,6 +48,7 @@ Measurement tool, not part of the plugin. License: GPL-3.0-or-later.
 """
 
 import argparse
+import json
 import math
 import os
 import statistics
@@ -575,14 +577,19 @@ def run_shear(api, profile, at_clouds, correct, from_deg, turns, bank, kmh, agl,
 def run_stretch(api, profile, at_clouds, from_deg, agl, seconds, kmh=90.0):
     _, _, elev = KHOB
     layers, wind_kt = PROFILES[profile]
-    api.command("sim/operation/reload_aircraft")
-    time.sleep(5.0)
     heading = (from_deg + 90.0) % 360.0  # across the wind, so a stretch runs across the view
+    windy_start(api, elev + agl, kmh, heading, wind_kt, from_deg, layers)  # the reload has no command at the main menu
+    api.command("sim/operation/reload_aircraft")  # clears the sky's offset
+    time.sleep(5.0)
     windy_start(api, elev + agl, kmh, heading, wind_kt, from_deg, layers)
     api.set(AT_CLOUDS, 1 if at_clouds else 0)
     api.set(LEAN_ON, 0)
+    markers = api.get("xp_gliding/markers_enabled")
     api.set("xp_gliding/markers_enabled", 0)
     api.set("xp_gliding/thermals_enabled", 1)
+    seed, day = int(api.get("xp_gliding/seed")), int(api.get("sim/time/local_date_days"))
+    zulu0, sim0 = api.get("sim/time/zulu_time_sec"), api.get(SIM_TIME)
+    sky = plugin_sky(api)
     stream = XPlaneStream(api, EXTRA + (SKY_E, SKY_N))
     stream.wait_for(EXTRA)
     print(f"stretch: {profile}, carried by the wind at the {'clouds' if at_clouds else 'glider'}", flush=True)
@@ -598,6 +605,23 @@ def run_stretch(api, profile, at_clouds, from_deg, agl, seconds, kmh=90.0):
             print(f"  {pilot.flown:5.0f} s: screenshot, {v[AGL]:.0f} m AGL; at the glider "
                   f"{values[WIND_X]:+.2f}, {-values[WIND_Z]:+.2f} m/s, the sky's {values[SKY_E]:+.2f}, "
                   f"{values[SKY_N]:+.2f}", flush=True)
+            t = zulu0 + v[SIM_TIME] - sim0
+            air = values[DLAT], values[DLON]
+            at_air = v[LAT] - air[0], wrap_lon_deg(v[LON] - air[1])
+            field = ThermalField(FieldConfig(seed=seed, day=day, sky=sky), LocalFrame(*at_air))
+            field.update(t, *at_air)
+            params = cl.CloudParams()
+            # For drawing on the screenshot where each cloud's emitter is: one line per screenshot.
+            print("SHOT " + json.dumps({
+                "flown": pilot.flown, "lat": v[LAT], "lon": v[LON], "msl": v[ELEV], "agl": v[AGL],
+                "dlat": air[0], "dlon": air[1], "lift": values[LIFT], "psi": values[PSI],
+                "view": {name: api.get("sim/graphics/view/" + name)
+                         for name in ("view_heading", "view_pitch", "view_roll", "field_of_view_deg",
+                                      "vertical_field_of_view_deg", "window_width", "window_height")},
+                "level_m": api.get("xp_gliding/clouds/level_m"),
+                "clouds": [{"lat": th.lat, "lon": th.lon, "scale": cl.cloud_scale(th),
+                            "feeding": cl.feeding_window(th, params)[0] <= t < cl.feeding_window(th, params)[1]}
+                           for th in field.alive(t) if cl.carries_cloud(th, params)]}), flush=True)
 
     pilot = Pilot(api)
     try:
@@ -606,6 +630,7 @@ def run_stretch(api, profile, at_clouds, from_deg, agl, seconds, kmh=90.0):
         stream.close()
         api.command(COCKPIT_VIEW)
         api.set(AT_CLOUDS, 0)
+        api.set("xp_gliding/markers_enabled", markers)
     print(f"stretch: {reason}")
 
 

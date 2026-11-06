@@ -10,14 +10,16 @@ The sky is carried by one wind, and the glider by the wind at its height, so in 
 the glider moves at the difference (notes/SPEC.md "Wind"):
 
     A   the wind at the glider. It never moves through the sky's frame. The emitters do not move
-        with the particles, which X-Plane carries at the clouds' height: a cloud stretches.
+        with the particles if X-Plane carries them at the clouds' height: a cloud would stretch.
+        Flown on 2026-11-06, it does not (notes/phase3.md).
     B   the wind at the clouds' base. Emitters and particles move together. The glider moves
         through the sky at W(z) - W(base), which is largest low down and nothing at the base.
     half, cap1   between them, offline only: half of the difference, or at most 1 m/s of it.
 
 `climb`: `lean_climb.py`'s climb, a point on a circle with the sink of `circle_climb.py` and
 made-up pilots, so compare the rows with each other and none of them with a flight.
-`clouds`: what A does to clouds, by arithmetic: stretch and shift of the body over a particle's life.
+`clouds`: what A would do to clouds with particles at the clouds' wind, by arithmetic: stretch and shift
+of the body over a particle's life. The flights contradict it (notes/phase3.md).
 `slip`: what B does to the circle, by arithmetic: metres per turn at each height.
 
 Measurement tool, not part of the plugin. License: GPL-3.0-or-later.

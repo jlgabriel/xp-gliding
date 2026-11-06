@@ -52,7 +52,7 @@ Laminar's [particle article](https://developer.x-plane.com/article/x-plane-11-pa
 
 All judged by eye on screenshots, with low graphics settings. Which drag is enough, and whether 1 has a cost, was not explored.
 
-In shear the particles travel at the wind of the clouds and the emitters at the wind of the glider. A difference of 2 m/s would stretch a cloud by about 360 m over a particle's life, and shift its body from its thermal by about half of that. Larger differences have not been looked at.
+In shear the particles travel at the wind of the clouds and the emitters at the wind of the glider. A difference of 2 m/s would stretch a cloud by about 360 m over a particle's life, and shift its body from its thermal by about half of that. Larger differences have not been looked at. **Wrong, as flown on 2026-11-06:** the particles appear to travel at about the wind at the glider, not at the clouds' height ([what the clouds did](#which-wind-carries-the-sky-in-shear)).
 
 ## First flight by hand
 
@@ -279,7 +279,7 @@ The test pilot, 2026-11-05, KHOB, Laminar ASK 21, `wide_carriers`, w\* 3, zi 200
 
 ## Which wind carries the sky in shear
 
-Asked and measured on 2026-11-06, for Juan Luis to decide. Nothing here has been flown by hand. The default has not changed: the wind at the glider. **The clouds were not looked at:** the session ended before the flights for it, so A's price below is arithmetic. `fly_wind.py stretch` is written for that, and has not been run.
+Asked and measured on 2026-11-06. Juan Luis kept the wind at the glider that day. Nothing here has been flown by hand. The default has not changed: the wind at the glider. **The clouds were looked at later that day, by the test pilot:** A's price as first worked out below does not exist, and it is B's clouds that are displaced (*What the clouds did*, below).
 
 **The candidates.** A is today's: the wind at the glider (`wind_now_*`). B is the wind at the clouds' base, from X-Plane's layers at the clouds' level: *Sky moves with the wind at the clouds* in the menu, `wind_at_clouds` in `config.json`, off by default. Under B `drift.wind_e_ms` and `wind_n_ms` are that wind, so a cloud's path in `engine/clouds.py` reads it too.
 
@@ -336,7 +336,7 @@ The slip goes on growing in strong shear because the glider, out of the lift, si
 
 One flight each, with an entry that is worse under B, so this shows no more than how hard it is. **Not known:** whether a human does better. The script has a perfect vario and no idea of the wind, and a pilot who sees the drift could do what no script here does.
 
-**The price of A: what clouds do.** By arithmetic, from a particle's mean life of 180 s, a particle ends the difference × the life from its emitter, and the cloud's body is about half of that from its thermal (`shear_climb.py clouds`). Stretch and shift in metres, with the cloud at 1500 m AGL:
+**The price of A, as first worked out; the flights below contradict it.** By arithmetic, assuming X-Plane carries a particle at the wind at its own height, from a particle's mean life of 180 s, a particle ends the difference × the life from its emitter, and the cloud's body is about half of that from its thermal (`shear_climb.py clouds`). Stretch and shift in metres, with the cloud at 1500 m AGL:
 
 | Wind | Glider at 500 m | 800 m | 1100 m | 1400 m |
 | --- | --- | --- | --- | --- |
@@ -346,9 +346,28 @@ One flight each, with an entry that is worse under B, so this shows no more than
 
 With the wind growing with height the thermal ends up upwind of its cloud's body, more so when the glider is low, which is the direction the FAA's handbook describes (10-4), by accident. With the wind falling with height it is the other way round. The stretch goes away as the glider nears the base, since then emitters and particles move alike.
 
+**What the clouds did: under A they do not stretch.** `fly_wind.py stretch`, 2026-11-06, KHOB, `wide_carriers`, the aircraft reloaded, straight across a wind from the west, starting at 800 m AGL and sinking to about 530 m, 280 s, with screenshots ahead at 30, 120, 200 and 280 s. The base is at 1500 m AGL. The last two flights also logged the camera and the thermals, so each emitter could be drawn on the screenshot. Particles live 180 s on average, so 200 s is long enough for the effect to have grown.
+
+| Flight | Emitters move at (m/s) | Wind at the base (m/s) | Arithmetic above, stretch and shift (m) | Seen |
+| --- | --- | --- | --- | --- |
+| Uniform 15 kt, A | 7.7 | 7.7 | 0, 0 | Separate clouds, no camera log. The control |
+| Gentle, A | 5.4 to 4.7 | 7.7 | 410–540, 205–270 | Looks like the control. The same far cloud, gentle and uniform, in pixels at about 10 m each: 68 and 70 wide at 120 s, 83 and 83 at 200 s, 102 and 96 at 280 s, where the arithmetic adds about 50 |
+| Strong, A | 5.6 to 4.5 | About 12, from the layers asked for | About 1300, 650 | Still compact. At 200 s, a cloud 3.6 km away reaches 540–580 m west of its emitter and 370–580 m east, about what the object draws at that size (560 m each way) |
+| Gentle, B | 7.7 | 7.7 | 0, 0 | At 200 s, the same cloud 3.7 km away reaches 900–980 m west of its emitter and 240–370 m east: about 300 m upwind, the only flight with a visible displacement |
+
+So the particles appear to move at about the wind at the glider, whatever their height. With 7 m/s between the emitters and the wind at the clouds' height, nothing moved as that wind would have moved it, and with B the emitters run ahead of the particles at about the difference from the wind at the glider (2.7 m/s, about 490 m over a particle's life). This also explains the compact clouds of the [shear tried earlier](#clouds-in-wind).
+
+What follows, if it holds:
+
+- **A has no price at the clouds.** A cloud stays on its thermal, in the shear tried, so a pilot should find the lift under its middle as in a uniform wind. With the lean off, the lift is under the emitter by construction.
+- **B has that price instead:** about 300 m in gentle shear from where a pilot sits, and it would grow with the shear. It was thought to be B's advantage.
+- **Other notes built on the arithmetic do not hold:** the lift upwind of a cloud's body "by accident" under A, and C's "does not fix the clouds", since C would have about 1 m/s between emitters and particles, or about 180 m.
+
+**Limits.** Screenshots from one direction at four moments, with no sequence seen in motion. The clouds are irregular and overlap, so the reading is good to 100–150 m, and only for the few standing clear of others: one near cloud and one far one. The first two flights have no camera log, so gentle under A was compared with the control by width only, and its displacement from the emitters was not measured. A strong control under B was not flown. All of it is speed shear from one direction, with the glider between 530 and 800 m AGL, so "at the glider" rests on winds near 5 m/s and has not been tested by changing the glider's height a lot. X-Plane could be reading the wind at the aircraft or at the camera: every shot was from the aircraft, and a chase or tower view was not tried. Laminar's article does not describe any of this, so it is an inference from what was seen. No flight was under a cloud looking for its lift.
+
 **Also under B.** In X-Plane's real weather the layer at the glider's height differs from `wind_now_*` by 1.3–1.6 m/s ([above](#the-lean-in-the-simulator)). If that holds at the base too, B has a slip of about 30 m per turn with no shear in the layers. On the runway the sky would move at the layers' 15 kt, not the 9 kt there. Neither was flown.
 
-**Something between them (C), not built.** Offline, a sky that gives the glider at most 1 m/s of slip climbs well whatever the shear: 294, 356, 566, 670 m in gentle and in strong, with 19–23 m of recentring per turn. It would give what the phase's criterion literally asks, a pilot who has to recentre in shear without losing the thermal. But it does not fix the clouds: in strong shear they stretch by about 1200 m instead of 1400 m. So it is a question of how flying should feel, not a repair of A or B, and worth building only if by hand the shear under A feels too easy. Half of the difference is worse than that in gentle shear (217, 260, 584, 677 m) and fails in strong (78, 82, 92, 163 m).
+**Something between them (C), not built.** Offline, a sky that gives the glider at most 1 m/s of slip climbs well whatever the shear: 294, 356, 566, 670 m in gentle and in strong, with 19–23 m of recentring per turn. It would give what the phase's criterion literally asks, a pilot who has to recentre in shear without losing the thermal. But it does not fix the clouds: in strong shear they stretch by about 1200 m instead of 1400 m (that arithmetic was [contradicted in flight](#which-wind-carries-the-sky-in-shear)). So it is a question of how flying should feel, not a repair of A or B, and worth building only if by hand the shear under A feels too easy. Half of the difference is worse than that in gentle shear (217, 260, 584, 677 m) and fails in strong (78, 82, 92, 163 m).
 
 ## Clouds over uneven ground
 
@@ -402,7 +421,7 @@ Sampled once each, at the end of a flight, not a proper comparison: `frame_us` 1
 - **Clouds and lift over uneven ground:** the clouds' height is [built](#clouds-over-uneven-ground), and has not been seen near a hill by hand. The lift still ends at zi above the ground under the glider (phase 6).
 - **A climb through shear, by hand.** [Flown by the test pilot](#which-wind-carries-the-sky-in-shear), in a circle, under both winds. Whether a sky that depends slightly on the glider's height shows anywhere has not been checked.
 - **The lean, by hand:** whether it reads from the seat, and f. [Checked by the test pilot](#the-lean-in-the-simulator), and off by default.
-- **Which wind carries the sky in shear:** [measured in flight](#which-wind-carries-the-sky-in-shear), and Juan Luis's to decide. Do clouds stretch as the arithmetic says, and does it show? Not looked at: `fly_wind.py stretch`, under both winds, and by hand.
+- **Which wind carries the sky in shear:** [measured in flight](#which-wind-carries-the-sky-in-shear), and the wind at the glider kept (Juan Luis, 2026-11-06). Clouds [flown by the test pilot](#which-wind-carries-the-sky-in-shear): under the wind at the glider they do not stretch, even in strong shear, against the arithmetic. By hand: do they stay on their lift through a climb, and do they do the same from a chase view?
 - **The menu's submenus** read well in X-Plane ("excellent", Juan Luis), and each showed the right setting, but changing a sky in flight has not been tried.
 - **Time acceleration** and a change of clock: tested offline, not flown.
 
