@@ -134,6 +134,54 @@ The median size stays at 1.07, and the air stays under the clouds as before (`cl
 - **`TOP` again read as wrong.** It is right: 1500 m minus AGL, within 17 m of the clouds' base here, since they take their ground height from the glider's when they are created. Why it looked wrong was not asked yet. The same thing happened on 2026-11-04 ([phase2.md](phase2.md#first-flight-by-hand)), so the label is a candidate for when the HUD is refined.
 - **Why the airbrakes open.** Laminar's script for this aircraft (`plugins/xlua/scripts/ask21_basics/ask21_basics.lua`) opens the airbrakes and the wheel brake at every flight start on the ground, and closes them above 10 ft. The two are linked, as in the real glider. A hardware lever does nothing until it moves, and moving up with the map does not run that code again. So a flight from the runway that is moved up with the map keeps them open until the lever is moved (here until 416 s, and everything before that is ignored above). It is the aircraft, not the plugin.
 
+## A flight by the clouds alone
+
+Juan Luis, 2026-11-05 night, Santiago, Laminar ASK 21, 15 kt from the west (7.72 m/s at every height from 100 m AGL up), `wide_carriers`, w\* 3, zi 2000 m, seed 1, lean off (`flightlog_20261105_212503.csv`). He turned the markers off 146 s into the log, before either thermal, and flew from then on by the clouds. He told what he did, and the rest is measured from the log. The clouds' places, sizes and heights are the planner's, replayed from the log's offset: particles are not logged, so what was drawn was not measured.
+
+The airbrakes were open until 118 s, as [before](#first-flight-by-hand). `Native` below is what is left of the climb once our lift and the polar's sink are accounted for, so the polar's errors are in it.
+
+| t_run (s) | What | Height (m MSL) | AGL, median (m) | IAS (km/h) | Bank (deg) | TE (m/s) | Our lift (m/s) | Native (m/s) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 135–253 | Looking, over the valley | 1379 to 1262 | 563 | 101 | 16 | −0.87 | −0.01 | +0.30 |
+| 256–405 | First thermal | 1249 to 1606 | 561 | 95 | 27 | +2.35 | +3.08 | +0.49 |
+| 405–530 | Ridge, low | 1608 to 1863 | 177 | 87 | 4 | +1.96 | +0.19 | +2.75 |
+| 530–672 | Ridge, higher | 1863 to 1953 | 331 | 95 | 11 | +0.77 | +0.11 | +1.72 |
+| 672–790 | Glide into the wind | 1951 to 1858 | 759 | 114 | 5 | −0.74 | −0.12 | +0.55 |
+| 790–900 | Second thermal | 1857 to 1876 | 721 | 120 | 29 | +0.46 | +1.50 | +0.49 |
+
+Over 135–900 s, our lift gave 647 m, the native air 815 m and the sink took 903 m. The top was 1981 m MSL at 661 s, 170 m under the lowest clouds.
+
+**Finding a thermal by its cloud, with the markers off: done, twice, in 15 kt.** This was what was left of the phase's first criterion.
+
+- **First thermal.** From 204 s he turned toward the nearest cloud, the next being over 2 km further. At 222 s he met a weak thermal with no good core (1.7 m/s), turned once around it and lost about 45 m, then went on to the cloud's thermal, reaching it at 258 s.
+- **Second thermal.** At 744 s, with a cloud 1.8 km off and 62° to the right, he turned to it, and flew about 1.5 km straight, keeping it 10–19° off the nose, until the lift began at 790 s. A cloud had been nearer and dead ahead (1.95 km at 700 s), but that one had already stopped being fed and was fading. One case, so it may be chance.
+
+**The first thermal was worked as in calm air.** It gained 356 m in 149 s, and drifted 1335 m east over the ground. The circle was within 30 m of the centre for 83% of the samples. The core was 3.7–4.6 m/s, and he left it at 410 s, still at 3.7. Native lift gave about a fifth of that climb: the ground rose under it from 790 to 966 m, and `wind × slope` fits the 0.3–0.9 m/s found there. So this climb should not be set against ones over flat ground.
+
+**The second thermal gave far less, and it was the circle.** The core was about the same (3.2–3.6 m/s), but at 110–148 km/h and 32–35° the circle's radius was about 200 m, and it swung 36–482 m from the centre, so the lift went from 0 to 3.4 m/s on every turn. By arithmetic, the first thermal's circle in this one (130–160 m, 2.84 m/s, sink 1.2, native 0.5) would have climbed about +2 m/s. Why the speed stayed so high was not asked.
+
+**A bigger cloud was a stronger thermal, three out of three, too few to prove it.** The first look at [the new sizes](#first-flight-by-hand), which he has not yet judged by eye:
+
+| Cloud scale | Core (m/s) | Result |
+| --- | --- | --- |
+| 1.40 | 4.2 | Passed at 270–300 m at 549 and 591 s, never centred |
+| 1.15 | 4.2–4.6 | The first thermal |
+| 0.94 | 3.2–3.6 | The second thermal |
+
+The 1.40 cloud's thermal was the best one on offer and was missed. It was to his left, toward the hill, and he turned right, away from the hill, as a pilot should near a slope. Peak lift 1.9 m/s.
+
+**Ridge soaring works in 15 kt, with our thermals on the same flight.** Running south along the west face, with the plugin's lift about zero, the air rose 3.6–4.0 m/s at 117–141 m AGL over 450–510 s, and TE read +2.6 to +3.0 at 81–85 km/h. He gained 345 m this way in 267 s. It agrees with [test H](SPEC.md#native-soaring-in-xp12), which is a local slope model: from a plane fitted to the terrain under the track, `wind × slope × height factor` against the native lift gives a correlation of 0.61 over 94 samples, a mean of 0.88 against 0.67 m/s. That is a rough check, since a single track fits the slope poorly. By height, with steeper ground mixed in at the low end:
+
+| AGL (m) | 100–150 | 150–200 | 200–300 | 300–400 | 400–500 | 600–800 | 800–1000 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Native (m/s) | +3.52 | +2.63 | +1.70 | +1.51 | +1.24 | +0.50 | +0.38 |
+
+He flew as low as 33 m AGL (633 s), and for 68 s under 150 m.
+
+**The clouds over uneven ground are at very different heights.** A cloud takes its base from the ground under the glider when it is created ([`adapter/clouds.py`](../xp_gliding/adapter/clouds.py)), so a flight into the hills leaves a sky of mixed layers. Clouds created at the start have their base at 2151 m MSL, those created while he was on the ridge at 2838–3401 m, and those created on the way back at 2382–2797 m. At 650 s, within 2.5 km: 2151, 2326, 2847 and 3143 m. This is the replay, not a look at the sky. **It shows:** asked afterwards, Juan Luis said that some clouds seemed to go into the hill. Clouds with a base set over the valley can do that, and the wind carries them east toward higher ground, but neither is measured: particles are not logged, and the log only has the ground under the glider. Lift does not follow them either: it ends at zi above the ground under the glider, so under a 2151 m cloud over 1200 m of ground it would go on about 1050 m past the cloud's base. Nobody has climbed that high yet.
+
+It does not close a climb as high as it goes: the top stayed under the clouds, and he left both thermals still climbing. That was his choice, not a limit of the thermals: he leaves when he has climbed enough or wants to fly on, and would go to the top in a task with few thermals. So a climb to the top has to be flown on purpose.
+
 ## The lean
 
 Second step of the wind, built on 2026-11-05 and [checked by the test pilot](#the-lean-in-the-simulator) the same evening. **Nobody has flown it by hand:** *Thermals lean with the wind* in the menu is off by default, so the sky flown so far is unchanged. The FAA's handbook asks for the lift to be upwind of the cloud, further the stronger the wind, the weaker the thermals and the lower the glider (10-4), and for plumes that tilt in a steady wind (9-8). It gives no number for how much.
