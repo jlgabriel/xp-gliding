@@ -10,6 +10,7 @@ These are the project's working records, written while the work happened. They k
 | [phase2.md](phase2.md) | Phase 2: training markers, cumulus and the sky under them |
 | [phase3.md](phase3.md) | Phase 3: wind |
 | [hud.md](hud.md) | The soaring HUD: how it is drawn and what it shows |
+| [shadows.md](shadows.md) | A lab test of cloud shadows on the ground, set aside |
 
 Names used throughout:
 
