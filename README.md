@@ -2,7 +2,7 @@
 
 A thermal soaring plugin for X-Plane 12: thermals you can find by reading the clouds and climb in by hand.
 
-It builds on what X-Plane 12 already does well. The weather, the wind, the ridge lift and the flight model stay X-Plane's, and the plugin adds thermals tied to clouds of their own.
+It is an independent take on thermals, offered as another option for soaring in X-Plane 12. The weather, the wind, the ridge lift and the flight model stay X-Plane's, and the plugin brings thermals tied to clouds of their own.
 
 ![The plugin's soaring HUD while circling in a thermal, in the Laminar ASK 21](docs/images/hud-in-thermal.jpg)
 
@@ -24,7 +24,7 @@ The next work is on the model, in this order: thermals in a wind that changes wi
 
 ## Documentation
 
-- **[Documentation](docs/README.md):** start here, including what was [measured about X-Plane's native soaring](docs/findings/native-soaring.md).
+- **[Documentation](docs/README.md):** start here, including [measurements of X-Plane's native soaring](docs/findings/native-soaring.md).
 - **[Working notes](notes/README.md):** the full records of the work, with the current design and roadmap.
 
 ## What it is not
@@ -34,7 +34,7 @@ It is not a simulation of the atmosphere. The thermals start from a published mo
 ## Principles
 
 1. **The sky must be readable.** What you see tells you where the lift is.
-2. **Native first.** What X-Plane does well is left alone, and that is decided with measurements.
+2. **Native first, apart from the thermals.** The thermals are this project's own proposal. Beyond them, what X-Plane does well is left alone, and that is decided with measurements.
 3. **The flight decides.** Papers give the first numbers, and a number stays only if it flies well by hand.
 
 ## How it is built

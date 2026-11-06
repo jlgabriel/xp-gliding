@@ -1,11 +1,11 @@
-# What X-Plane 12 models natively for soaring
+# Measuring X-Plane 12's native soaring
 
-Measured in flight in X-Plane 12.4.3, with the Laminar ASK 21, in November 2026.
+Measured in flight in X-Plane 12.4.3, with the Laminar ASK 21, in November 2026. The ridge results are solid. The thermal results are incomplete, and say little about how native thermals behave.
 
 | Phenomenon | Result |
 | --- | --- |
 | **Ridge lift** | Modeled. Vertical air speed is close to wind × slope of the ground directly below, fading with height, and gone by about 1100 m above the ground |
-| **Thermals** | None found in about 75 km of straight flight under cumulus. The thermal setting added a uniform sink of about 14% of its value. See the [limits](#limits): this was not a search aimed at the clouds |
+| **Thermals** | Documented by Laminar as tied to cumulus, and not yet characterized here. Straight flights that could not see the clouds met none in about 75 km, which does not show they are absent. The thermal setting added a uniform sink of about 14% of its value |
 | **Wave** | Not found. Air downwind of the Sierra Nevada stayed steady in a wind profile chosen to produce wave |
 
 ## How it was measured
@@ -51,6 +51,10 @@ Other behaviour seen:
 
 ## Thermals
 
+Laminar's [flight model report](https://developer.x-plane.com/article/x-plane-12-flight-model-report/) describes thermals connected to cumulus clouds, rising to the cloud tops, fading below 100 m above the ground, and building from 9 am until fading from 3 to 6 pm. The report was written during X-Plane 12's development, so details may differ in 12.4.3.
+
+The flights below were not built to test that. A script that cannot see the clouds flew straight lines, so they measure the air along those lines and could miss narrow lift under a cloud. They were inside the heights and hours Laminar describes.
+
 **Site:** over Hobbs, New Mexico (KHOB), flat terrain, at local noon with the sun about 38° high. **Weather:** wind 5 kt, thermal setting in manual weather ("Climb Rate under Cumulus Clouds") as in the table. A screenshot during the custom runs showed a normal field of cumulus at the set height.
 
 | Weather | Thermal setting | Height above ground (m) | Distance (km) | Lift (m/s) |
@@ -62,12 +66,16 @@ Other behaviour seen:
 | Preset *vfr_scattered* (cumulus 37.5%) | 500 ft/min | About 1500 → 1100 | 12 | −0.31, sd 0.04 |
 | Preset *convective*, flown above the cloud base | 500 ft/min | About 1500 → 1200 | 12.5 | +0.01, sd 0.18 (−0.56 to +0.41) |
 
-- **No thermal was met** on the runs under the clouds. The highest window on the 30 km run was still sink.
-- **The setting adds sink everywhere:** about 14% of its value, steady from 400 m above the ground up to the cloud base, and absent with the setting at 0. At 90 km/h this takes the ASK 21 from 0.86 to about 1.2 m/s of sink. It looks like a balancing downdraft spread over the region, but that is a guess.
-- **The *convective* run is the only one with real variation.** It was flown above the base, in a different kind of sky, and was not followed up.
-- **`sim/weather/aircraft/thermal_rate_ms` is not a local sensor.** It read the regional setting, 2.54 m/s, everywhere, so it cannot show where lift is.
+What was measured:
 
-Laminar's [flight model report](https://developer.x-plane.com/article/x-plane-12-flight-model-report/) describes thermals connected to cumulus clouds, rising to the cloud tops, fading below 100 m above the ground, and building from 9 am until fading from 3 to 6 pm. These runs were inside those heights and hours, but the report was written during X-Plane 12's development and may not describe 12.4.3.
+- **The setting adds sink along the whole path:** about 14% of its value, steady from 400 m above the ground up to the cloud base, and absent with the setting at 0. At 90 km/h this takes the ASK 21 from 0.86 to about 1.2 m/s of sink.
+- **`sim/weather/aircraft/thermal_rate_ms` is not a local sensor.** It read the regional setting, 2.54 m/s, everywhere, so it cannot show where lift is.
+- **No lift was met** on the runs under the clouds. The highest window on the 30 km run was still sink.
+
+Two leads were not followed up, and both are only possibilities:
+
+- **The uniform sink** might be the air balancing lift somewhere else, which would point to thermals these lines did not cross.
+- **The *convective* run** is the only one with real variation. It was flown above the cloud base, in a different kind of sky.
 
 ## Wave
 
@@ -83,7 +91,7 @@ The air was smooth on every pass, with no bands of lift and sink downwind. The o
 
 ## Limits
 
-- **The thermal search was not aimed at clouds.** The script cannot see them, so it flew straight lines. Narrow thermals under cloud centres could have been missed. A hand-flown check aiming at the clouds is still to be done, so the result is "not found", not "not modeled".
+- **The thermal flights were not aimed at clouds,** so they cannot say whether native thermals exist, how many there are or how they feel. Still to do: a hand flight aiming at cloud centres, and a dense scripted sweep of a small area.
 - **Real weather was not measured.** X-Plane did set a regional thermal rate (0.62 m/s at KHOB), but the glider was upset within seconds of both air starts in a wind of about 40 kt.
 - **Few sites and days.** One ridge, one thermal site and two crossings of one range, each on a single session, with one glider.
 - **The wave test used one wind profile** and the default temperature profile. A different atmosphere was not tried.
@@ -91,7 +99,7 @@ The air was smooth on every pass, with no bands of lift and sink downwind. The o
 
 ## What it means in practice
 
-- **If your plugin provides its own thermals,** keep X-Plane's thermal setting at 0, or its uniform sink adds to yours.
+- **If your plugin provides its own thermals,** keep X-Plane's thermal setting at 0, or its uniform sink adds to your lift.
 - **To detect lift,** use total energy minus the glider's polar, since `thermal_rate_ms` does not vary with position.
 - **Ridge lift already works** close to the face, so there is no need to replace it for ridge running.
 - **If you script air starts through the web API,** give the payload. After an X-Plane restart the ASK 21 loaded empty (360.6 kg), with its centre of gravity so far aft that it pitched up to 45° at full forward stick.

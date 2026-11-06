@@ -11,6 +11,7 @@ The project keeps two kinds of text. [`notes/`](../notes/README.md) records how 
 - **Separate what was measured from what it might mean.** Mark an interpretation as one.
 - **State what was not found precisely.** "Not found in these flights" is a result. "Does not exist" needs more evidence.
 - **Keep to measurements about other people's work.** Describe what X-Plane and other plugins do, without judging them.
+- **Present the plugin as another option for soaring in X-Plane.** Say what it does, without ranking it against what the simulator offers.
 - **Write in plain English,** with SI units first and aviation units where pilots expect them (wind in knots).
 
 ## Shape of a finding

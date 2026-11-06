@@ -6,7 +6,7 @@ xp-gliding is in development and has not been released. This documentation is gr
 
 What was measured about X-Plane 12 along the way, written for plugin authors and anyone curious about how it handles soaring. Each finding gives its method and limits, so the results can be checked or repeated.
 
-- [What X-Plane 12 models natively for soaring](findings/native-soaring.md): ridge lift, thermals and wave, measured in flight.
+- [Measuring X-Plane 12's native soaring](findings/native-soaring.md): ridge lift, thermals and wave, measured in flight, with the thermal part still incomplete.
 
 ## Still to come
 

@@ -15,7 +15,7 @@ This is the reference specification for xp-gliding, a thermal layer for X-Plane 
 
 ## Goal and principles
 
-**The goal is good thermals** (redefined by Juan Luis on 2026-11-05, after the first flights): thermals you find by reading the clouds and climb in by hand. X-Plane 12 draws cumulus but no thermal was found under them ([test I](#native-soaring-in-xp12)); that is the gap this project fills. XP12 keeps the weather, the ridge lift and the flight model. Condor's soaring remains the inspiration, not the target. The project started from Alex Ferrer's [xplane_thermals](https://github.com/alexferrer/xplane_thermals) plugin.
+**The goal is good thermals** (redefined by Juan Luis on 2026-11-05, after the first flights): thermals you find by reading the clouds and climb in by hand. The project is an independent proposal for thermals, another option for soaring in X-Plane 12 and not a competitor to it (Juan Luis, 2026-11-05), so its reason to exist does not depend on what [the native thermals](#native-soaring-in-xp12) turn out to be. XP12 keeps the weather, the ridge lift and the flight model. Condor's soaring remains the inspiration, not the target. The project started from Alex Ferrer's [xplane_thermals](https://github.com/alexferrer/xplane_thermals) plugin.
 
 **What it promises**
 
@@ -41,7 +41,7 @@ This is the reference specification for xp-gliding, a thermal layer for X-Plane 
 
 **First principle: the sky must be readable.** What you see tells you where the lift is. Clouds are a consequence of the thermal model, never independent decoration, and a thermal found by looking is the test of the whole project.
 
-**Second principle: native first.** Whatever XP12 does well natively, we use as it is, and the measurements backed this up: its ridge lift works, so we leave it alone. Native effects are better physics than ours, since XP12 moves the air itself and the flight model and vario see it; ours is a force on the aircraft. No effect is ever applied twice: each lift source is native or ours, recorded in [Native soaring in XP12](#native-soaring-in-xp12). These decisions are made with measurements, not forum reports.
+**Second principle: native first, apart from the thermals.** The thermals are the project's own proposal. Beyond them, whatever XP12 does well natively, we use as it is, and the measurements backed this up: its ridge lift works, so we leave it alone. Native effects are better physics than ours, since XP12 moves the air itself and the flight model and vario see it; ours is a force on the aircraft. No effect is ever applied twice: each lift source is native or ours, recorded in [Native soaring in XP12](#native-soaring-in-xp12). These decisions are made with measurements, not forum reports.
 
 **Third principle: the flight decides.** Literature gives the first numbers. Offline tests and the test pilot rule things out and save flights. A number stays only if it flies well by hand, and each departure from a published model is documented as one.
 
@@ -166,8 +166,8 @@ The plugin is slow and depends on calibration by design, not because it is writt
 
 | Piece | XP12 alone | xp-gliding |
 | --- | --- | --- |
-| Thermals | None found; the setting adds a uniform sink (measured 2026-11-03) | The core of the project |
-| A cloud over each thermal | Draws cumulus, not tied to any lift | Its own particle clouds, born and dying with their thermal |
+| Thermals | Documented by Laminar, tied to cumulus; not characterized by us ([below](#native-soaring-in-xp12)) | The core of the project: another option, with thermals of its own |
+| A cloud over each thermal | Draws cumulus; the link to its thermals was not measured | Its own particle clouds, born and dying with their thermal |
 | Wind | The wind of the day, which carries the glider | Read, and thermals follow it ([Wind](#wind), next) |
 | Ridge | Native: wind × slope under the aircraft, fading with height (measured 2026-11-03) | Left alone |
 | Vario | Depends on each aircraft | A soaring HUD ([hud.md](hud.md)) |
@@ -180,7 +180,7 @@ XP12 already models some soaring lift. Following the native-first principle, thi
 **What was measured (2026-11-03, Laminar ASK 21, details in [baseline.md](baseline.md))**
 
 - **Ridge (test H, a Pennsylvania ridge, 12 and 25 kt).** XP12 moves the air with a *local slope model*: the vertical air speed is close to wind × slope of the ground directly under the aircraft, scaled by height above that ground (about 1 near the surface, 0.5 at 500 m AGL, roughly 0 by 1000–1100 m AGL), linear in wind speed, smooth (r ≈ 0.9 between measured lift and wind × slope). Ridge running works: at crest level 600 m out from the face, 25 kt gave +1.4 m/s on average and the ASK 21 climbed. Gaps: no lift band upwind of the foot of the slope or above and ahead of the crest; lee sink is the exact mirror of windward lift (−3.7 m/s at 25 kt behind the crest) with no rotor or turbulence; every bump of the terrain makes its own lift and sink.
-- **Thermals (test I, KHOB, cumulus 40%, 500 fpm setting).** No thermal was found in ~75 km of straight flight from 400 m AGL up to just below cloud base, with custom and preset cumulus, although the clouds were drawn. The only measurable effect of the setting is a uniform sink everywhere, about 14% of the setting (−0.35 m/s at 500 fpm, constant to ±0.05 m/s; absent with the setting at 0). `sim/weather/aircraft/thermal_rate_ms` is not a sensor: it repeats the regional setting everywhere. With real weather X-Plane does set a nonzero regional rate (0.62 m/s at KHOB), so the "slider stuck at 0" report did not hold. Still open: one hand-flown check aiming at cloud centers, in case native thermals exist but are too narrow or rare to meet in straight flight.
+- **Thermals (test I, KHOB, cumulus 40%, 500 fpm setting).** No thermal was found in ~75 km of straight flight from 400 m AGL up to just below cloud base, with custom and preset cumulus, although the clouds were drawn. The only measurable effect of the setting is a uniform sink everywhere, about 14% of the setting (−0.35 m/s at 500 fpm, constant to ±0.05 m/s; absent with the setting at 0). `sim/weather/aircraft/thermal_rate_ms` is not a sensor: it repeats the regional setting everywhere. With real weather X-Plane does set a nonzero regional rate (0.62 m/s at KHOB), so the "slider stuck at 0" report did not hold. This does not show that native thermals are absent: Laminar documents them, and straight lines blind to the clouds can miss narrow lift under them. See the [open question](#open-questions-and-verifications).
 - **Wave (test J, Sierra Nevada at Bishop, wind from 250° rising from 26 kt at 11000 ft to 50 kt at 25000 ft).** Not modeled: over the Owens Valley, 5–28 km downwind of the crest, the air is still to ±0.02 m/s at crest +600 m and +2000 m; only the local slope effect appears near the crest and lee slopes.
 
 **What was reported before measuring (checked 2026-11-02)**
@@ -195,7 +195,7 @@ XP12 already models some soaring lift. Following the native-first principle, thi
 | --- | --- | --- |
 | Wind, temperature, dew point, clouds, cloud base | XP12 | It is the atmosphere; we read it |
 | Ridge lift | **XP12** | Native air motion, measured good close to the face (test H). Its gaps are [set aside](#set-aside) |
-| Thermals | **Plugin** (strategy A) | Native thermals were not found, and the setting adds a uniform sink; it stays at 0 under our thermals |
+| Thermals | **Plugin** (strategy A) | The project's own proposal. The native setting stays at 0 under our thermals, since each lift source is one or the other and the setting adds a uniform sink |
 | Streets | Plugin, later | Not modeled natively |
 | Wave, convergence | Nobody | Not modeled natively (test J), and [set aside](#set-aside) |
 
@@ -207,7 +207,7 @@ Thermals are where the project adds the most. There are three ways to combine ou
 - **B. Anchor to XP12's clouds.** Keep XP12's cumulus as the truth and place our thermals under them. The most coherent option, but only possible if a plugin can learn where XP12 draws each cumulus, which the SDK probably does not expose (*verify*).
 - **C. Modulate native thermals.** Only drive the regional `sim/weather/region/thermal_rate_ms` (for example with a daily cycle). Minimal work, but it adds no structure (profile, sink ring, life cycle).
 
-**Audit result (test I, 2026-11-03):** native thermals were not found at all, and turning them on only adds a uniform sink of ~14% of the setting, so C has nothing to modulate and B has nothing to anchor to; the data point to A, with the native setting at 0.
+**Why A:** it is the only option that gives the project thermals of its own, which is the proposal, and it stands whatever native thermals turn out to be. Test I (2026-11-03) was read at first as support, since it met no native thermal and found a uniform sink of ~14% of the setting, but its method cannot show they are absent. What it does settle is that the native setting should be 0 under our thermals.
 
 ## XP12 SDK capabilities and limits
 
@@ -612,7 +612,7 @@ These questions do not have an answer yet; they are resolved in the phase indica
 - [x] What is the project? **Good thermals; wind first, then the rest** (2026-11-05). See [Goal and principles](#goal-and-principles) and [Set aside](#set-aside). Terrain triggers stay in the project, after the day (phase 6). The model comes first: integration (XCSoar, HUD, audio vario) and publishing wait until the end, if the result is good (phase 7).
 - [x] What is missed most from Condor when flying gliders in XP12? **Finding thermals by looking at the clouds** (2026-11-03). That made coherent cumulus (phase 2) the priority right after the phase 1 physics. **The same day** he also asked for an own HUD, permanently, with netto, a centring aid, the thermal average, the height to the top and audio ([hud.md](hud.md)).
 - [x] Main use: **full-size gliders only, and only the Laminar ASK 21 that ships with XP12 for now** (2026-11-03). RC is out of scope until further notice.
-- [x] Thermal strategy: **A, replace** (2026-11-03, after test I). Native thermals were not found and their setting only adds a uniform sink, so the plugin owns thermals and keeps the native setting at 0 while it is active. Until phase 2 draws its own cumulus, XP12's clouds will not match our thermals (fly it as a blue day).
+- [x] Thermal strategy: **A, replace** (2026-11-03; its reason restated on 2026-11-05, see [Thermal strategy](#native-soaring-in-xp12)). The plugin owns thermals as its own proposal and keeps the native setting at 0 while it is active. Until phase 2 draws its own cumulus, XP12's clouds will not match our thermals (fly it as a blue day).
 - [x] Relationship with XP12's weather: **native first, complement instead of compete** (2026-11-02). See the second principle in the vision.
 - [x] Reference glider: **the Laminar Schleicher ASK 21 that ships with XP12**. All tuning and measurements are done with it. A second aircraft (for example the NHAdrian ASK 21) was planned as a check that nothing depends on per-aircraft calibration; **deferred** on 2026-11-03 until the project is complete with the ASK 21.
 - [x] Repository and project name: **xp-gliding**.
@@ -641,7 +641,8 @@ These questions do not have an answer yet; they are resolved in the phase indica
 - [x] Are Allen's mean-day thermal radii wide enough to circle an ASK 21 in? **Barely, and only circling tight** (2026-11-03, [phase1.md](phase1.md#thermals-of-the-engine)). With w* 3 m/s and zi 2000 m, r2 is ~135 m at mid height but the strong core only ~40 m. Perfectly centred, at 35° and 90 km/h only ~10% of the thermals can be climbed; at 45° and 80 km/h ~40% (best 10% ~+1.3 m/s), and almost none above 0.7 zi. Laminar's ASK 21 adds to it: it sinks ~2.1 m/s circling at 45° and cannot hold 80 km/h there. Tuning the sky (widths, strengths, density, the environment sink of −0.26 m/s) is a decision still to make, against real climb rates rather than to make up for this glider's flight model. **Candidate, offline** (2026-11-04, [phase2.md](phase2.md#a-wider-sky-under-the-clouds)): a cloud carrier stretched x2 gives, in this glider, +2.3 to +2.7 m/s at 31° and 83 km/h, perfectly centred. Flown once by hand (2026-11-05): +2.31 m/s at 35° and 95 km/h.
 - [x] Which Python version does XPPython3 use, and can numpy be installed in it? **Python 3.12; numpy is auto-installed since v4.4.** Confirmed on 2026-11-02: XPPython3 4.7.1 bundles Python 3.12.2 and installed numpy 2.5.4 on first launch.
 - [x] Does stu-speed/xppython3-atmos overlap with this project or offer something reusable? **Partly overlaps in scope (ridge, wave, cumulus lift), but it is design docs only, AGPL-3.0, and plans to write vertical wind datarefs that XP 12.4.3 does not have.** Nothing to reuse beyond ideas; details in the XPPython3 section.
-- [x] How do XP12's native thermals behave and how can they be neutralized reliably? **None were found; the setting adds a uniform sink of ~14% of its value; setting it to 0 removes it** (sink back to the test A polar within 0.01 m/s). Test I, 2026-11-03.
+- [x] How can XP12's native thermals be neutralized reliably? **The setting adds a uniform sink of ~14% of its value, and setting it to 0 removes it** (sink back to the test A polar within 0.01 m/s). Test I, 2026-11-03.
+- [ ] How do XP12's native thermals behave? **Not known yet** (reopened on 2026-11-05, Juan Luis: not finding them does not show they are absent). Laminar documents them, tied to cumulus. Test I flew straight lines blind to the clouds and met none. Its leads are the uniform sink, which might balance lift elsewhere, and the variation on the *convective* run (−0.56 to +0.41 m/s, above the cloud base). This is to make what we publish correct, not a condition of the project. To do: Laminar's documentation and pilots' reports, a hand flight aiming at cloud centers, a dense scripted sweep of a small area, and real weather in light wind.
 - [x] How good is XP12's native ridge lift: strength against wind and slope, lee-side sink, rotor? **Wind × local slope, fading to ~0 by ~1100 m AGL, mirror-image lee sink, no rotor.** Test H, 2026-11-03.
 - [x] Does XP12 model mountain waves at all? **No.** Test J, 2026-11-03.
 - [ ] Can a plugin learn where XP12 draws each cumulus (needed for thermal strategy B)? (phase 1)
