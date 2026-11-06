@@ -35,7 +35,7 @@ thermals merge into a stronger one, which real thermals do.
 Sky profiles. `SkyProfile` shapes the sky without moving anything in it: the same random
 stream draws the same thermals in the same places, then the thermals that carry a cloud
 can be stretched and the others thinned out and weakened. The default changes nothing.
-See `SkyProfile` for what the numbers mean, and docs/phase2.md for how they were measured.
+See `SkyProfile` for what the numbers mean, and notes/phase2.md for how they were measured.
 
 The wind carries the whole sky from outside (`wind.py`): this module is in the air's frame.
 The lean is from outside too: the field is the sky at the clouds' base, and whoever asks at a
@@ -63,7 +63,7 @@ WGAIN_RANGE = (0.3, 2.5)
 RGAIN_RANGE = (0.5, 2.0)
 
 # Which thermals carry a cloud, from their drawn numbers: the largest mass flux, and a life
-# long enough for a cloud to form and fade (docs/phase2.md). `clouds.CloudParams` defaults
+# long enough for a cloud to form and fade (notes/phase2.md). `clouds.CloudParams` defaults
 # to these.
 CARRIER_MIN_FLUX = 2.0
 CARRIER_MIN_LIFE_S = 720.0
@@ -120,7 +120,7 @@ def is_carrier(wgain, rgain, life_s):
 class SkyProfile:
     """How a sky differs from the one the random stream draws. Defaults: not at all.
 
-    Deviations from Allen's model, so they stay on record (docs/SPEC.md "Thermal model"):
+    Deviations from Allen's model, so they stay on record (notes/SPEC.md "Thermal model"):
     - `carrier_stretch` widens a thermal that carries a cloud by this factor, shape and all:
       the lift at r is the lift Allen gives at r / stretch. Raising `rgain` instead would
       follow his Eq. 13, where the core ratio grows with r2, so a wide thermal has a lower
@@ -158,7 +158,7 @@ class SkyProfile:
 # The skies that can be chosen by name (`"sky"` in the plugin's config.json).
 SKIES = {
     "default": SkyProfile(),
-    # First guesses to judge by flying, measured offline and flown a little (docs/phase2.md).
+    # First guesses to judge by flying, measured offline and flown a little (notes/phase2.md).
     "wide_carriers": SkyProfile(carrier_stretch=2.0, blue_keep=0.15, blue_gain=0.6, blue_stretch=0.75,
                                 cloud_base_zzi=0.75),
     "medium_carriers": SkyProfile(carrier_stretch=1.5, blue_keep=0.15, blue_gain=0.6, blue_stretch=0.75,

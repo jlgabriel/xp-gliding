@@ -6,7 +6,7 @@ Usage:
 Replaces the current flight with the Laminar ASK 21 flying over Hobbs, NM
 (KHOB, the phase 0 site) at the given altitude and airspeed, in calm, clear
 weather at local noon, and sets the native thermal rate to zero. Matches the
-still-air conditions of test A in docs/baseline.md.
+still-air conditions of test A in notes/baseline.md.
 
 Reference: https://developer.x-plane.com/article/flight-initialization-api/
 (`lle_air_start`, custom weather definition). Measurement tool, not part of

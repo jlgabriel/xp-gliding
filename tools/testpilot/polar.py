@@ -1,4 +1,4 @@
-"""Still-air polar of the Laminar ASK 21 measured in test A (docs/baseline.md).
+"""Still-air polar of the Laminar ASK 21 measured in test A (notes/baseline.md).
 
 Measurement tool, not part of the plugin. License: GPL-3.0-or-later.
 """

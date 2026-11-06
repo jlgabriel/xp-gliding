@@ -19,7 +19,7 @@ at its top and greyer at its bottom, and initial rotation stays small to keep th
 fade out before the edge of their cell: a puff cut by the cell shows as a straight line
 from close up (seen flying through the first version).
 
-Found by trying in X-Plane 12.4.3 under Vulkan (docs/phase2.md, `tools/cloudlab/`):
+Found by trying in X-Plane 12.4.3 under Vulkan (notes/phase2.md, `tools/cloudlab/`):
 - An emitter's table can have a dataref of the instance as its slot, and it follows the
   value set with XPLMInstanceSetPosition, per instance, in flight.
 - Destroying an instance removes its particles at once.

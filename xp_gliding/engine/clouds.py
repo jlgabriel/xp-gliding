@@ -10,7 +10,7 @@ Which thermals. About 4.5 are alive per km2, and a cumulus sky has one cloud eve
 few km, so about 3% get one: the largest mass flux (`wgain * rgain^2`), which is what
 would carry moist air highest, and with a life long enough for the cloud to form and
 fade while the thermal lives. With the defaults that is 0.12 clouds per km2, one
-every ~2.8 km, measured offline (docs/phase2.md).
+every ~2.8 km, measured offline (notes/phase2.md).
 
 A cloud cannot be changed once drawn, only fed. Each is an emitter of long-lived
 particles that do not move (see `tools/make_cloud_objs.py`). All that can be
@@ -37,7 +37,7 @@ from .geo import radii_of_curvature
 TOP_ZZI = 1.0 / 1.1  # the lift ends at this z/zi (Allen Eq. 11), the same as the markers' top
 CREATE, RATE, DESTROY = 0, 1, 2  # actions of CloudPlanner.step
 # Cloud size against wgain x rgain: this value gets the object's size. It keeps the median size
-# that a size from rgain alone had (1.07), so the sky is as cloudy (docs/phase3.md).
+# that a size from rgain alone had (1.07), so the sky is as cloudy (notes/phase3.md).
 SCALE_WR = 1.7
 SCALE_RANGE = (0.6, 1.4)
 

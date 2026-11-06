@@ -1,4 +1,4 @@
-"""The wind carries the sky (docs/SPEC.md "Wind").
+"""The wind carries the sky (notes/SPEC.md "Wind").
 
 The wind is X-Plane's: it carries the glider, and nothing here models it. To carry the
 thermals along with the glider, the field keeps the positions it generated in a frame that
@@ -19,7 +19,7 @@ With no wind the offset stays at zero and this changes nothing, thermal for ther
 Same seed, date, place, time and offset: same sky. The offset starts at zero when the
 aircraft is loaded, and the adapter publishes it so the test pilot's oracles can rebuild the sky.
 
-The lean (`Lean`, off by default, docs/phase3.md): the field holds the sky as it is at the
+The lean (`Lean`, off by default, notes/phase3.md): the field holds the sky as it is at the
 clouds' base, and at a height z the lift is that sky shifted upwind by
     L(z) = integral from z to the base of f * U(z') / w* dz', with each slope capped.
 A rigid plume tilted by its rise time would be f = 1, and runs away from a climbing glider.
@@ -39,7 +39,7 @@ from .geo import radii_of_curvature, wrap_lon_deg
 # stopped. The air does not travel across it.
 MAX_STEP_S = 5.0
 
-# The lean: first guesses to judge by flying (docs/phase3.md).
+# The lean: first guesses to judge by flying (notes/phase3.md).
 LEAN_FRACTION = 0.1  # of the slope of a plume tilted by its rise time, U / w*
 LEAN_MAX_SLOPE = 0.5  # metres upwind per metre of height, the steepest at any height
 LEAN_STEP_M = 100.0  # the table's spacing in height

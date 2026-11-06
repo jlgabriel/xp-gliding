@@ -6,11 +6,12 @@ Started 2026-11-02 · Juan Luis Gabriel
 
 This is the reference specification for xp-gliding, a thermal layer for X-Plane 12. It gathers the goal, the diagnosis of the existing plugin, what was measured, the decisions taken and the roadmap.
 
-- **Source of truth:** this file (`docs/SPEC.md`) is the single source of truth and is referenced from `CLAUDE.md`. For any design question, this document rules; if something contradicts what is observed in the simulator, the observation wins and this document is updated.
+- **Source of truth:** this file (`notes/SPEC.md`) is the single source of truth and is referenced from `CLAUDE.md`. For any design question, this document rules; if something contradicts what is observed in the simulator, the observation wins and this document is updated.
 - **Keep it current:** after each phase, come back here and record what was resolved or changed, so the document never falls behind the code.
 - **Certainty level:** items marked *verify* are reasonable assumptions that have not been confirmed by tests or documentation. Do not treat them as facts.
 - **Scope:** good thermals (decided 2026-11-05). What was considered earlier and left out is listed in [Set aside](#set-aside), so the ideas are not lost.
 - **Language:** everything in the repository is written in English. The original Spanish draft of this document is no longer maintained.
+- **Notes and documentation:** this file and the rest of `notes/` are the working records. The text for readers outside the project is in [`docs/`](../docs/README.md), under its [writing guide](../docs/writing-guide.md).
 
 ## Goal and principles
 
@@ -592,7 +593,7 @@ Rewritten on 2026-11-05 around good thermals. **This stage is the model only** (
    - [ ] Refine the HUD ([hud.md](hud.md#still-open)) and add the audio vario.
    - [ ] XCSoar through NMEA.
    - [ ] Install instructions, and a release.
-   - [ ] Findings for the community (asked for by Juan Luis, 2026-11-04): a section that shares the analyses and tests done (`docs/baseline.md`, `phase1.md`, `phase2.md`, `hud.md`: X-Plane's native soaring, plugin forces, particle emitters, drawing costs), readable by people outside the project, with each method and its limits. He rates this work almost as interesting as the plugin itself. Its form is still to agree.
+   - [ ] Findings for the community (asked for by Juan Luis, 2026-11-04): a section that shares the analyses and tests done (`notes/baseline.md`, `phase1.md`, `phase2.md`, `hud.md`: X-Plane's native soaring, plugin forces, particle emitters, drawing costs), readable by people outside the project, with each method and its limits. He rates this work almost as interesting as the plugin itself. Its form was agreed on 2026-11-05: Markdown pages in [`docs/findings/`](../docs/findings/native-soaring.md), written alongside the model since a finding about X-Plane does not age with it. Native soaring is written as the sample; plugin forces, particle emitters, drawing costs and the rest are to come.
    - *Done when:* someone else installs it and climbs under a cloud.
 
 **In parallel with the model: the [settings menu](#settings-menu)**

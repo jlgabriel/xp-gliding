@@ -47,7 +47,7 @@ def test_a_cloud_depends_only_on_the_thermal():
 
 
 def test_density_is_a_cumulus_sky():
-    """About one every 3 km: the number docs/phase2.md gives."""
+    """About one every 3 km: the number notes/phase2.md gives."""
     c = config()
     p = cl.CloudParams()
     area, count = 0.0, 0

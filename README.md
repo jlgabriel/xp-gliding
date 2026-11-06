@@ -4,7 +4,9 @@ A thermal soaring plugin for X-Plane 12: thermals you can find by reading the cl
 
 It builds on what X-Plane 12 already does well. The weather, the wind, the ridge lift and the flight model stay X-Plane's, and the plugin adds thermals tied to clouds of their own.
 
-> **Status: in development, not released yet.** It flies, and for now all the work goes into the thermal model, tuned by flying. A release and an install guide come at the end, if the result is good. Thermals and clouds now follow X-Plane's wind, flown so far by the test pilot and not yet by hand.
+![The plugin's soaring HUD while circling in a thermal, in the Laminar ASK 21](docs/images/hud-in-thermal.jpg)
+
+> **Status: in development, not released yet.** It flies, and for now all the work goes into the thermal model, tuned by flying. A release and an install guide come at the end, if the result is good.
 
 ## What it does today
 
@@ -18,16 +20,12 @@ It builds on what X-Plane 12 already does well. The weather, the wind, the ridge
 
 ## Where it is going
 
-This stage is the model only, in this order:
+The next work is on the model, in this order: thermals in a wind that changes with height, a sound default sky that respects the terrain, strength and cloud base taken from X-Plane's weather with a daily cycle, and thermals born where the ground and sun would trigger them. The details are in the [roadmap](notes/SPEC.md#phased-roadmap).
 
-1. **Wind (in progress).** Flown by hand in a uniform wind. Then shear: in a wind that changes with height, thermals do not tilt or deform yet, and the lift should sit upwind of its cloud.
-2. **A sound sky.** A default sky chosen by flying, and the feel of a thermal judged by hand. Thermals that respect the terrain, since today they can appear over water and cloud heights in the mountains use the ground under the glider. Next to X-Plane's own clouds, which have not been flown with ours yet.
-3. **The day.** Strength and cloud base from X-Plane's weather instead of two fixed settings, a daily cycle and cloud shadow.
-4. **Terrain triggers.** Thermals born where they would be in reality, from the ground type, slope and sun.
+## Documentation
 
-At the end, if the result is good: refining the HUD, an audio vario, XCSoar, an install guide and a release, and a readable section with the findings for the community.
-
-Set aside, with no plans: wave, ridge corrections, convergence lines, AI gliders, briefing, IGC and replay, force feedback, multiplayer, a native C++ plugin, racing.
+- **[Documentation](docs/README.md):** start here, including what was [measured about X-Plane's native soaring](docs/findings/native-soaring.md).
+- **[Working notes](notes/README.md):** the full records of the work, with the current design and roadmap.
 
 ## What it is not
 

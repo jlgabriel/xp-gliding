@@ -6,7 +6,7 @@ Usage:
 For the thermals that carry a cloud, at full strength, over several seeds and places: how
 each candidate for the cloud's size relates to the core and to what an ASK 21 climbs, and
 the sizes that candidate gives. `climb` is the lift on a centred circle of 91 m (35 deg at
-90 km/h) minus 1.4 m/s of sink (docs/hud.md), so it counts width as well as peak.
+90 km/h) minus 1.4 m/s of sink (notes/hud.md), so it counts width as well as peak.
 
 Measurement tool, not part of the plugin. License: GPL-3.0-or-later.
 """

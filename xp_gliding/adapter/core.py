@@ -28,7 +28,7 @@ X-Plane's conventions (DataRefs.txt, XP 12.4.3): `faxil_plug_acf` positive
 pushes the aircraft *backward*, `fside_plug_acf` positive pushes it right,
 `fnrml_plug_acf` positive pushes it up, `L_plug_acf` positive rolls right.
 `sim/flightmodel/position/beta` is positive with the nose right of the flight
-path (measured, docs/baseline.md), the opposite of the engine's convention.
+path (measured, notes/baseline.md), the opposite of the engine's convention.
 
 Debug modes, for measurements: `uniform_ms` replaces the field with the same
 w everywhere (repeats baseline test B with our physics); `debug_dwdy` replaces

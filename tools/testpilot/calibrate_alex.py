@@ -7,7 +7,7 @@ Alex's settings as `xp_gliding/flightlog/alex_*` datarefs):
 Each segment is an air start over KHOB in calm, clear air (test A
 conditions), Alex's plugin enabled in calibration mode with the slider and
 factors of that segment, a settle, and a recorded stretch at a fixed IAS.
-The result is vs_te against test A at the same IAS (docs/baseline.md). Alex's
+The result is vs_te against test A at the same IAS (notes/baseline.md). Alex's
 original settings are read first and written back at the end, whatever
 happens, because his plugin saves them to init_values.json when X-Plane
 closes.

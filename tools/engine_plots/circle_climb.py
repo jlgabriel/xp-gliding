@@ -10,7 +10,7 @@ circle centred on the thermal (the best a pilot can do for a round thermal),
 with the radius the ASK 21 flies at each bank and IAS: R = TAS^2 / (g tan bank).
 The climb is that average minus the glider's sink in the turn, from the test A
 polar and its n^1.5 turn model plus the 0.18 m/s that the model fell short of
-the measured circling sink at 35 deg and 90 km/h (phase1.md). Prints, per
+the measured circling sink at 35 deg and 90 km/h (notes/phase1.md). Prints, per
 height and turn, the median and 90th percentile climb and the share of thermals
 that give more than 0, 0.5 and 1 m/s.
 
