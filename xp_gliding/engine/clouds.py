@@ -26,6 +26,10 @@ which removes its particles at once (flown 2026-11-04). So:
   the rest arrive as the glider approaches, also with a short fast emission.
 - Going out of range is a fade too, so no cloud vanishes in sight of the glider.
 
+How high (`ground_points`, `cloud_base_m`). Real bases are level, and a particle stays where it
+was emitted, so a cloud keeps one height for life: the higher of a level for the area and the
+highest ground under it and along its drift, plus a margin (notes/SPEC.md "Generation").
+
 Pure Python: no `xp`. `CloudPlanner.step` returns what to do, the adapter does it.
 """
 
@@ -40,6 +44,10 @@ CREATE, RATE, DESTROY = 0, 1, 2  # actions of CloudPlanner.step
 # that a size from rgain alone had (1.07), so the sky is as cloudy (notes/phase3.md).
 SCALE_WR = 1.7
 SCALE_RANGE = (0.6, 1.4)
+# The height of a cloud (notes/phase3.md). First guesses.
+BASE_MARGIN_M = 300.0
+GROUND_STEP_M = 1000.0  # the ground is read this far apart along a cloud's drift
+CLOUD_HALF_WIDTH_M = 500.0  # at scale 1, as `tools/make_cloud_objs.py` draws it
 
 
 class CloudParams:
@@ -91,6 +99,46 @@ def feeding_window(thermal, params):
     """Times between which the cloud is fed: (start, stop)."""
     life = thermal.death - thermal.birth
     return thermal.birth + params.form_tau * life, thermal.birth + params.fade_tau * life
+
+
+def cloud_seconds_left(thermal, t, params):
+    """How long something of this cloud will be in the sky: it is fed until `stop`, then lasts
+    one particle life, and is never left after its thermal."""
+    _, stop = feeding_window(thermal, params)
+    return max(min(thermal.death, stop + params.ttl_s) - t, 0.0)
+
+
+def ground_points(lat, lon, half_width_m, wind_e_ms, wind_n_ms, seconds, step_m=GROUND_STEP_M):
+    """Where to read the ground for a cloud at (lat, lon) now: a list of (lat, lon).
+
+    A cross of the cloud's width under it, then three lanes along its drift, in this wind for
+    `seconds`. If the wind changes later, the cloud's height was worked out for another path.
+    """
+    m, n = radii_of_curvature(lat)
+    to_lat = math.degrees(1.0 / m)
+    to_lon = math.degrees(1.0 / (n * max(math.cos(math.radians(lat)), 1e-6)))
+    points = [(lat, lon), (lat + half_width_m * to_lat, lon), (lat - half_width_m * to_lat, lon),
+              (lat, lon + half_width_m * to_lon), (lat, lon - half_width_m * to_lon)]
+    wind = math.hypot(wind_e_ms, wind_n_ms)
+    steps = math.ceil(wind * seconds / step_m)
+    if steps:
+        # Across the track: the wind turned a quarter, as long as the cloud's half width.
+        side_e, side_n = wind_n_ms / wind * half_width_m, -wind_e_ms / wind * half_width_m
+        for k in range(1, steps + 1):
+            s = seconds * k / steps
+            e, c = wind_e_ms * s, wind_n_ms * s
+            for side in (0.0, 1.0, -1.0):
+                points.append((lat + (c + side * side_n) * to_lat, lon + (e + side * side_e) * to_lon))
+    return points
+
+
+def cloud_base_m(level_m, grounds_m, margin_m=BASE_MARGIN_M):
+    """A cloud's base (m MSL): the level, or the margin over the highest ground if that is higher.
+
+    grounds_m: heights MSL, None where the ground could not be read.
+    """
+    known = [g for g in grounds_m if g is not None]
+    return max(level_m, max(known) + margin_m) if known else level_m
 
 
 class CloudCatalog:

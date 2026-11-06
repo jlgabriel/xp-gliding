@@ -252,6 +252,7 @@ The plugin works *on top of* the native weather, never instead of it. Whether th
 **Other**
 
 - Instance API (XPLMInstance) to draw custom .obj models efficiently.
+- Terrain probes (`XPLMProbeTerrainXYZ`), measured 2026-11-06 ([phase3.md](phase3.md#clouds-over-uneven-ground)): about 2 us each from Python, ground found out to at least 125 km from the glider, `result` 2 beyond it with a height that means nothing. They give height, slope and a water flag, not land cover.
 
 **XPPython3 (platform facts, from its documentation, checked 2026-11-02)**
 
@@ -423,6 +424,9 @@ The engine's thermal model lives in `xp_gliding/engine/` and is tested outside t
 **Cloud shadow**
 
 - Under cloudy areas (XP12 weather coverage), less thermal activity. Forces the pilot to read the sky.
+- A visible shadow on the ground under our own clouds, if it can be done (Juan Luis, 2026-11-05). Particles do not seem to cast one ([phase2.md](phase2.md#still-open)), and no other way has been tried. *Verify:* a dark shape laid on the terrain, or hidden geometry in the sky that casts XP12's shadows, and what each costs.
+  - Candidate for the dark shape: `ATTR_draped` in an instanced object. Laminar's OBJ8 page describes draping for scenery objects and does not say whether it works through XPLMInstance, or what moving it costs (it subdivides the triangles to fit the ground). First test: one shadow, moved over flat and rough ground.
+  - A shadow belongs where the sun puts it, not under the cloud: height / tan(sun's elevation) away, so 1500 m at 45° and 5600 m at 15° for a cloud 1500 m up.
 
 **Variety**
 
@@ -435,7 +439,8 @@ The engine's thermal model lives in `xp_gliding/engine/` and is tested outside t
 - Deterministic with a seed (date + area) for reproducibility.
 - Distance conversion with cos(lat).
 - No thermals over water. The engine takes an `accept(lat, lon)` filter, but the adapter does not build one yet, so today there are thermals over the sea (phase 4).
-- The terrain under each thermal, not under the glider, for its height and its cloud's (phase 4).
+- A cloud's height over uneven ground: built ([phase3.md](phase3.md#clouds-over-uneven-ground)). The higher of a level for the area and the highest ground under it and along its drift, plus 300 m (rule approved by Juan Luis, 2026-11-06). The numbers are first guesses, and the level will come from XP12's atmosphere (phase 5).
+- The terrain under each thermal, not under the glider, for the top of its lift (phase 6).
 - Later, [terrain triggers](#terrain-triggers) (phase 6).
 - Configurable generation range around the player (issue #28) and zone-by-zone regeneration as the player moves.
 
@@ -575,7 +580,8 @@ Rewritten on 2026-11-05 around good thermals. **This stage is the model only** (
 4. **A sound sky**
    - [ ] Fly `wide_carriers` and `medium_carriers` (x1.5, nearer the FAA handbook's typical size, [phase2.md](phase2.md#against-the-faas-handbook-and-a-narrower-sky)), with a recorded climb as high as it goes, and choose the default sky. Juan Luis found one thermal by looking at a cloud, markers off, and climbed (2026-11-05, told, not recorded): the first sign of phase 2's criterion.
    - [ ] Test F (phase 1): the feel, by hand.
-   - [ ] The terrain under each thermal: its height and its cloud's, and no thermals over water.
+   - [x] The height of clouds over the ground, by the test pilot (2026-11-06, [phase3.md](phase3.md#clouds-over-uneven-ground)). Not yet seen near a hill by hand.
+   - [ ] No thermals over water. Terrain probes can tell, and cost little ([phase3.md](phase3.md#clouds-over-uneven-ground)); the flag also marks small water.
    - [ ] Fly next to XP12's own cumulus, or say plainly that they should not be mixed. Also dusk and a shift of the local origin ([list](phase2.md#still-open)).
    - *Done when:* there is a default sky chosen by flying, test F is judged, and nothing in the sky contradicts the terrain or XP12's clouds.
 5. **The day**
@@ -645,7 +651,7 @@ These questions do not have an answer yet; they are resolved in the phase indica
 - [ ] How do XP12's native thermals behave? **Not known yet** (reopened on 2026-11-05, Juan Luis: not finding them does not show they are absent). Laminar documents them, tied to cumulus. Test I flew straight lines blind to the clouds and met none. Its leads are the uniform sink, which might balance lift elsewhere, and the variation on the *convective* run (−0.56 to +0.41 m/s, above the cloud base). This is to make what we publish correct, not a condition of the project. To do: Laminar's documentation and pilots' reports, a hand flight aiming at cloud centers, a dense scripted sweep of a small area, and real weather in light wind.
 - [x] How good is XP12's native ridge lift: strength against wind and slope, lee-side sink, rotor? **Wind × local slope, fading to ~0 by ~1100 m AGL, mirror-image lee sink, no rotor.** Test H, 2026-11-03.
 - [x] Does XP12 model mountain waves at all? **No.** Test J, 2026-11-03.
-- [ ] Can a plugin learn where XP12 draws each cumulus (needed for thermal strategy B)? (phase 1)
+- [ ] Can a plugin learn where XP12 draws each cumulus (needed for thermal strategy B)? (phase 1) Two leads, untried and not needed for strategy A: Laminar's [RADR UDP data](https://developer.x-plane.com/article/weather-radar-data/) gives cloud ratio, base and top at scanned points, on a page that does not mention XP12; and `thermal_climb` from `getWeatherAtLocation` has not been compared between places. Both belong with the question about native thermals.
 - [ ] Which method suits per-thermal cumulus? Alex's plugin draws an instanced 3D object at cloud base; the weather API is regional. (phase 2) What matters first is placing one where each thermal is (decided 2026-11-03), so instancing is enough to start with. Alex's cloud (read 2026-11-03) is an almost empty `.obj` holding one XP12 particle-system emitter (`.pss`, a few hundred blended billboards with a cloud texture), instanced at cloud base over each thermal; Juan Luis remembers it looking good. That is the candidate method: same technique with our own `.obj`, `.pss` and texture (his assets' license and origin are unclear), limited to mature thermals near the glider, and its GPU cost measured. The training markers (2026-11-03, [phase2.md](phase2.md#what-x-plane-taught-for-the-cumulus)) settled the placing: instancing from Python is cheap and exact, objects must load with `loadObjectAsync`, textures must not be tiny, and `instanceSetAutoShift` should spare clouds their position updates. **Settled 2026-11-04** ([phase2.md](phase2.md#what-x-plane-does-with-an-emitter)): an object with an emitter works, each can be driven on its own through datarefs of the instance, and 200 of them show no measurable cost.
 - [ ] Do training-marker rings read well from the cockpit, at eye level and stepping once a second, or do they need an offset, a second ring or smoother motion? (test F, by Juan Luis)
 

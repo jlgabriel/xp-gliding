@@ -435,7 +435,7 @@ An object with a particle emitter and its cost were then settled by the [cumulus
 
 ## Known limits
 
-- **Heights of clouds use the ground under the glider** when each is created, which depends on the glider's path (found in review, 2026-11-04). It does not matter over flat ground like KHOB's; in mountains two pilots see the same cloud at different heights. It wants the terrain under each thermal, as the lift does.
+- **Heights of clouds use the ground under the glider** when each is created, which depends on the glider's path (found in review, 2026-11-04). It does not matter over flat ground like KHOB's; in mountains two pilots see the same cloud at different heights. It wants the terrain under each thermal, as the lift does. Replaced on 2026-11-06: [a level, and the ground under each cloud](phase3.md#clouds-over-uneven-ground). The level still depends on where the flight starts.
 - **Rings at eye level read as a bar, not a circle,** since they are at the glider's height by definition. Seen from above they are clearly circles. Lowering them 20–30 m, or adding a faint ring below, would show an ellipse from the cockpit. To decide after test F.
 - **Rings move once a second,** so they step up to ~4 m in a strong climb. To judge in test F.
 - **The ring is the core r1, not where to circle.** Half the lift is reached at about 0.67 r2, ~2.3 r1, and an ASK 21 at 45° circles outside the ring.

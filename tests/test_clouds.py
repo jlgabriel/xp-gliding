@@ -365,3 +365,43 @@ def test_puffs_fade_out_before_the_edge_of_their_cell():
         at = min(k * gen.CELL_PX, atlas.width - 1)
         assert max(alpha.crop((at, 0, at + 1, atlas.height)).get_flattened_data()) == 0
         assert max(alpha.crop((0, at, atlas.width, at + 1)).get_flattened_data()) == 0
+
+
+# --- how high ------------------------------------------------------------------------
+
+def test_with_no_wind_the_ground_is_read_only_under_the_cloud():
+    points = cl.ground_points(KHOB[0], KHOB[1], 500.0, 0.0, 0.0, 1000.0)
+    assert len(points) == 5 and points[0] == (KHOB[0], KHOB[1])
+    frame = LocalFrame(KHOB[0], KHOB[1])
+    offsets = sorted(tuple(round(v) for v in frame.to_enu(*p)) for p in points)
+    assert offsets == [(-500, 0), (0, -500), (0, 0), (0, 500), (500, 0)]
+
+
+def test_in_wind_the_ground_is_read_along_three_lanes_of_the_drift():
+    points = cl.ground_points(KHOB[0], KHOB[1], 500.0, 15.0, 0.0, 1000.0)  # toward the east
+    assert len(points) == 5 + 3 * 15
+    frame = LocalFrame(KHOB[0], KHOB[1])
+    last = sorted(tuple(round(v) for v in frame.to_enu(*p)) for p in points[-3:])
+    assert last == [(15000, -500), (15000, 0), (15000, 500)]
+    # No gap between readings along the way, whichever way the wind blows.
+    east = sorted(frame.to_enu(*p)[0] for p in points[5::3])
+    assert max(b - a for a, b in zip(east, east[1:])) <= cl.GROUND_STEP_M + 1.0
+
+
+def test_a_cloud_is_at_the_level_unless_the_ground_asks_for_more():
+    assert cl.cloud_base_m(2000.0, [500.0, 1000.0]) == 2000.0
+    assert cl.cloud_base_m(2000.0, [500.0, 1700.0]) == 2000.0
+    assert cl.cloud_base_m(2000.0, [500.0, 1701.0]) == 2001.0
+    assert cl.cloud_base_m(2000.0, [3000.0, 500.0], margin_m=100.0) == 3100.0
+
+
+def test_ground_that_cannot_be_read_is_left_out():
+    assert cl.cloud_base_m(2000.0, [None, 3000.0, None]) == 3300.0
+    assert cl.cloud_base_m(2000.0, [None, None]) == 2000.0
+
+
+def test_a_cloud_lasts_one_particle_life_after_it_stops_being_fed_but_not_past_its_thermal():
+    p = cl.CloudParams(fade_tau=0.7, ttl_s=216.0)
+    assert cl.cloud_seconds_left(make_thermal(birth=0.0, life=1000.0), 100.0, p) == 816.0
+    assert cl.cloud_seconds_left(make_thermal(birth=0.0, life=500.0), 100.0, p) == 400.0
+    assert cl.cloud_seconds_left(make_thermal(birth=0.0, life=500.0), 600.0, p) == 0.0

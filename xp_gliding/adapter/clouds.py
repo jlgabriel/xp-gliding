@@ -10,10 +10,11 @@ a cloud is created or its rate changes: instances follow X-Plane's local origin 
 (`instanceSetAutoShift`). In wind every cloud is also moved about once a second, a slice of
 them in each update, to its thermal's position plus the wind's offset (`engine/wind.py`).
 
-The height is the base of the clouds, above the ground under the glider when each cloud is
-created: an emitted particle stays where it is, so a cloud cannot follow the terrain (nor
-should it, real cloud bases are level). It is the top of the engine's lift, which uses the
-glider's own AGL for the moment (no terrain under each thermal yet).
+The height: an emitted particle stays where it is, so a cloud cannot follow the terrain (nor
+should it, real cloud bases are level). Each keeps one for life, from `engine.clouds.cloud_base_m`:
+the level, unless the ground under it or along its drift asks for more. The level is the sky's
+`cloud_base_zzi` over the ground under the glider, when the first cloud of a sky is created. The
+lift's top still uses the glider's own AGL (no terrain under each thermal yet).
 
 Nothing here imports `xp`: the SDK calls are in `xpio.SkyObjects`.
 """
@@ -21,7 +22,8 @@ Nothing here imports `xp`: the SDK calls are in `xpio.SkyObjects`.
 import math
 import time
 
-from ..engine.clouds import CREATE, DESTROY, RATE, CloudCatalog, CloudPlanner, cloud_scale
+from ..engine.clouds import (CLOUD_HALF_WIDTH_M, CREATE, DESTROY, RATE, CloudCatalog, CloudPlanner,
+                             cloud_base_m, cloud_scale, cloud_seconds_left, ground_points)
 
 OBJECT = "cumulus"
 PLAN_PERIOD_S = 5.0  # choosing the clouds, once the sky is complete
@@ -34,7 +36,8 @@ class CloudStatus:
     """Published as datarefs."""
 
     __slots__ = ("count", "created", "destroyed", "rate_changes", "moved", "tiles_missing",
-                 "update_us", "update_us_max", "plan_us", "nearest_m", "rate_dummy", "scale_dummy")
+                 "update_us", "update_us_max", "plan_us", "nearest_m", "rate_dummy", "scale_dummy",
+                 "level_m", "raised", "base_max_m", "ground_misses", "base_us", "base_us_max")
 
     def __init__(self):
         self.count = self.created = self.destroyed = self.rate_changes = self.moved = 0
@@ -44,6 +47,10 @@ class CloudStatus:
         # The object's emitter reads these names, which are per instance. They exist so the
         # object finds them when it loads; their own value is never used.
         self.rate_dummy = self.scale_dummy = 0.0
+        self.level_m = self.base_max_m = 0.0  # m MSL
+        self.raised = 0  # clouds created above the level, for the ground
+        self.ground_misses = 0  # ground readings that found no ground
+        self.base_us = self.base_us_max = 0.0  # working out one cloud's height
 
 
 class CumulusClouds:
@@ -56,6 +63,7 @@ class CumulusClouds:
         self.config = None  # the field's config the catalog was made for
         self.frame = None
         self.instances = {}  # Thermal -> (instance, base height m MSL, rate)
+        self.level_m = None  # the clouds' level, m MSL: set with the first cloud of a sky
         self.obj = None
         self._loading = False
         self.failed = False
@@ -110,7 +118,7 @@ class CumulusClouds:
         if self.catalog.started and now >= self._next_plan:
             e, n = frame.to_enu(lat, lon)
             self._apply(self.planner.step(self.catalog.thermals(), e, n, t), msl_m - s.agl_m, zi,
-                        drift)
+                        drift, t)
             self.more = self.planner.more_waiting
             soon = self.catalog.missing or self.more
             wait = FILLING_PLAN_PERIOD_S if soon else PLAN_PERIOD_S
@@ -145,12 +153,30 @@ class CumulusClouds:
                 self.status.moved += 1
         del self._to_move[-self._move_slice:]
 
-    def _apply(self, actions, ground_m, zi, drift):
+    def _base_m(self, th, t, drift):
+        """Reads the ground this cloud will pass over: only for a new cloud, never per frame."""
+        st = self.status
+        t0 = time.perf_counter()
+        lat, lon = drift.to_ground(th.lat, th.lon)
+        points = ground_points(lat, lon, CLOUD_HALF_WIDTH_M * cloud_scale(th), drift.wind_e_ms,
+                               drift.wind_n_ms, cloud_seconds_left(th, t, self.planner.params))
+        grounds = [self.sky.ground_m(*point) for point in points]
+        base_m = cloud_base_m(self.level_m, grounds)
+        st.ground_misses += grounds.count(None)
+        st.raised += base_m > self.level_m
+        st.base_max_m = max(st.base_max_m, base_m)
+        st.base_us = (time.perf_counter() - t0) * 1e6
+        st.base_us_max = max(st.base_us_max, st.base_us)
+        return base_m
+
+    def _apply(self, actions, ground_m, zi, drift, t):
         st = self.status
         for action, th, rate in actions:
             if action == CREATE:
                 instance = self.sky.create(self.obj, ("xp_gliding/clouds/rate", "xp_gliding/clouds/scale"))
-                base_m = ground_m + self.config.sky.cloud_base_zzi * zi
+                if self.level_m is None:
+                    self.level_m = st.level_m = ground_m + self.config.sky.cloud_base_zzi * zi
+                base_m = self._base_m(th, t, drift)
                 self.instances[th] = (instance, base_m, rate)
                 self._set(instance, th, base_m, rate, drift)
                 self.sky.auto_shift(instance)
@@ -172,6 +198,8 @@ class CumulusClouds:
         for instance, _, _ in self.instances.values():
             self.sky.destroy(instance)
         self.instances.clear()
+        self.level_m = None
+        self.status.base_max_m = 0.0
         self._to_move = []
         self._moved_at = (0.0, 0.0)
         self.planner.clear()
@@ -188,3 +216,4 @@ class CumulusClouds:
         if self.obj is not None:
             self.sky.unload(self.obj)
             self.obj = None
+        self.sky.release_probe()

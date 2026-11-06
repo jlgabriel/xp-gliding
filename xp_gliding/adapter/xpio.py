@@ -113,6 +113,23 @@ class SkyObjects:
                               "assets", folder)
         # XPLMLoadObject wants a path relative to X-Plane's folder.
         self.folder = os.path.relpath(assets, xp.getSystemPath()).replace(os.sep, "/")
+        self._probe = None
+
+    def ground_m(self, lat, lon):
+        """The ground's height at a place, m MSL; None where no ground is loaded, which begins
+        at about 125 km from the glider (notes/phase3.md). Far from the local origin one probe
+        lands a little beside the place: within about 20 m of height at 40 km, in the Andes."""
+        if self._probe is None:
+            self._probe = xp.createProbe(xp.ProbeY)
+        info = xp.probeTerrainXYZ(self._probe, *xp.worldToLocal(lat, lon, 0.0))
+        if info.result != xp.ProbeHitTerrain:
+            return None
+        return xp.localToWorld(info.locationX, info.locationY, info.locationZ)[2]
+
+    def release_probe(self):
+        if self._probe is not None:
+            xp.destroyProbe(self._probe)
+            self._probe = None
 
     def load_async(self, name, loaded):
         """Load in the background; later, on the main thread, loaded(reference or None, name)."""

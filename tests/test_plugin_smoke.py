@@ -165,6 +165,28 @@ def make_fake_xp(tmp_path, data):
     xp.destroyInstance = lambda instance: xp.instances.pop(instance)
     xp.worldToLocal = world_to_local
     xp.instanceSetPosition = set_position
+
+    # Terrain probes: the ground is xp.ground(lat, lon), or None where none is loaded.
+    xp.ground = lambda lat, lon: 1116.0
+    xp.ProbeY = 0
+    xp.ProbeHitTerrain = 0
+    xp.probes = []
+
+    def create_probe(kind):
+        xp.probes.append(kind)
+        return f"probe{len(xp.probes)}"
+
+    def probe_terrain(probe, x, y, z):
+        assert probe is not None
+        lat, lon = 32.0 - z / 110000.0, x / 90000.0 - 103.0
+        ground = xp.ground(lat, lon)
+        return types.SimpleNamespace(result=2 if ground is None else 0, locationX=x,
+                                     locationY=(ground or 0.0) - 1000.0, locationZ=z)
+
+    xp.createProbe = create_probe
+    xp.destroyProbe = lambda probe: xp.probes.pop()
+    xp.probeTerrainXYZ = probe_terrain
+    xp.localToWorld = lambda x, y, z: (32.0 - z / 110000.0, x / 90000.0 - 103.0, y + 1000.0)
     xp.shifted = set()
     xp.instanceSetAutoShift = xp.shifted.add
     return xp
@@ -542,6 +564,75 @@ def test_clouds_carry_their_rate_and_scale_at_the_base_of_the_clouds(plugin):
         assert drefs == wanted
         assert position[1] == pytest.approx(base - 1000.0)
         assert values[0] > 0.0 and SCALE_RANGE[0] <= values[1] <= SCALE_RANGE[1]
+
+
+def test_clouds_keep_a_level_over_low_ground_and_clear_a_hill(plugin):
+    pi, xp, data = plugin
+    lon0 = data["sim/flightmodel/position/longitude"]
+    level = 1916.0 - 800.0 + 2000.0 / 1.1
+    # A hill well above the level, beginning 0.05 deg east of the glider.
+    xp.ground = lambda lat, lon: 4000.0 if lon > lon0 + 0.05 else 1116.0
+    fill_sky(pi, data)
+    assert dataref(xp, "clouds/level_m") == pytest.approx(level)
+    bases = {th: entry[1] for th, entry in pi.clouds.instances.items()}
+    west = [b for th, b in bases.items() if th.lon < lon0 + 0.04]
+    east = [b for th, b in bases.items() if th.lon > lon0 + 0.06]
+    assert west and all(b == pytest.approx(level) for b in west)
+    assert east and all(b == pytest.approx(4300.0) for b in east)
+    assert dataref(xp, "clouds/raised") == sum(b > level + 1.0 for b in bases.values()) >= len(east)
+    assert dataref(xp, "clouds/base_max_m") == pytest.approx(4300.0)
+    assert dataref(xp, "clouds/base_us") > 0.0
+    # What was asked for is where the instance is.
+    for th, (instance, base, _) in pi.clouds.instances.items():
+        assert xp.instances[instance][1][1] == pytest.approx(base - 1000.0)
+
+
+def test_a_cloud_is_high_enough_for_the_hill_it_will_drift_into(plugin):
+    pi, xp, data = plugin
+    lon0 = data["sim/flightmodel/position/longitude"]
+    level = 1916.0 - 800.0 + 2000.0 / 1.1
+    start, end = lon0 + 0.10, lon0 + 0.15
+    xp.ground = lambda lat, lon: 4000.0 if start < lon < end else 1116.0
+    data["sim/weather/aircraft/wind_now_x_msc"] = 10.0  # toward the east
+    fill_sky(pi, data)
+    upwind = {th: e[1] for th, e in pi.clouds.instances.items() if th.lon < start - 0.01}
+    downwind = {th: e[1] for th, e in pi.clouds.instances.items() if th.lon > end + 0.01}
+    assert any(b == pytest.approx(4300.0) for b in upwind.values())
+    assert any(b == pytest.approx(level) for b in upwind.values())
+    assert downwind and all(b == pytest.approx(level) for b in downwind.values())
+
+
+def test_with_no_ground_loaded_a_cloud_stays_at_the_level(plugin):
+    pi, xp, data = plugin
+    xp.ground = lambda lat, lon: None
+    fill_sky(pi, data)
+    level = 1916.0 - 800.0 + 2000.0 / 1.1
+    assert all(e[1] == pytest.approx(level) for e in pi.clouds.instances.values())
+    assert dataref(xp, "clouds/ground_misses") >= 5 * dataref(xp, "clouds/created") > 0
+    assert dataref(xp, "clouds/raised") == 0
+
+
+def test_the_level_stays_for_a_sky_and_is_new_with_the_next(plugin):
+    pi, xp, data = plugin
+    clouds_tick(pi, data)
+    level = dataref(xp, "clouds/level_m")
+    # The glider over ground 300 m higher: the sky that is already there keeps its level.
+    data["sim/flightmodel/position/y_agl"] -= 300.0
+    fill_sky(pi, data)
+    assert dataref(xp, "clouds/level_m") == level
+    assert len({round(e[1], 3) for e in pi.clouds.instances.values()}) == 1
+    pi.clouds.clear()
+    clouds_tick(pi, data)
+    assert dataref(xp, "clouds/level_m") == pytest.approx(level + 300.0)
+
+
+def test_the_probe_is_made_once_and_goes_with_the_plugin(plugin):
+    pi, xp, data = plugin
+    assert not xp.probes  # nothing asked of the terrain before a cloud needs it
+    fill_sky(pi, data)
+    assert len(xp.probes) == 1
+    pi.clouds.shutdown()
+    assert not xp.probes
 
 
 def test_a_filled_cloud_settles_to_its_steady_rate(plugin):

@@ -277,15 +277,57 @@ The test pilot, 2026-11-05, KHOB, Laminar ASK 21, `wide_carriers`, w\* 3, zi 200
 - **A new flight with the same aircraft keeps the sky's offset,** at least through the web API: no plane-loaded message comes, and after several flights it stood at 0.16° of longitude, about 15 km. So the sky goes on rather than starting again, which does no harm, but it is not what this phase said. Reloading the aircraft clears it. Missions that compare flights need `--fresh`.
 - **The first circle of a session ran at a mean bank of 43° instead of 35°,** with the lean off, and sank about 0.3 m/s more. The seven circles after it held 35°. Not understood; it has nothing to do with the lean, which was off.
 
+## Clouds over uneven ground
+
+Built on 2026-11-06, the rule Juan Luis approved that morning. Checked by the test pilot, not flown by hand.
+
+**The rule.** A cloud keeps one height for life, since a particle stays where it was emitted: the higher of a level for the area and the highest ground under it and along its drift, plus 300 m (`engine/clouds.py`: `ground_points`, `cloud_base_m`). The level is today's height, the sky's `cloud_base_zzi` x zi over the ground under the glider, taken when the first cloud of a sky is created and kept until the sky is cleared. The drift is read in the wind at that moment, for as long as the cloud will last: a cross of the cloud's width under it, then three lanes 1 km apart in steps along the way. These are clouds only: the lift's top still uses the glider's AGL.
+
+**What terrain probes do (`tools/terrainlab/`, X-Plane 12.4.3, 2026-11-06).** Paused flights at Hobbs and Santiago, 24 bearings at each of 24 distances, 8000 points along lines and 8000 scattered within 20 km, and a 120 km square every 500 m at Santiago.
+
+| Question | Measured |
+| --- | --- |
+| How far is the ground loaded? | Every probe hits out to 125 km at both sites, some out to 250 km, none at 300 km. The same at 0, 60 and 200 s after a flight starts |
+| What happens beyond that? | `result` 2 (missed), and a height with no meaning, rising with distance (16 m at 300 km, about 1860 m at 1000 km). Laminar says it returns the height of a 0 MSL sphere, so only `result` can be trusted |
+| Is the height right? | At 1 km from the glider, 1107-1116 m against the 1112 m under it at Hobbs, 540-562 m against 549 m at Santiago |
+| Does one probe do, far from the local origin? | The local Y axis is not the vertical there, so a probe from 0 m lands a little beside the point. Against a second probe from the height found: within 0.3 m to 40 km at Hobbs, within 21 m at 40 km and 66 m at 100 km in the Andes. One is enough under a 300 m margin |
+| The same ground from elsewhere? | The Santiago square from a flight 110 km east, 44585 points hit from both: median -0.01 m, 98% within -0.8 and +0.4 m, at most 7.8 m. The water flag differs at 18 points |
+| Cost, with the calls from XPPython3? | Probe 1.2-1.8 us at the median, 2.6-4.7 us at p99, 166 us at most. With `worldToLocal` and `localToWorld`, 1.8-2.5 us. Laminar calls probes expensive; here 200 take about 0.4 ms. Measured paused, with about 8 ms of probing in each frame |
+
+The water flag is set on small water too: one bearing at 15 km from Hobbs, one at 15 and one at 30 km at Santiago. Not looked at further, since thermals over water are a separate item.
+
+**What the rule does at Santiago, offline** (`analyze_terrain.py`, on the square above). Level 2049 m MSL, clouds within 20 km with what they have left drawn at random, not the engine's: the question is the shape of the ground.
+
+| Wind | At the level | 90% of bases below | Over 2000 m above the ground below it | If instead only the ground under it counted, and it faded before meeting a hill |
+| --- | --- | --- | --- | --- |
+| Calm | 94% | 2049 m | 0% | No cloud fades |
+| 15 kt from the west, toward the Andes | 83% | 2746 m | 2.7% | 17% fade early, with 25% of what they had left |
+| 25 kt from the west | 72% | 2965 m | 7.3% | 28% fade early, with 43% |
+| 15 and 25 kt from the east | 93-94% | 2049 m | 0% | 1-2% fade early |
+
+So the highest base is about 3470 m in every case, and the part about the drift has a price: with the wind toward the mountains, some clouds still over the valley are too high to reach, up to about 1400 m above their neighbours. The spread is about as wide as in [the night flight](#a-flight-by-the-clouds-alone) (1250 m), but now most clouds share one level, and unless the wind changes none should go into a hill. Fading them early would touch about as many clouds as it would bring down to the level. The rule stays as approved, for the eye to judge.
+
+**In the plugin, by the test pilot.** `fly_terrain.py clouds`, 15 kt from the west, 170 s flying with no hand on the stick.
+
+| Site | Clouds | Level | Above it | Highest base | Ground not found | Cost of one cloud's height |
+| --- | --- | --- | --- | --- | --- | --- |
+| Hobbs | 180 | 2611 m | 0 | 2611 m | 0 | 88 us, 133 us at most |
+| Santiago | 175 | 2050 m | 36 (21%) | 3494 m | 0 | 36 us, 168 us at most |
+
+The 21% agrees with the offline 17%. At 8 new clouds per update that is at most about 1.3 ms, only while a sky fills. The largest cloud update in the second flight was 7.1 ms against 0.8 ms in the first; it spans the change of flight, when 180 clouds are destroyed, which is the likely cause and was not separated. Screenshots from under the clouds over the valley show a level base. Nobody has yet looked at clouds near a hill.
+
+**Open.** The level depends on where a flight starts, so two pilots at Santiago can differ, until it comes from XP12's atmosphere (phase 5). Flying up a long valley leaves the level behind, and over high ground the clouds are then only 300 m up. Further into the Andes bases would pass 5000 m, out of reach of the lift, and near the height where X-Plane's lack of oxygen blacked out the cockpit view. Not tried.
+
 ## Cost
 
 Sampled once each, at the end of a flight, not a proper comparison: `frame_us` 132–160 µs with about 220 clouds moving (118–132 µs in phase 1, before clouds and wind), and the largest cloud update seen is 1.2–2.2 ms, as before this work, since tiles load in that path too. `tools/testpilot/fly_clouds.py cost` has not been run in wind. The HUD with the wind costs 281 µs to draw (265 µs before).
 
 ## Still open
 
-- **By hand:** finding a thermal by its cloud in wind, with the markers off, now that [a bigger cloud is usually a stronger thermal](#first-flight-by-hand). This is what is left of the phase's first criterion. It is also the first look at the new sizes.
-- **A climb as high as it goes,** in wind. The thermal of the first flight died before one was made.
-- **A climb through shear.** The sky moves at the wind at the glider, so a glider stays with its thermal at any height, by construction. Whether a sky that depends slightly on the glider's height shows anywhere has not been checked. Not flown in a circle.
+- **Does a bigger cloud read as a stronger thermal, by eye?** [Flown](#a-flight-by-the-clouds-alone), three clouds agree, and he has not been asked.
+- **A climb as high as it goes,** in wind. The thermal of the first flight died before one was made, and [the night flight](#a-flight-by-the-clouds-alone) left its thermals still climbing.
+- **Clouds and lift over uneven ground:** the clouds' height is [built](#clouds-over-uneven-ground), and has not been seen near a hill by hand. The lift still ends at zi above the ground under the glider (phase 6).
+- **A climb through shear, by hand.** [Flown by the test pilot](#which-wind-carries-the-sky-in-shear), in a circle, under both winds. Whether a sky that depends slightly on the glider's height shows anywhere has not been checked.
 - **The lean, by hand:** whether it reads from the seat, and f. [Checked by the test pilot](#the-lean-in-the-simulator), and off by default.
 - **Which wind in strong shear:** only the wind at the glider has been tried.
 - **The menu's submenus** read well in X-Plane ("excellent", Juan Luis), and each showed the right setting, but changing a sky in flight has not been tried.
@@ -294,4 +336,5 @@ Sampled once each, at the end of a flight, not a proper comparison: `frame_us` 1
 ## Found in passing
 
 - **X-Plane crashed on start** twice this day (06:43, 07:31), about 40 s in, with AviTab as the faulting module in Windows' log (exception `0x40000015`). The same log has crashes in AviTab on 2026-10-31, before this project existed, and our plugin had already been enabled when they happened. Juan Luis removed AviTab, and the next two starts were clean. Two starts prove little.
+- **X-Plane's lack of oxygen looks like a broken screen.** A test flight left over the Andes at 5700-6000 m turned the cockpit view black, with the HUD still drawn at 60 fps. Juan Luis recognised it (2026-11-06). The chase view was normal at the same moment, and a new flight at 3000 m came back dim. The height where it starts was not measured.
 - **The web API has no plugin datarefs at the main menu:** they appear once a flight is loaded, so a mission must not touch them before its air start.
