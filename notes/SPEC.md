@@ -528,6 +528,8 @@ Decided by Juan Luis on 2026-11-05: the project is good thermals, and these idea
 - **A native C++ plugin,** for distribution.
 - **Racing and competition,** native aerotow and winch improvements, RC gliders.
 
+**Where Juan Luis would like to end up (2026-11-06).** Not planned and after everything else: to fly in XP12 the tasks already made for other soaring simulators. A task would be imported in two parts, the route to XCSoar and the weather to the plugin, which builds the task's sky from it. It rests on the XCSoar link of phase 7 and the day of phase 5, and until then the project stays as the goal above says: no tasks.
+
 ## Phased roadmap
 
 Rewritten on 2026-11-05 around good thermals. **This stage is the model only** (Juan Luis, 2026-11-05): wind, a sound sky, the day, and where thermals are born. Integration and publishing come at the end, if the result is good; little relevant feedback is expected from publishing early, so it would mostly be extra work. Each phase ends with a criterion verifiable by flying.
@@ -596,7 +598,7 @@ Rewritten on 2026-11-05 around good thermals. **This stage is the model only** (
 
 7. **Integration and release, if the result is good**
    - [ ] Refine the HUD ([hud.md](hud.md#still-open)) and add the audio vario.
-   - [ ] XCSoar through NMEA.
+   - [ ] XCSoar through NMEA. The polar of the Laminar ASK 21 is ready for it, not yet loaded: [`ask21-laminar-541kg.plr`](../tools/xcsoar/ask21-laminar-541kg.plr), see [baseline.md](baseline.md#a-still-air-polar).
    - [ ] Install instructions, and a release.
    - [ ] Findings for the community (asked for by Juan Luis, 2026-11-04): a section that shares the analyses and tests done (`notes/baseline.md`, `phase1.md`, `phase2.md`, `hud.md`: X-Plane's native soaring, plugin forces, particle emitters, drawing costs), readable by people outside the project, with each method and its limits. He rates this work almost as interesting as the plugin itself. Its form was agreed on 2026-11-05: Markdown pages in [`docs/findings/`](../docs/findings/native-soaring.md), written alongside the model since a finding about X-Plane does not age with it. Native soaring is written as the sample; plugin forces, particle emitters, drawing costs and the rest are to come.
    - *Done when:* someone else installs it and climbs under a cloud.
