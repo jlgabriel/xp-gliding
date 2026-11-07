@@ -4,7 +4,7 @@ A thermal soaring plugin for X-Plane 12: thermals you can find by reading the cl
 
 It is an independent take on thermals, offered as another option for soaring in X-Plane 12. The weather, the wind, the ridge lift and the flight model stay X-Plane's, and the plugin brings thermals tied to clouds of their own.
 
-![The plugin's soaring HUD while circling in a thermal, in the Laminar ASK 21](docs/images/hud-in-thermal.jpg)
+![A Laminar ASK 21 circling in a thermal under its cloud, with the plugin's soaring HUD on the left](docs/images/climbing-under-a-cloud.jpg)
 
 > **Status: in development, not released yet.** It flies, and the current work is a first public alpha, with an install guide and its limits stated.
 
