@@ -246,8 +246,8 @@ The plugin works *on top of* the native weather, never instead of it. Whether th
 
 **Wind (DataRefs.txt, XP 12.4.3, read-only)**
 
-- At the aircraft: `sim/weather/aircraft/wind_now_x_msc`, `_y_msc`, `_z_msc` (OpenGL axes), `wind_now_speed_msc`, `wind_now_direction_degt`. This is the wind that moves the glider, within 0.02 m/s (measured 2026-11-05, [phase3.md](phase3.md)).
-- By layer: `sim/weather/aircraft/wind_altitude_msl_m[13]`, `wind_speed_kts[13]`, `wind_direction_degt[13]`, `shear_speed_kts[13]`, `shear_direction_degt[13]`, `turbulence[13]`. Datarefs, so no call to the weather API is needed.
+- At the aircraft: `sim/weather/aircraft/wind_now_x_msc`, `_y_msc`, `_z_msc` (OpenGL axes), `wind_now_speed_msc`, `wind_now_direction_degt`. This is the wind that moves the glider, within 0.02 m/s (measured 2026-11-05, [phase3.md](phase3.md)). The vector points where the air goes, and `wind_now_direction_degt` says where it comes from (2026-11-07).
+- By layer: `sim/weather/aircraft/wind_altitude_msl_m[13]`, `wind_speed_kts[13]`, `wind_direction_degt[13]`, `shear_speed_kts[13]`, `shear_direction_degt[13]`, `turbulence[13]`. Datarefs, so no call to the weather API is needed. Between two layers set by hand, X-Plane goes in a straight line (one reading, 2026-11-07, [phase4.md](phase4.md#flights-by-hand-for-the-first-release)).
 
 **Other**
 
@@ -503,17 +503,17 @@ What a pilot needs to feel and work a thermal. It goes into the first release as
 
 - **Soaring HUD** (decided by Juan Luis, 2026-11-03: permanent). A small panel with TE, netto, the average climb, the height up to the clouds and a centring aid, in the plugin (`xp_gliding/adapter/hud.py`). The centring direction comes from netto against heading only, never from the engine, and is reliable from about 60 m off centre. Drawing method and measurements in [hud.md](hud.md). Netto needs each glider's polar; only the Laminar ASK 21 has one.
 - **Wind** (Juan Luis, 2026-11-05): an arrow and the speed in knots, from the wind at the glider. Up is the nose and it points where the wind goes, so it turns as the glider circles.
-- **Audio vario.** Juan Luis wants it. Not done: X-Plane's native switch (`sim/cockpit2/switches/total_energy_audio`) is the first thing to try, since its TE is right, for the release (stage 1). A vario of our own is in stage 2.
+- **Audio vario: X-Plane's own** (Juan Luis, 2026-11-07: "we keep this sound"), from `sim/cockpit2/switches/total_energy_audio`, the AUDIO switch on the ASK 21's panel. Its TE is right, so it reads our lift. A vario of our own is no longer planned, unless pilots ask for it.
 
 ## Settings menu
 
 Worked on alongside the model (Juan Luis, 2026-11-05), and part of the first release: *Plugins → xp-gliding* should let the pilot choose the plugin's settings, so flying never needs an edit of `config.json` and a restart.
 
 - **Switches:** plugin, thermals, thermals follow the wind, thermals lean with the wind (off by default), the sky moves with the wind at the clouds (off by default), markers, cumulus, HUD, each also a command. Each new piece of the model that needs one gets its item when it is built.
-- **Submenus** (`config.MENU_CHOICES`, built 2026-11-05, nobody has chosen anything in them yet): the sky by name, the strength and depth of the day, the seed.
+- **Submenus** (`config.MENU_CHOICES`, built 2026-11-05, first chosen in X-Plane on 2026-11-07, which found and fixed a fault): the sky by name, the strength and depth of the day, the seed.
 - **Saved:** what is chosen in the menu is written to `config.json`, so the next session starts from it.
 - **Method:** plain XPLM submenus with check marks and a few values to choose from, since they cost nothing per frame. A window with sliders only if the flying asks for it, and without imgui if possible: XPPython3's reload crashes after imgui.
-- **Changing the sky in flight** replaces every thermal and cloud at once. That is acceptable from a menu, but it has to be clean: no cloud left behind and no jump in the forces. Flown by the test pilot (2026-11-06, [phase4.md](phase4.md#changing-the-sky-in-flight)): the clouds go and new ones fill, judged by their count with no screenshot, and no errors. In a thermal the force steps once, by up to 458 N, with normal acceleration unchanged at 1.05 g. Whether that needs a fade is [for Juan Luis to decide](#open-questions-and-verifications). By hand: not tried.
+- **Changing the sky in flight** replaces every thermal and cloud at once. That is acceptable from a menu, but it has to be clean: no cloud left behind and no jump in the forces. Flown by the test pilot (2026-11-06, [phase4.md](phase4.md#changing-the-sky-in-flight)): the clouds go and new ones fill, judged by their count with no screenshot, and no errors. In a thermal the force steps once, by up to 458 N, with normal acceleration unchanged at 1.05 g. By hand (2026-11-07, [phase4.md](phase4.md#flights-by-hand-for-the-first-release)): no jolt felt in a thermal, so it needs no fade.
 
 ## Set aside
 
@@ -537,7 +537,7 @@ Reorganized at Juan Luis's request on 2026-11-07, around an early release: ship 
 | Stage | What it is | Commitment |
 | --- | --- | --- |
 | [1. First release](#stage-1-first-release) | A public alpha of what flies today, with its limits stated | The current work |
-| [2. After the release](#stage-2-after-the-release) | The day from XP12's weather, a sky tuned with what pilots report, a better HUD and clouds, our own audio vario | Planned, in an order the response can change |
+| [2. After the release](#stage-2-after-the-release) | The day from XP12's weather, a sky tuned with what pilots report, a better HUD and clouds | Planned, in an order the response can change |
 | [3. Potential](#stage-3-potential) | XCSoar, other gliders, and the most sophisticated pieces | Not promised: only if the response is good, or shaped to Juan Luis's own needs |
 
 ### Stage 1: first release
@@ -548,15 +548,16 @@ A public alpha (decided by Juan Luis, 2026-11-07): a prerelease on GitHub and a 
 
 **Flights by hand** (short ones, and several can share a flight):
 
-- [ ] Choose the default sky: a recorded climb as high as it goes in `wide_carriers` and in `medium_carriers` (x1.5, nearer the FAA handbook's typical size, [phase2.md](phase2.md#against-the-faas-handbook-and-a-narrower-sky)), then set it in `config.py`, which still says `default`, the narrow thermals. Juan Luis found one thermal by looking at a cloud, markers off, and climbed (2026-11-05, told, not recorded): the first sign of phase 2's criterion. A climb to the base by the test pilot (2026-11-06, [phase4.md](phase4.md#how-high-does-a-climb-go)): 14 m over it, in one of the strongest thermals; offline a typical one stops 100-175 m under it at 35° and 95 km/h, and most reach it flown tighter and slower. The test pilot did not centre `medium_carriers` ([phase4.md](phase4.md#medium_carriers-again-no-use)), so that one needs a hand.
-- [ ] Test F, the feel, judged in those same flights: roll on entry, centring, the climbing-turn correction (it removes ~63% of the artifact), and whether the rings read at eye level.
-- [ ] From the seat, with the lift that ends with its cloud ([list](phase4.md#the-lift-ends-with-its-cloud)): whether a climb ending under the cloud or just into it feels right, whether clouds at two heights look natural, whether a big cloud on a crest touches it, and whether the HUD's TOP helps when it jumps between clouds at different heights. Also a thermal with no cloud, which gives no lift over ground higher than the level plus 318 m. Cloud size against climb still has no data. First answer (Juan Luis, 2026-11-07, [phase4.md](phase4.md#a-climb-by-hand-towards-a-cloud)): a climb fading under the cloud feels right, left at 162 m under the base and still at +0.53 m/s, so where it ends by itself was not flown.
-- [ ] Shear: one flight, to see that a pilot can recentre without losing the thermal, since real weather brings shear. Juan Luis kept the wind at the glider (2026-11-06) on the test pilot's measurements ([phase3.md](phase3.md#which-wind-carries-the-sky-in-shear)): no stretch of the clouds seen in gentle or strong shear, against the arithmetic.
-- [ ] The menu by hand, including a change of sky in flight, and with it the [open question](#open-questions-and-verifications) of whether that needs a fade. The change itself was flown by the test pilot (2026-11-06, [phase4.md](phase4.md#changing-the-sky-in-flight)): clouds go and new ones fill, no errors; in a thermal the force steps once, with no change in normal acceleration.
-- [ ] X-Plane's native audio switch (`sim/cockpit2/switches/total_energy_audio`), listened to once. If it serves, the guide says how to turn it on.
+- [ ] Choose the default sky: a recorded climb as high as it goes in `wide_carriers` and in `medium_carriers` (x1.5, nearer the FAA handbook's typical size, [phase2.md](phase2.md#against-the-faas-handbook-and-a-narrower-sky)), then set it in `config.py`, which still says `default`, the narrow thermals. Juan Luis found one thermal by looking at a cloud, markers off, and climbed (2026-11-05, told, not recorded): the first sign of phase 2's criterion. A climb to the base by the test pilot (2026-11-06, [phase4.md](phase4.md#how-high-does-a-climb-go)): 14 m over it, in one of the strongest thermals; offline a typical one stops 100-175 m under it at 35° and 95 km/h, and most reach it flown tighter and slower. The test pilot did not centre `medium_carriers` ([phase4.md](phase4.md#medium_carriers-again-no-use)). By hand (2026-11-07, [phase4.md](phase4.md#flights-by-hand-for-the-first-release)): +1.14 m/s over 501 s in `wide_carriers`, and a short, fast climb in `medium_carriers`, which Juan Luis found harder and fine as such. Proposed, not objected to: `wide_carriers` by default, `medium_carriers` in the menu. `config.py` not changed yet.
+- [x] Test F, the feel (Juan Luis, 2026-11-07, [phase4.md](phase4.md#flights-by-hand-for-the-first-release)): the wing lifts enough to notice and no more, and a climbing turn is stable and corrected without thinking. Whether the rings read at eye level was not asked.
+- [ ] From the seat, with the lift that ends with its cloud ([list](phase4.md#the-lift-ends-with-its-cloud)): whether a climb ending under the cloud or just into it feels right, whether clouds at two heights look natural, whether a big cloud on a crest touches it, and whether the HUD's TOP helps when it jumps between clouds at different heights. Also a thermal with no cloud, which gives no lift over ground higher than the level plus 318 m. Cloud size against climb still has no data. First answer (Juan Luis, 2026-11-07, [phase4.md](phase4.md#a-climb-by-hand-towards-a-cloud)): a climb fading under the cloud feels right, left at 162 m under the base and still at +0.53 m/s, so where it ends by itself was not flown. Second answer (2026-11-07, [phase4.md](phase4.md#flights-by-hand-for-the-first-release)): clouds at two heights and a cloud on a summit look good. Still open: where a climb ends by itself, since the two tried were left at +0.44 and ended on a ridge's lift; TOP when it jumps; a thermal with no cloud over high ground; size against climb.
+- [ ] Shear: one flight, to see that a pilot can recentre without losing the thermal, since real weather brings shear. Flown (2026-11-07, [phase4.md](phase4.md#flights-by-hand-for-the-first-release)): not lost, and harder than in an even wind, with the markers on and native ridge lift mixed in. Left: the same over the valley with the markers off. Juan Luis kept the wind at the glider (2026-11-06) on the test pilot's measurements ([phase3.md](phase3.md#which-wind-carries-the-sky-in-shear)): no stretch of the clouds seen in gentle or strong shear, against the arithmetic.
+- [x] The menu by hand, including a change of sky in flight (2026-11-07, [phase4.md](phase4.md#flights-by-hand-for-the-first-release)). The submenus stopped the plugin at first, now fixed. No jolt in a thermal, so no fade. The change itself was flown by the test pilot (2026-11-06, [phase4.md](phase4.md#changing-the-sky-in-flight)): clouds go and new ones fill, no errors; in a thermal the force steps once, with no change in normal acceleration.
+- [x] X-Plane's native audio switch (`sim/cockpit2/switches/total_energy_audio`), listened to (2026-11-07, [phase4.md](phase4.md#flights-by-hand-for-the-first-release)): "perfect", and the AUDIO switch on the ASK 21's panel works it. The guide says so.
 
 **To build** (decided by Juan Luis, 2026-11-07, except where marked as proposed):
 
+- [ ] Far clouds drawn over near ones: investigate first (Juan Luis, 2026-11-07: the clouds' biggest problem, [phase4.md](phase4.md#flights-by-hand-for-the-first-release)). Why it happens, and whether a plugin can do anything about it. Then decide whether it holds the release. It comes ahead of the rule that looks go last.
 - [ ] No sun, no thermals. Today lift and clouds ignore the sun, so they are there at 3 in the morning. Both fade out around sunset and back in around sunrise, from the sun's elevation (`sim/graphics/scenery/sun_pitch_degrees`), with first-guess numbers. This is a cutoff, not the daily cycle of stage 2.
 - [ ] A menu for a first-time pilot (proposed): the experiments that are off by default (the lean, the wind at the clouds) leave it or are marked as such.
 - [ ] Checks by the test pilot (proposed): a second glider (the HpH 304S Shark), for lift, no errors and `NET --`, and the centring aid, which there works from total energy, not checked; an aircraft with engines, for no force and the native thermal rate restored; a new flight, pause, replay and quitting, with a clean log; an origin shift in wind; the whole plugin's cost per frame with clouds moving in wind, which was never measured properly.
@@ -574,6 +575,7 @@ A public alpha (decided by Juan Luis, 2026-11-07): a prerelease on GitHub and a 
 - The day is chosen in the menu. It is not read from XP12's weather yet, so strength and cloud base do not follow the day flown.
 - XP12's own cumulus mark none of our thermals, so the guide says to leave them off to read the sky ([phase4.md](phase4.md#next-to-xp12s-clouds-and-at-dusk)).
 - The Laminar ASK 21 is the reference. Other gliders get the lift and no netto, and a glider with wings outside the usual parts is treated as an ASK 21. By default an aircraft with engines gets nothing, so a motor glider is left out.
+- A far cloud can appear in front of a near one, until the point above is settled.
 - Lift is a force, not moving air: a climbing turn overbanks a little even with the correction, and a glider's own netto instrument may read wrong.
 - Two pilots at one instant do not see the same sky ([open question](#open-questions-and-verifications)).
 
@@ -592,7 +594,7 @@ The order is a starting point, and what pilots report can change it. Advanced bu
 
 **The sky, from what pilots report and the [open questions](#open-questions-and-verifications)**
 
-- [ ] Whether a thermal's decay is too fast to fly, how much sink belongs between clouds, whether a cloud should have several thermals and sink beside them, and whether a wide, flat core gives enough cues for centring.
+- [ ] How much sink belongs between clouds, whether a cloud should have several thermals and sink beside them, and whether a wide, flat core gives enough cues for centring.
 - [ ] The lean by hand: does it read from the seat, is f = 0.1 right? Then on by default, tuned, or removed.
 - [ ] Shear beyond stage 1's flight: whether the pilot should have to recentre more than in a uniform wind.
 - [ ] Where thermals are born, light (proposed, 2026-11-07): slope and orientation to the sun from terrain probes at a thermal's birth, the way the water filter works, with no data to download. Land cover waits for stage 3.
@@ -600,7 +602,7 @@ The order is a starting point, and what pilots report can change it. Advanced bu
 **Instruments and looks**
 
 - [ ] Refine the HUD ([hud.md](hud.md#still-open)).
-- [ ] An audio vario of our own: beeps from total energy, with a command that sweeps its range, so it can be tuned by ear without flying.
+- [ ] Units on the HUD, chosen in the menu (Juan Luis, 2026-11-07): metric or aviation, so feet for `TOP` and, to decide when it is built, knots or feet per minute for the vario. Metric is what it shows today.
 - [ ] Cloud looks, once the thermals and all that goes with them are done (Juan Luis, 2026-11-06): same-light captures, one change at a time, his eye decides.
 
 **Documentation**
@@ -699,7 +701,7 @@ These questions do not have an answer yet; they are resolved in the phase indica
 - [x] Repository and project name: **xp-gliding**.
 - [x] License and visibility: **GPL-3.0-or-later, public repository**.
 - [x] When to contact Alex Ferrer: **once something works**, not before. Now: **before the first release is announced** (2026-11-07).
-- [ ] Does a change of sky inside a thermal need a fade? The force steps once, by up to 458 N, with normal acceleration unchanged ([phase4.md](phase4.md#changing-the-sky-in-flight)). The note proposes no fade, since this is done from a menu and feels no worse than crossing a thermal's edge.
+- [x] Does a change of sky inside a thermal need a fade? **No** (Juan Luis, 2026-11-07, [phase4.md](phase4.md#flights-by-hand-for-the-first-release)): no jolt felt. The force steps once, by up to 458 N, with normal acceleration unchanged ([phase4.md](phase4.md#changing-the-sky-in-flight)).
 
 **Technical verifications**
 
@@ -720,7 +722,7 @@ These questions do not have an answer yet; they are resolved in the phase indica
 - [ ] Should a cloud have several thermals, and should there be sink beside a thermal? The FAA's handbook describes both ([phase2.md](phase2.md#against-the-faas-handbook-and-a-narrower-sky)); neither is in the model.
 - [ ] How much sink should there be between clouds? Conservation of mass gives about −0.12 m/s in the candidate sky, half of today's, so glides get easier. A stronger sink would take more flux in the clouds' thermals: about four times as much for −0.6 m/s. (by flying)
 - [ ] Are the cues for centring enough in a wide, flat core? In the candidate sky the lift's swing around a circle 60 m off centre is about a quarter of today's, and the roll on entry about half. (test F, and the HUD's centring aid) First evidence (2026-11-05, [phase3.md](phase3.md#first-flight-by-hand)): the roll on entry was felt without being told to look for it, and the aid was right whenever it showed, but both on a narrow thermal for this sky (core radius 76 m), and at 110–210 m from its centre, on its steep flank.
-- [ ] Is a thermal's decay too fast to fly? One with a life of 18 minutes went from 5.3 to 2 m/s in about 190 s, which came as a surprise in the air. (by flying, [phase3.md](phase3.md#first-flight-by-hand))
+- [x] Is a thermal's decay too fast to fly? **No, as far as one flight goes** (2026-11-07, [phase4.md](phase4.md#flights-by-hand-for-the-first-release)): "it felt good, and makes it more entertaining", though one case, and it may have been shear. Earlier: one with a life of 18 minutes went from 5.3 to 2 m/s in about 190 s, which came as a surprise in the air. (by flying, [phase3.md](phase3.md#first-flight-by-hand))
 - [x] Are Allen's mean-day thermal radii wide enough to circle an ASK 21 in? **Barely, and only circling tight** (2026-11-03, [phase1.md](phase1.md#thermals-of-the-engine)). With w* 3 m/s and zi 2000 m, r2 is ~135 m at mid height but the strong core only ~40 m. Perfectly centred, at 35° and 90 km/h only ~10% of the thermals can be climbed; at 45° and 80 km/h ~40% (best 10% ~+1.3 m/s), and almost none above 0.7 zi. Laminar's ASK 21 adds to it: it sinks ~2.1 m/s circling at 45° and cannot hold 80 km/h there. Tuning the sky (widths, strengths, density, the environment sink of −0.26 m/s) is a decision still to make, against real climb rates rather than to make up for this glider's flight model. **Candidate, offline** (2026-11-04, [phase2.md](phase2.md#a-wider-sky-under-the-clouds)): a cloud carrier stretched x2 gives, in this glider, +2.3 to +2.7 m/s at 31° and 83 km/h, perfectly centred. Flown once by hand (2026-11-05): +2.31 m/s at 35° and 95 km/h.
 - [x] Which Python version does XPPython3 use, and can numpy be installed in it? **Python 3.12; numpy is auto-installed since v4.4.** Confirmed on 2026-11-02: XPPython3 4.7.1 bundles Python 3.12.2 and installed numpy 2.5.4 on first launch.
 - [x] Does stu-speed/xppython3-atmos overlap with this project or offer something reusable? **Partly overlaps in scope (ridge, wave, cumulus lift), but it is design docs only, AGPL-3.0, and plans to write vertical wind datarefs that XP 12.4.3 does not have.** Nothing to reuse beyond ideas; details in the XPPython3 section.

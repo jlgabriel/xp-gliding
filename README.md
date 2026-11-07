@@ -21,7 +21,7 @@ It is an independent take on thermals, offered as another option for soaring in 
 
 ## Where it is going
 
-The work is in three stages. The first is a public release of what flies today, once a default sky has been chosen by flying it. The second brings strength and cloud base from X-Plane's weather with a daily cycle, a sky tuned with what pilots report, and a better HUD, clouds and audio vario. The third holds pieces that are not promised, such as XCSoar, other gliders, and thermals born where global land data says they would be. The details are in the [stages](notes/SPEC.md#stages).
+The work is in three stages. The first is a public release of what flies today, once a default sky has been chosen by flying it. The second brings strength and cloud base from X-Plane's weather with a daily cycle, a sky tuned with what pilots report, and a better HUD and clouds. The third holds pieces that are not promised, such as XCSoar, other gliders, and thermals born where global land data says they would be. The details are in the [stages](notes/SPEC.md#stages).
 
 ## Documentation
 

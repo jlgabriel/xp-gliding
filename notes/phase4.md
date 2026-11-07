@@ -267,3 +267,41 @@ The Low column is from a screenshot of the menu. The High column is the menu as 
 **So the earlier note needs a limit.** [A disc with `ATTR_LOD 0 40000`](shadows.md#other-findings) stopped drawing between 4 and 8 km with this ratio at 5, which fits 40 km / 5. Clouds have the same `ATTR_LOD` and show no such limit at 5: the ones low over the horizon stand about 2 degrees above it, which at 828 m under their base would be some 20 km, a rough figure from an assumed field of view. So the rule seen with a disc does not hold for an emitter. The markers are placed within 3 km, inside any of these limits.
 
 **Not tested.** Which slider moves the ratio, since they moved together. Settings between these two. Frame cost: nothing was timed. Juan Luis finds the difference large, which is why the test pilot's flights ran at the low end, so their costs say little about a full scene. Native clouds. Tone: some high views look slightly lighter, perhaps exposure over the darker city, not measured.
+
+## Flights by hand for the first release
+
+2026-11-07, afternoon, Juan Luis, Santiago, Laminar ASK 21 at 541 kg, local 10:50, no XP12 clouds, w\* 3, zi 2000 m, seed 1. Placed with the map at 5350 ft, about 1000 m over the ground, in place of a tow. These are the flights of [stage 1](SPEC.md#stage-1-first-release). Read with `read_flight.py`; what he felt is in his words. Logs `flightlog_20261107_162003.csv`, `_164330`, `_172123`, `_174301`.
+
+| Flight | Sky | Wind | Circling | Gain | Climb | Bank, speed | From the centre | Core | Top, under the base | Last 30 s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | `wide_carriers` | 15 kt, even | 501 s | +572 m | +1.14 | 26°, 92 km/h | 177 m | 2.87 | 170 m | +0.44 |
+| 2 | `medium_carriers` | 15 kt, even | 148 s | +87 m | +0.59 | 32°, 111 km/h | 194 m | 4.28 | 880 m | -0.63 |
+| 4 | `wide_carriers` | Shear, 5 to 25 kt | 129 s | +210 m | +1.63 | 32°, 98 km/h | 153 m | 1.82 | 423 m | +0.68 |
+| 4 | `wide_carriers` | Shear, 5 to 25 kt | 372 s | +381 m | +1.02 | 35°, 99 km/h | 139 m | 2.48 | 24 m | +0.83 |
+
+**The first flight's climb did not end by itself.** He stopped, tired of it, still at +0.44 m/s, and `read_flight.py` has that thermal holding this glider to 28 m over the base. He said it felt right to have it fade there. I told him in the air that it had died 178 m under the base, from one HUD reading of -0.1, which was wrong.
+
+**The feel: test F is judged.** Roll on entry: "the wing lifts reasonably, a little, enough to notice, not so much that it looks like a computer game". In a climbing turn: "stable, under my control", adjusted all the time almost without noticing, in a natural way. Whether the rings read well at eye level was not asked. The centring arrow was not asked about either.
+
+**The two skies.** He found `medium_carriers` harder, and fine as such: "maybe with practice I would appreciate it more". That climb was short, fast and in a stronger thermal than the first, so it says little about the sky. Proposed, and not objected to: `wide_carriers` as the default, with `medium_carriers` in the menu. `config.py` is not changed yet.
+
+**The menu's submenus stopped the plugin.** Choosing a sky in flight raised `TypeError: attribute name must be string, not 'int'` in `on_choice`: `itemRef`, a tuple made in the loop that built the menu, came back as something else. The exception stayed pending and surfaced in the next flight loop, as `SystemError` in `time.monotonic`, so the plugin's effect stopped and its clouds were cleared. The logger met one error and went on recording. Nobody had used these submenus in X-Plane: the test pilot writes datarefs, and the tests' fake menu hands the tuple back. That the tuple was freed is an inference, consistent with XPPython3's samples, which pass numbers or functions kept alive elsewhere. Each item now carries its place in a list the plugin keeps, and a failed choice only goes to the log.
+
+I first told him that the clouds going and no jolt meant the change had worked and needed no fade. That was wrong, since it was the plugin stopping. After the fix (`40bfb06`), flown again in a thermal: the mark stays on the choice, the clouds go and new ones fill, and he felt no jolt, so no fade is needed. Strength, seed and depth changed the sky with no jump, cumulus and HUD switch off and on, all logged with no error.
+
+**Over the hills.** Flown with `medium_carriers`, in the east wind. He looked from outside at the clouds over the front range and finds them good, and so do I from the screenshots: clouds at two heights give depth, and a big one wrapping a summit looks as if the mountain made it. So those two questions are answered by eye. Not answered: whether the HUD's TOP helps when it jumps, and a thermal with no cloud over high ground.
+
+**Far clouds in front of near ones.** The largest finding of the flights, and he gives it priority. A small far cloud appears on top of a big near one, with a sharp edge and its own tint of distance. Clearest in the screenshot of 16:55:40; also 06:28:38, which was the README's photo for a few hours. Seen several times. A far cloud at the same height does sit lower in the view when the glider is under the base, but that does not explain the edge. Likely no sorting between emitters; not confirmed. It seems worst very close to a big cloud, an impression. Our clouds against XP12's showed [no such fault](#next-to-xp12s-clouds-and-at-dusk), but that is another pair.
+
+**Shear, by hand.** Two layers, 5 kt at 2500 ft and 25 kt at 7000 ft, from 270. X-Plane goes between them in a straight line: 12.3 kt at 4140 ft, read at the glider and as worked out, and 17 kt on the HUD at about 5100 ft. He felt no jump as it grew. He did not lose the thermal, and recentring cost more than in an even wind, though he thinks he kept it thanks to the markers, and would have found it harder without them, "which is good". The sky moves with the wind at the glider, so the model has no reason to make this harder; the ground running differently around the turn and native lift in the netto are the likely reasons, and neither was separated.
+
+**That climb is not a clean one.** The wind drove it onto the windward face of the range. Our lift fell from a median of 2.49 m/s to 0.70 in the last 40 s, and was +0.43 m/s 27 m under the base, while the HUD's netto read +4.5 and he climbed at +2.9, so most of the end was native ridge lift, and `sink 0.73` in the table has it in too. Then, in his words, "the mountains are pulling me up". So where a climb ends by itself is still not flown. The two lift sources worked together with nothing strange felt.
+
+**A thermal's decay.** One weakened under him. "It felt good, and makes it more entertaining, with changes and variability", against the [surprise](phase3.md#first-flight-by-hand) of 2026-11-05. Whether it was decay or the shear taking him off the core was not separated.
+
+**Audio.** `sim/cockpit2/switches/total_energy_audio` set to 1 through the API, then in a thermal: "the sound is perfect". The AUDIO switch on the ASK 21's panel turns it on and off, so a pilot needs nothing else. In a thermal: "it sounds very good, we keep this sound". So a vario of our own is no longer planned.
+
+**Found on the way.**
+- `wind_now_direction_degt` says where the wind comes from: with a layer from 270 it read 270 and `wind_now_x_msc` +6.36, so the air goes east. It read 90 in the first three flights, so those winds were from the east, and I had told him in the air, wrongly, that they were from the west, and to stay on the face looking at Santiago, which was then the lee side.
+- The airbrakes stood at 100% on the ground at load, again.
+- He got dizzy after the climbs at 25 kt.

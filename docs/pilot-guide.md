@@ -28,6 +28,7 @@ The plugin acts only on an aircraft with no engines. On any other aircraft it do
 4. **Get airborne,** by tow or with an air start, and fly towards a cloud.
 5. **Check that the airbrakes are closed.** The ASK 21 can start with them open, which feels like a heavy glider and reads as strong sink.
 6. **Circle where the lift is.** A bank of 28–35° at 90–95 km/h has worked in the ASK 21. Two climbs flown by hand in X-Plane 12.4.3 gave +2.31 m/s over 126 s at 35° and 95 km/h, and +1.19 m/s over 653 s at 28° and 92 km/h, the second in 15 kt of wind on the way up to near the cloud.
+7. **Listen to the vario, if you like.** On the Laminar ASK 21, the AUDIO switch on the panel turns on X-Plane's own audio vario, which reads the plugin's lift.
 
 The native thermal setting is held at 0 while the plugin is active and restored afterwards, so there is nothing to change there. X-Plane's ridge lift stays on and adds to the thermals where the ground slopes.
 
@@ -36,7 +37,7 @@ The native thermal setting is held at 0 while the plugin is active and restored 
 - **A cloud means a thermal.** Each cloud is drawn by the plugin over a thermal that carries one. In the wide sky, few thermals have no cloud, and they are weaker.
 - **Clouds are born and die with their thermal.** A thermal lives between 5 and 30 minutes, growing and then fading, and never vanishes at once. A cloud that is fading has a thermal that is weakening.
 - **A bigger cloud usually means a stronger thermal.** This holds on average in an offline comparison of the two, and in three thermals flown by hand, which is too few to rely on.
-- **Everything moves with the wind.** Thermals and clouds drift with X-Plane's wind, as the glider does, so a circle needs no correction for it, even while the ground passes underneath.
+- **Everything moves with the wind.** Thermals and clouds drift with X-Plane's wind, as the glider does, so a circle needs no correction for it, even while the ground passes underneath. In strong wind this can make a turn look odd, and a thermal can carry you towards high ground.
 - **A climb ends near its cloud.** The lift fades towards the cloud's base. A scripted flight in a strong thermal reached the base, and offline a typical one stops 100–175 m under it at 35° and 95 km/h, closer when flown tighter and slower.
 - **Clouds keep to a level for the area,** and stand higher where the ground under them or along their drift would reach them.
 - **No thermal starts over water.** One born over land can drift out over the sea.
@@ -75,12 +76,13 @@ Everything is in *Plugins → xp-gliding*. What you choose is saved for the next
 
 Markers appear for up to 20 thermals within 3 km with at least 1.5 m/s at the core. The colour shows the lift at the core at your height: pale below 2 m/s, yellow from 2, orange from 3, and red from 4.
 
-Choosing another sky or seed in flight replaces every thermal and cloud at once.
+Choosing another sky, seed or depth in flight replaces the clouds at once, and new ones fill in. Nothing was felt in a thermal when flown by hand.
 
 ## Known limits
 
 - **The day is chosen in the menu.** Strength and cloud base do not follow X-Plane's weather yet, so the thermals are the same on a dry day and a humid one.
 - **The sun is not read.** Thermals and clouds are there at any hour.
+- **A far cloud can appear in front of a near one,** with a sharp edge, most of all close to a big cloud. The likely cause is the order in which the simulator draws them.
 - **X-Plane's own cumulus mark none of these thermals.** The two can share a sky, and to read it, leave X-Plane's off.
 - **The Laminar ASK 21 is the reference.** Other gliders get the lift and no netto. A glider whose wings are not in the usual parts of its file is treated as an ASK 21 for the roll. An aircraft with engines gets nothing, so a motor glider is left out.
 - **A glider flies as well as its own flight model allows.** The Laminar ASK 21 sinks about 2.1 m/s circling at 45°, measured by a scripted autopilot in X-Plane 12.4.3, so steep turns cost a lot of climb.
