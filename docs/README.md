@@ -1,6 +1,10 @@
 # xp-gliding documentation
 
-xp-gliding is in development and has not been released. This documentation is growing with it, and describes what is true today.
+xp-gliding is in development, and a first public alpha is being prepared. This documentation is growing with it, and describes what is true today.
+
+## Flying it
+
+- [Pilot guide](pilot-guide.md): installing the plugin, a first flight, reading the sky, the HUD, the menu and the known limits. A draft until the first release.
 
 ## Findings
 
@@ -11,10 +15,10 @@ What was measured about X-Plane 12 along the way, written for plugin authors and
 
 ## Still to come
 
-- **How it works:** the thermal model, how lift is applied, the clouds and the wind. To be written once the model settles.
-- **Pilot guide:** installing the plugin, a first flight, reading the sky, the menu and the HUD. To be written with the first release.
+- **How it works:** the thermal model, how lift is applied, the clouds and the wind. To be written after the first release, once the model settles.
+- **More findings:** how plugin forces behave, what drawing costs, and how X-Plane's native thermals behave.
 
 ## For contributors
 
 - [Writing guide](writing-guide.md): how these pages are written.
-- [Working notes](../notes/README.md): the full records of the work, including the current design and roadmap.
+- [Working notes](../notes/README.md): the full records of the work, including the current design and [stages](../notes/SPEC.md#stages).

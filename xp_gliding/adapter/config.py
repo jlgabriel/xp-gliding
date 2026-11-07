@@ -5,7 +5,7 @@ created with the defaults the first time the plugin starts. What the pilot choos
 in the menu is written back, so the next session starts from it. Changes made through
 the `xp_gliding/...` datarefs, as the test pilot does, are not written by themselves.
 
-Day parameters. Until phase 5 reads them from XP12's atmosphere, the
+Day parameters. Until they are read from XP12's atmosphere (SPEC, stage 2), the
 convective velocity scale w* and the mixed-layer depth zi (m above ground)
 are fixed numbers. Allen's thermals stop about 10% below zi.
 

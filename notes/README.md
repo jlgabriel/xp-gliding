@@ -4,7 +4,7 @@ These are the project's working records, written while the work happened. They k
 
 | File | What it records |
 | --- | --- |
-| [SPEC.md](SPEC.md) | The current design, decisions and roadmap. This one is kept up to date |
+| [SPEC.md](SPEC.md) | The current design, decisions and stages. This one is kept up to date |
 | [baseline.md](baseline.md) | Phase 0: measurements of the starting point and an audit of X-Plane's native soaring |
 | [phase1.md](phase1.md) | Phase 1: the X-Plane adapter and the lift forces |
 | [phase2.md](phase2.md) | Phase 2: training markers, cumulus and the sky under them |

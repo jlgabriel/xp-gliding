@@ -37,3 +37,7 @@ Hour 12 local, day 305 of the tools' date, and the real weather of the moment it
 6. **Height.** A deeper sky also moves each thermal's strength with height, since the model scales with `zi`. A climb under a 3 km base has not been flown, nor one under 958 m.
 
 **Also to mind.** Two pilots at one instant ([open question](SPEC.md#open-questions-and-verifications)) would differ in the depth of the day if their weather differs, as with real weather read at different times.
+
+## Moved to stage 2
+
+2026-11-07, later the same day. With the project's [stages](SPEC.md#stages), the day comes after the first release, which ships with the day chosen in the menu and a simple cutoff when there is no sun. The six questions above wait until then.

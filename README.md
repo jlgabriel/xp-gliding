@@ -6,31 +6,32 @@ It is an independent take on thermals, offered as another option for soaring in 
 
 ![The plugin's soaring HUD while circling in a thermal, in the Laminar ASK 21](docs/images/hud-in-thermal.jpg)
 
-> **Status: in development, not released yet.** It flies, and for now all the work goes into the thermal model, tuned by flying. A release and an install guide come at the end, if the result is good.
+> **Status: in development, not released yet.** It flies, and the current work is a first public alpha, with an install guide and its limits stated.
 
 ## What it does today
 
 - **Thermals** with a life cycle: they grow, peak and fade, and never vanish abruptly. The same seed, date and place give the same sky.
 - **Cumulus** drawn by the plugin over the thermals that carry one. Each forms and fades with its thermal, so a cloud means something. Clouds keep to a level for the area, and stand higher where the ground under them and along their drift would reach them.
-- **Lift that ends with its cloud,** over any ground, rather than following the ground under the glider. No thermal is born over water. So far both are checked with a scripted test pilot, not yet by hand.
-- **Lift with no per-aircraft calibration.** It is applied as the energy rising air would give the glider, and measured within 0.01 m/s of the intended climb at different speeds, banks and frame rates. The reference glider is the Laminar ASK 21.
+- **Lift that ends with its cloud,** over any ground, rather than following the ground under the glider. No thermal is born over water.
+- **Lift with no per-aircraft calibration.** It is applied as the energy rising air would give the glider, and measured within 0.01 m/s of the intended climb at different speeds, banks and frame rates. The reference glider is the Laminar ASK 21. Other gliders get the lift, and no netto on the HUD.
 - **Thermals and clouds that follow the wind.** The wind is X-Plane's, real or set by hand: the plugin reads it and has no wind of its own.
 - **A soaring HUD:** total energy, netto, average climb, height up to the clouds, the wind and a centring aid.
-- **A menu** in *Plugins → xp-gliding* to choose the sky and the day, saved between sessions. It grows along with the model.
+- **A menu** in *Plugins → xp-gliding* to choose the sky and the day, saved between sessions.
 - **Optional training markers** showing where the thermals are.
 
 ## Where it is going
 
-The next work is on the model, in this order: thermals in a wind that changes with height, a default sky chosen by flying it, strength and cloud base taken from X-Plane's weather with a daily cycle, and thermals born where the ground and sun would trigger them. The details are in the [roadmap](notes/SPEC.md#phased-roadmap).
+The work is in three stages. The first is a public release of what flies today, once a default sky has been chosen by flying it. The second brings strength and cloud base from X-Plane's weather with a daily cycle, a sky tuned with what pilots report, and a better HUD, clouds and audio vario. The third holds pieces that are not promised, such as XCSoar, other gliders, and thermals born where global land data says they would be. The details are in the [stages](notes/SPEC.md#stages).
 
 ## Documentation
 
 - **[Documentation](docs/README.md):** start here, including [measurements of X-Plane's native soaring](docs/findings/native-soaring.md).
-- **[Working notes](notes/README.md):** the full records of the work, with the current design and roadmap.
+- **[Pilot guide](docs/pilot-guide.md):** installing, a first flight, reading the sky, and the known limits. A draft until the first release.
+- **[Working notes](notes/README.md):** the full records of the work, with the current design and [stages](notes/SPEC.md#stages).
 
 ## What it is not
 
-It is not a simulation of the atmosphere. The thermals start from a published model ([Allen, 2006](https://ntrs.nasa.gov/citations/20060004052)) and are tuned by flying, with each departure from the paper documented. It is not a soaring simulator either: no tasks, no other gliders, no wave. Condor's soaring is the inspiration, not the target, and a glider still flies as well as its own flight model allows.
+It is not a simulation of the atmosphere. The thermals start from a published model ([Allen, 2006](https://ntrs.nasa.gov/citations/20060004052)) and are tuned by flying, with each departure from the paper documented. It is not a soaring simulator either: no tasks, no traffic, no wave. Condor's soaring is the inspiration, not the target, and a glider still flies as well as its own flight model allows.
 
 ## Principles
 

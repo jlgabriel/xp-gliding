@@ -41,7 +41,7 @@ The wind carries the whole sky from outside (`wind.py`): this module is in the a
 The lean is from outside too: the field is the sky at the clouds' base, and whoever asks at a
 height shifts the point by `wind.Lean` first.
 
-Not modeled yet: daily cycle of w* and zi (phase 5), terrain triggers (phase 6). Ground where no
+Not modeled yet: daily cycle of w* and zi (SPEC, stage 2), terrain triggers (stages 2 and 3). Ground where no
 thermal is born (the adapter: water) is excluded with an optional `accept(lat, lon, birth)`
 predicate, which never shifts the random stream.
 """
