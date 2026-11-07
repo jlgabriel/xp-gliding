@@ -605,7 +605,7 @@ The order is a starting point, and what pilots report can change it. Advanced bu
 - [ ] Refine the HUD ([hud.md](hud.md#still-open)).
 - [ ] Units on the HUD, chosen in the menu (Juan Luis, 2026-11-07): metric or aviation, so feet for `TOP` and, to decide when it is built, knots or feet per minute for the vario. Metric is what it shows today.
 - [ ] Reset the 30 s average when the glider jumps (seen 2026-11-07): after a placement with the map, `AVG` showed an impossible -7.7 m/s, the jump counted as a descent.
-- [ ] Cloud looks, once the thermals and all that goes with them are done (Juan Luis, 2026-11-06): same-light captures, one change at a time, his eye decides.
+- [ ] Cloud looks, once the thermals and all that goes with them are done (Juan Luis, 2026-11-06): same-light captures, one change at a time, his eye decides. The model to follow is X-Plane's own cumulus (Juan Luis, 2026-11-07, flying with a layer of them behind ours): "ese sería el mejor patrón a seguir". Side by side, by eye: X-Plane's have soft, uneven edges, density that varies through the cloud, flatter and greyer bases, and wisps; ours are made of small round puffs of one size, evenly bright, with a firm outline.
 
 **Documentation**
 
