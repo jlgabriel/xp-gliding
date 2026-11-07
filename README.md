@@ -11,16 +11,17 @@ It is an independent take on thermals, offered as another option for soaring in 
 ## What it does today
 
 - **Thermals** with a life cycle: they grow, peak and fade, and never vanish abruptly. The same seed, date and place give the same sky.
-- **Cumulus** drawn by the plugin over the thermals that carry one. Each forms and fades with its thermal, so a cloud means something.
+- **Cumulus** drawn by the plugin over the thermals that carry one. Each forms and fades with its thermal, so a cloud means something. Clouds keep to a level for the area, and stand higher where the ground under them and along their drift would reach them.
+- **Lift that ends with its cloud,** over any ground, rather than following the ground under the glider. No thermal is born over water. So far both are checked with a scripted test pilot, not yet by hand.
 - **Lift with no per-aircraft calibration.** It is applied as the energy rising air would give the glider, and measured within 0.01 m/s of the intended climb at different speeds, banks and frame rates. The reference glider is the Laminar ASK 21.
 - **Thermals and clouds that follow the wind.** The wind is X-Plane's, real or set by hand: the plugin reads it and has no wind of its own.
-- **A soaring HUD:** total energy, netto, average climb, height to the top of the lift, the wind and a centring aid.
+- **A soaring HUD:** total energy, netto, average climb, height up to the clouds, the wind and a centring aid.
 - **A menu** in *Plugins → xp-gliding* to choose the sky and the day, saved between sessions. It grows along with the model.
 - **Optional training markers** showing where the thermals are.
 
 ## Where it is going
 
-The next work is on the model, in this order: thermals in a wind that changes with height, a sound default sky that respects the terrain, strength and cloud base taken from X-Plane's weather with a daily cycle, and thermals born where the ground and sun would trigger them. The details are in the [roadmap](notes/SPEC.md#phased-roadmap).
+The next work is on the model, in this order: thermals in a wind that changes with height, a default sky chosen by flying it, strength and cloud base taken from X-Plane's weather with a daily cycle, and thermals born where the ground and sun would trigger them. The details are in the [roadmap](notes/SPEC.md#phased-roadmap).
 
 ## Documentation
 

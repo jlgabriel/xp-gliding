@@ -1,6 +1,6 @@
 # Phase 4: a sound sky
 
-Working record. Everything here dated 2026-11-06 was flown by the test pilot, not by hand, with X-Plane 12.4.3 and the Laminar ASK 21. Nothing here has been judged from the seat yet.
+Working record. Everything here dated 2026-11-06 was flown by the test pilot, not by hand, with X-Plane 12.4.3 and the Laminar ASK 21. Nothing here has been judged from the seat yet. *Added later on 2026-11-06:* that was written before [the flight by hand](#a-flight-by-hand-through-a-cloud) of that evening, the one part of this page flown by a person. What follows it is again by the test pilot.
 
 ## Reading a flight afterwards
 

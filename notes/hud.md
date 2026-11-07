@@ -102,6 +102,12 @@ From the documentation, not tried:
 
 Added on 2026-11-05, as Juan Luis asked: `WIND 19 kt` under the text, and an arrow above the centring aid, from `sim/weather/aircraft/wind_now_*`. Up is the nose and it points where the wind goes, as in the centring aid, so it turns as the glider circles. Knots, as X-Plane's weather settings have it. Checked in flight: heading 40° in a wind from 90° draws it down and to the left, 230° from the nose. Drawing costs 281 µs against 265 µs, one reading.
 
+## The height up to the clouds
+
+Changed on 2026-11-06, with [the lift that ends with its cloud](phase4.md#the-lift-ends-with-its-cloud). The "height to top" described above was the rule until then. Over hills it was not the distance to the cloud: in [the flight by hand](phase4.md#a-flight-by-hand-through-a-cloud) it rose from +475 to +571 m while climbing into one.
+
+TOP is now the nearest drawn cloud's base less the height MSL, or the sky's level if none is drawn, or the old formula if neither is known. The nearest cloud is worked out once per plan, every few seconds, so TOP lags the height a little, and it jumps when the nearest cloud changes to one at another height. Whether that helps or misleads is still to ask from the seat. Two screenshots agree with the logged base, and the value on the HUD is not logged.
+
 ## Still open
 
 For when the air works well (Juan Luis, 2026-11-04):
