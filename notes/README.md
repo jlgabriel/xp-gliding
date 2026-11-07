@@ -10,6 +10,7 @@ These are the project's working records, written while the work happened. They k
 | [phase2.md](phase2.md) | Phase 2: training markers, cumulus and the sky under them |
 | [phase3.md](phase3.md) | Phase 3: wind |
 | [phase4.md](phase4.md) | Phase 4: reading a flight, water, how high a climb goes, changing the sky and the clock, a flight by hand through a cloud, and the lift that ends with its cloud |
+| [phase5.md](phase5.md) | Phase 5: the day, what X-Plane's weather offers for a cloud base |
 | [hud.md](hud.md) | The soaring HUD: how it is drawn and what it shows |
 | [shadows.md](shadows.md) | A lab test of cloud shadows on the ground, set aside |
 
