@@ -162,3 +162,115 @@ def test_sky_time_is_zulu_without_the_wrap_inside_a_local_day():
     assert sky_time(1 * h, 18 * h) == 25 * h  # Hobbs after zulu midnight: same local date
     assert sky_time(23 * h, 9 * h) == -1 * h  # east of Greenwich, before zulu midnight
     assert sky_time(5 * h, 12 * h) == 5 * h
+
+
+# --- a thermal's own height: the lift ends with its cloud -------------------------------------
+
+
+def one_thermal(floor_m=None, zi=2000.0):
+    """A field with a single mature thermal over the origin."""
+    field = f.ThermalField(f.FieldConfig(seed=7, day=9800), LocalFrame(LAT, LON))
+    th = f.Thermal(LAT, LON, 0.0, 2000.0, 1.5, 1.2)
+    th.floor_m = floor_m
+    field._tiles[(0, 0, 0)] = [th]
+    field._grid_add(th)
+    return field, th
+
+
+def test_the_height_in_a_thermal_comes_from_its_floor():
+    th = f.Thermal(LAT, LON, 0.0, 2000.0, 1.0, 1.0)
+    assert f.height_in_thermal(th, 800.0, 1500.0) == 800.0  # no floor
+    th.floor_m = 500.0
+    assert f.height_in_thermal(th, 800.0, None) == 800.0  # no ground
+    assert f.height_in_thermal(th, 800.0, 1500.0) == 1800.0  # high ground
+    assert f.height_in_thermal(th, 800.0, 500.0) == 800.0  # on the flat, exactly
+    assert f.height_in_thermal(th, 800.0, 100.0) == 400.0  # a valley under the floor
+    assert f.height_in_thermal(th, 800.0, -1000.0) == f.LOW_HEIGHT_M  # deeper than the climb
+    assert f.height_in_thermal(th, 50.0, -1000.0) == 50.0  # never above the glider's own height
+
+
+def test_with_the_floor_on_the_ground_no_floor_or_no_ground_the_lift_is_the_same():
+    field = make_field()
+    t = 12 * 3600.0
+    points = [(e, n, z) for e in (-900.0, -80.0, 350.0) for n in (-500.0, 60.0, 700.0)
+              for z in (30.0, 400.0, 1100.0, 1390.0)]
+    before = [field.lift_at(e, n, z, t, WSTAR, ZI) for e, n, z in points]
+    # No floor, with a ground: only the search is wider.
+    assert [field.lift_at(e, n, z, t, WSTAR, ZI, 712.3) for e, n, z in points] == before
+    for th in field.thermals():
+        th.floor_m = 712.3
+    # A floor, with no ground.
+    assert [field.lift_at(e, n, z, t, WSTAR, ZI) for e, n, z in points] == before
+    # The floor is the ground under the glider.
+    assert [field.lift_at(e, n, z, t, WSTAR, ZI, 712.3) for e, n, z in points] == before
+
+
+def test_above_the_layer_a_thermal_with_no_floor_gives_nothing_with_or_without_a_ground():
+    field = make_field()
+    t = 12 * 3600.0
+    assert field.lift_at(0.0, 0.0, ZI + 1.0, t, WSTAR, ZI) == 0.0
+    assert field.lift_at(0.0, 0.0, ZI + 1.0, t, WSTAR, ZI, 500.0) == 0.0
+
+
+def test_over_high_ground_the_lift_ends_above_the_floor_and_not_above_the_ground():
+    zi = 2000.0
+    field, th = one_thermal(floor_m=500.0, zi=zi)
+    t = 1000.0
+    ground = 1500.0
+    # Allen's mean updraft ends at zi/1.1 over the floor: 2318 m MSL, 818 m over this ground.
+    top = 500.0 + zi / 1.1 - ground
+    assert field.lift_at(0.0, 0.0, top - 300.0, t, WSTAR, zi, ground) > 1.0
+    assert field.lift_at(0.0, 0.0, top + 5.0, t, WSTAR, zi, ground) < 0.0
+    assert field.lift_at(0.0, 0.0, top + 300.0, t, WSTAR, zi, ground) < 0.0
+    # The same point read by the ground under the glider, as it was: strong lift well past it.
+    assert field.lift_at(0.0, 0.0, top + 300.0, t, WSTAR, zi) > 1.5
+    # Past zi of the floor it is out of the thermal altogether.
+    assert field.lift_at(0.0, 0.0, 500.0 + zi + 10.0 - ground, t, WSTAR, zi, ground) == pytest.approx(
+        field.environment_sink(500.0 + zi + 10.0 - ground, WSTAR, zi))
+
+
+def test_at_its_clouds_base_the_lift_over_a_hill_is_what_it_is_on_the_flat():
+    zi, base_zzi = 2000.0, 0.75
+    t = 1000.0
+    flat, _ = one_thermal(floor_m=1000.0, zi=zi)
+    hill, _ = one_thermal(floor_m=1000.0 + 1300.0, zi=zi)  # its cloud raised by 1300 m
+    base = 1000.0 + base_zzi * zi
+    over_flat = flat.lift_at(0.0, 0.0, base - 1000.0, t, WSTAR, zi, 1000.0)
+    z_hill = base + 1300.0 - 2400.0  # over ground of 2400 m, near the cloud
+    over_hill = hill.lift_at(0.0, 0.0, z_hill, t, WSTAR, zi, 2400.0)
+    # All but the sink between thermals, which stays with the height above the ground.
+    own = over_flat - flat.environment_sink(base - 1000.0, WSTAR, zi)
+    assert over_hill - hill.environment_sink(z_hill, WSTAR, zi) == pytest.approx(own)
+
+
+def test_in_a_valley_deeper_than_the_level_the_lift_is_as_at_the_low_height():
+    zi = 2000.0
+    t = 1000.0
+    field, _ = one_thermal(floor_m=2000.0, zi=zi)
+    low, _ = one_thermal(zi=zi)
+    z = 800.0
+    lift = field.lift_at(0.0, 0.0, z, t, WSTAR, zi, 500.0)
+    own = low.lift_at(0.0, 0.0, f.LOW_HEIGHT_M, t, WSTAR, zi) - low.environment_sink(f.LOW_HEIGHT_M, WSTAR, zi)
+    assert lift - field.environment_sink(z, WSTAR, zi) == pytest.approx(own)
+    assert lift > 0.0
+
+
+def test_no_jump_where_a_valley_meets_the_floor():
+    zi = 2000.0
+    field, _ = one_thermal(floor_m=1000.0, zi=zi)
+    lifts = [field.lift_at(30.0, 0.0, float(z), 1000.0, WSTAR, zi, 0.0) for z in range(900, 1300)]
+    assert max(abs(b - a) for a, b in zip(lifts, lifts[1:])) < 0.02
+
+
+def test_thermals_at_two_floors_each_end_at_their_own_height():
+    zi = 2000.0
+    field, near = one_thermal(floor_m=500.0, zi=zi)
+    far = f.Thermal(LAT, LON + 0.02, 0.0, 2000.0, 1.5, 1.2)
+    far.floor_m = 1500.0
+    far.e, far.n = field.frame.to_enu(far.lat, far.lon)
+    field._tiles[(0, 0, 1)] = [far]
+    field._grid_add(far)
+    # The same point in the air: 2600 m MSL, over ground of 1400 m.
+    z, ground = 1200.0, 1400.0
+    assert field.lift_at(0.0, 0.0, z, 1000.0, WSTAR, zi, ground) < 0.0  # 2100 m in the first
+    assert field.lift_at(far.e, far.n, z, 1000.0, WSTAR, zi, ground) > 1.0  # 1100 m in the second

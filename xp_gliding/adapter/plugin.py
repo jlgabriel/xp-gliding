@@ -89,9 +89,9 @@ DATAREFS = (
     ("clouds/level_m", "clouds", "status.level_m", "f", 0),
     ("clouds/raised", "clouds", "status.raised", "i", 0),
     ("clouds/base_max_m", "clouds", "status.base_max_m", "f", 0),
-    ("clouds/ground_misses", "clouds", "status.ground_misses", "i", 0),
-    ("clouds/base_us", "clouds", "status.base_us", "f", 0),
-    ("clouds/base_us_max", "clouds", "status.base_us_max", "f", 0),
+    ("clouds/ground_misses", "clouds", "heights.misses", "i", 0),
+    ("clouds/base_us", "clouds", "heights.base_us", "f", 0),
+    ("clouds/base_us_max", "clouds", "heights.base_us_max", "f", 0),
     ("hud_enabled", "settings", "hud_enabled", "i", 1),
     ("hud/te_ms", "hud", "vario.te_ms", "f", 0),
     ("hud/netto_ms", "hud", "vario.netto_ms", "f", 0),
@@ -124,6 +124,9 @@ DATAREFS = (
     ("nearest/distance_m", "injector", "nearest.distance_m", "f", 0),
     ("nearest/bearing_deg", "injector", "nearest.bearing_deg", "f", 0),
     ("nearest/core_ms", "injector", "nearest.core_ms", "f", 0),
+    ("nearest/floor_m", "injector", "nearest.floor_m", "f", 0),
+    ("floors_us", "injector", "floors_us", "f", 0),
+    ("floors_us_max", "injector", "floors_us_max", "f", 0),
     ("thermals_alive", "injector", "nearest.alive", "i", 0),
     ("native_saved_ms", "guard", "saved", "f", 0),
     ("span_m", "injector", "geometry.span_m", "f", 0),
@@ -207,6 +210,7 @@ class PythonInterface:
         self.markers = TrainingMarkers(SkyObjects(), lambda text: print(f"{TAG} {text}"))
         self.clouds = CumulusClouds(SkyObjects("clouds"), lambda text: print(f"{TAG} {text}"))
         self.injector.is_wet = self.clouds.sky.is_wet  # one probe for both
+        self.injector.heights = self.clouds.heights
         self.hud = Hud(self.settings, lambda text: print(f"{TAG} {text}"))
         self.eligible = False
         self.failed = False
@@ -396,9 +400,9 @@ class PythonInterface:
             self.next_lean = now + LEAN_PERIOD_S
             layers = self.io.wind_layers() if st.lean_enabled or st.wind_at_clouds else None
             if st.wind_at_clouds:
-                self.injector.sky_wind_update(s, *layers, self.io.elevation_m(), self.clouds.level_m)
+                self.injector.sky_wind_update(s, *layers, s.msl_m, self.clouds.level_m)
             if st.lean_enabled:
-                self.injector.lean_update(s, *layers, self.io.elevation_m())
+                self.injector.lean_update(s, *layers, s.msl_m)
             else:
                 self.injector.lean.reset()
         if now >= self.next_slow:
@@ -406,14 +410,15 @@ class PythonInterface:
             self.next_markers = now + 0.5 * SLOW_PERIOD_S
             self.next_clouds = now + CLOUDS_PERIOD_S
             self.injector.slow_update(s)
+            self.hud.set_top(self.clouds.status.nearest_base_m, self.clouds.level_m)
             self.refresh_menu()
         elif clouds and now >= self.next_clouds and self.injector.field is not None:
             self.next_clouds = now + CLOUDS_PERIOD_S
-            self.clouds.update(self.injector.field, self.injector.frame, s, self.io.elevation_m(),
-                               st.zi_m, now, self.injector.drift)
+            self.clouds.update(self.injector.field, self.injector.frame, s, s.msl_m, st.zi_m, now,
+                               self.injector.drift)
         elif markers and now >= self.next_markers and self.injector.field is not None:
             self.next_markers = now + SLOW_PERIOD_S
-            self.markers.update(self.injector.field, self.injector.frame, s, self.io.elevation_m(),
+            self.markers.update(self.injector.field, self.injector.frame, s, s.msl_m,
                                 self.io.local_position(), st.wstar_ms, st.zi_m, now,
                                 self.injector.drift, self.injector.lean_e_m, self.injector.lean_n_m)
         self.injector.step(s, self.out)

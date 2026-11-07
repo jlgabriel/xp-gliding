@@ -73,6 +73,10 @@ LIFT_TOP_ZZI = 1.0 / 1.1
 
 BLUE_STREAM = 1  # last part of the key of the second random stream, for thinning
 
+# Below a thermal's floor, in a valley deeper than the sky's level: lift as at this height (m),
+# so a thermal still comes from the ground under it, weakly, and nothing jumps at the floor.
+LOW_HEIGHT_M = 100.0
+
 
 def sky_time(zulu_s, local_s):
     """t for the local date: zulu time, not wrapped at zulu midnight.
@@ -81,6 +85,19 @@ def sky_time(zulu_s, local_s):
     wraps elsewhere, 17:00 local at Hobbs, and every thermal would change at once.
     """
     return local_s - ((local_s - zulu_s + 43200.0) % 86400.0 - 43200.0)
+
+
+def height_in_thermal(thermal, z, ground_m):
+    """The height a thermal's profile is read at, for a point z metres over ground_m (m MSL).
+
+    Allen's z is over flat ground, and the lift has to end where its cloud is, whatever the
+    ground under the glider is doing. So a thermal with a `floor_m` measures z from there.
+    The adapter sets it so that the cloud's base is at the sky's `cloud_base_zzi`: over any ground
+    the lift at a cloud's base is what it is on the flat. With no floor, or no ground, it is z.
+    """
+    if thermal.floor_m is None or ground_m is None:
+        return z
+    return max(z + (ground_m - thermal.floor_m), min(z, LOW_HEIGHT_M))
 
 
 def smoothstep(x):
@@ -242,11 +259,12 @@ class Thermal:
     """One thermal. lat/lon/birth/death/gains are fixed; e/n follow the local frame.
 
     wgain and rgain are as drawn, which is what decides a cloud and its size. gain and
-    stretch are what the sky's profile does to the lift (`SkyProfile`).
+    stretch are what the sky's profile does to the lift (`SkyProfile`). floor_m, if set from
+    outside, is where its height is measured from (`height_in_thermal`), m MSL.
     """
 
     __slots__ = ("lat", "lon", "birth", "death", "wgain", "rgain", "gain", "stretch", "e", "n",
-                 "cell")
+                 "cell", "floor_m")
 
     def __init__(self, lat, lon, birth, death, wgain, rgain, gain=1.0, stretch=1.0):
         self.lat = lat
@@ -260,6 +278,7 @@ class Thermal:
         self.e = 0.0
         self.n = 0.0
         self.cell = None
+        self.floor_m = None
 
     def envelope(self, t):
         """Life-cycle (strength, radius) factors at time t; (0, 0) if not alive."""
@@ -437,21 +456,26 @@ class ThermalField:
                             found.append((th, r))
         return found
 
-    def lift_at(self, e, n, z, t, wstar, zi):
+    def lift_at(self, e, n, z, t, wstar, zi, ground_m=None):
         """Vertical air velocity (m/s) at local (e, n), height z AGL, time t.
 
-        wstar and zi are the convective scales of the moment (m/s, m AGL).
+        wstar and zi are the convective scales of the moment (m/s, m AGL). ground_m is the
+        ground's height MSL under the point: with it, a thermal with a floor is read at its
+        own height (`height_in_thermal`). The sink between thermals stays with z.
         """
-        if zi <= 0.0 or z <= 0.0 or z >= zi:
+        if zi <= 0.0 or z <= 0.0 or (z >= zi and ground_m is None):
             return 0.0
         we = updraft.environment_sink(z, zi, wstar, self._flux_density)
-        reach = updraft.influence_radius(z, zi, RGAIN_RANGE[1]) * self._max_stretch
+        # With floors a thermal can be at any height of its own, so the widest of them all.
+        reach_z = z if ground_m is None else 0.999 * zi
+        reach = updraft.influence_radius(reach_z, zi, RGAIN_RANGE[1]) * self._max_stretch
         cell_m = self.config.cell_m
         k = math.ceil(reach / cell_m)
         cx = math.floor(e / cell_m)
         cy = math.floor(n / cell_m)
         grid = self._grid
         total = we
+        last_z, last_we = z, we  # most thermals share a floor, the level's
         for ix in range(cx - k, cx + k + 1):
             for iy in range(cy - k, cy + k + 1):
                 bucket = grid.get((ix, iy))
@@ -469,7 +493,14 @@ class ThermalField:
                     # Scale the whole perturbation, not wgain: Allen's stretch toward
                     # the environment sink (Eq. 23) leaves a residual of about |we|
                     # when wgain -> 0, which would jump at birth and death.
-                    w = updraft.updraft_velocity(r / th.stretch, z, zi, wstar, th.wgain * th.gain,
-                                                 th.rgain * rf, we)
-                    total += s * (w - we)
+                    zt, wet = z, we
+                    if ground_m is not None and th.floor_m is not None:
+                        zt = height_in_thermal(th, z, ground_m)
+                        if zt != last_z:
+                            last_z = zt
+                            last_we = updraft.environment_sink(zt, zi, wstar, self._flux_density)
+                        wet = last_we
+                    w = updraft.updraft_velocity(r / th.stretch, zt, zi, wstar, th.wgain * th.gain,
+                                                 th.rgain * rf, wet)
+                    total += s * (w - wet)
         return total

@@ -9,6 +9,7 @@ import statistics
 
 from control import Circle, Gains, HeadingHold, LineHold, OrbitHold, SpeedHold, wrap180
 from glider_model import GliderModel
+import pilot
 
 DT_MODEL = 0.005
 DT_CTRL = 0.1
@@ -126,3 +127,27 @@ def test_orbits_a_point_at_the_set_radius():
     assert abs(statistics.fmean(d) - 60.0) < 5.0
     assert max(d) - min(d) < 15.0
     assert statistics.fmean(window(trace, 90, 150, 2)) < -30.0  # turning left
+
+
+class FakeApi:
+    def __init__(self):
+        self.auto = 1
+
+    def set(self, name, value):
+        assert name == pilot.LOGGER_AUTO
+        self.auto = value
+
+    def get(self, name):
+        return 0
+
+
+def test_a_mission_gives_the_logger_back(monkeypatch):
+    registered = []
+    monkeypatch.setattr(pilot.atexit, "register", lambda f, *args: registered.append((f, args)))
+    monkeypatch.setattr(pilot.atexit, "unregister", lambda f: None)
+    api = FakeApi()
+    pilot.take_over_logger(api)
+    assert api.auto == 0
+    for f, args in registered:
+        f(*args)
+    assert api.auto == 1

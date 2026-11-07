@@ -19,7 +19,8 @@ Prints the thermal's life and its cloud's schedule, the climb and the distance t
 over the given stretch, lift by distance, the entry, and the centring aid's error, replayed
 as the HUD does and measured in the air's frame. The field is the oracle here: the plugin's
 instruments never read it. The cloud's schedule is what the model asks for, not a
-measurement of what was drawn: particles are not logged.
+measurement of what was drawn: particles are not logged. The sky rebuilt here has no thermal
+floors (notes/phase4.md), so over hills its lift is not the plugin's; `read_flight.py` has them.
 
 Measurement tool, not part of the plugin. License: GPL-3.0-or-later.
 """
@@ -48,7 +49,7 @@ COLUMNS = ("t_run_s", "t_zulu_s", "lat_deg", "lon_deg", "elev_m", "agl_m", "te_f
 OPTIONAL = ("date_days", "t_local_s", "xpg_seed", "xpg_sky_index", "xpg_dlat_deg", "xpg_dlon_deg", "xpg_lean_e_m",
             "xpg_lean_n_m", "xpg_markers", "xpg_wstar_ms", "xpg_zi_m", "xpg_wind_at_clouds", "xpg_cloud_level_m",
             "xpg_cloud_raised", "xpg_cloud_created", "xpg_cloud_base_max_m", "xpg_cloud_nearest_m",
-            "xpg_cloud_nearest_base_m", "xpg_cloud_nearest_scale")
+            "xpg_cloud_nearest_base_m", "xpg_cloud_nearest_scale", "xpg_nearest_floor_m")
 FPM_TO_MS = 0.00508
 FIT_STEP_S = 4.0
 NEAR_M = 290.0  # the log's nearest thermal is taken to be this one within this distance

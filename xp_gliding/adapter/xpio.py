@@ -1,7 +1,7 @@
 """X-Plane datarefs and objects of the adapter. With `plugin`, the only modules with `xp`.
 
 Every dataref is looked up once, when the plugin starts. Per frame the adapter
-makes 16 reads of the aircraft state and the wind and reads and writes the four force
+makes 17 reads of the aircraft state and the wind and reads and writes the four force
 datarefs; nothing else crosses into the SDK in the per-frame path.
 
 Forces: DataRefs.txt says to *add* to the `*_plug_acf` datarefs, and X-Plane
@@ -21,6 +21,7 @@ STATE = (
     ("lat", "sim/flightmodel/position/latitude", "d"),
     ("lon", "sim/flightmodel/position/longitude", "d"),
     ("agl_m", "sim/flightmodel/position/y_agl", "f"),
+    ("msl_m", "sim/flightmodel/position/elevation", "d"),
     ("psi_deg", "sim/flightmodel/position/psi", "f"),
     ("phi_deg", "sim/flightmodel/position/phi", "f"),
     ("alpha_deg", "sim/flightmodel/position/alpha", "f"),
@@ -51,7 +52,6 @@ class XPlaneIO:
         self._roll = xp.findDataRef("sim/flightmodel/forces/L_plug_acf")
         self._native = xp.findDataRef("sim/weather/region/thermal_rate_ms")
         self._engines = xp.findDataRef("sim/aircraft/engine/acf_num_engines")
-        self._elevation = xp.findDataRef("sim/flightmodel/position/elevation")
         self._local = tuple(xp.findDataRef("sim/flightmodel/position/local_" + c) for c in "xyz")
         self._wind_alt = xp.findDataRef("sim/weather/aircraft/wind_altitude_msl_m")
         self._wind_speed = xp.findDataRef("sim/weather/aircraft/wind_speed_kts")
@@ -79,10 +79,6 @@ class XPlaneIO:
 
     def write_native_thermals(self, value):
         xp.setDataf(self._native, value)
-
-    def elevation_m(self):
-        """Aircraft height MSL (m). Not part of the state: only the slow path needs it."""
-        return xp.getDatad(self._elevation)
 
     def local_position(self):
         """Aircraft (x, y, z) in X-Plane's local coordinates. Only the slow path needs it."""

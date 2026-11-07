@@ -31,6 +31,11 @@ and the aircraft moves through the sky at the difference. Particles appear to go
 about the wind at the aircraft, so in shear they fall behind their emitters (flown, read from
 screenshots).
 
+The lift ends with its cloud. A cloud has one height MSL, whatever the ground under the glider is
+doing, so each thermal is read at a height from a floor of its own (`engine.field.height_in_thermal`).
+The floor comes from its cloud's base (`clouds.CloudHeights`), set in the slow path when the thermal
+loads. With no `heights`, thermals have no floor and the glider's AGL rules (notes/phase4.md).
+
 No thermal is born over water (`Injector.accept_thermal`). A thermal keeps its place in the air,
 so what counts is the ground under it at its birth, worked out in the present wind: the field and
 the clouds load the same thermal at different times, and in a steady wind must agree about it.
@@ -48,13 +53,16 @@ the spanwise gradient for the roll moment (checks the roll sign).
 """
 
 import math
+import time
 
 from ..engine import injection as inj
 from ..engine.field import SKY_NAMES, FieldConfig, ThermalField, sky_index, sky_named
 from ..engine.geo import LocalFrame
 from ..engine.wind import AirDrift, Lean, layer_wind
+from .clouds import JUMP_S
 
 NEAREST_MAX_M = 5000.0
+JUMP_M = 5000.0  # moved farther than this between slow updates: a new flight, or the map
 KT_TO_MS = 0.514444
 
 
@@ -79,13 +87,13 @@ def wind_layers(altitudes_msl_m, speeds_kt, from_deg, ground_m):
 class AircraftState:
     """What the adapter reads from X-Plane each frame."""
 
-    __slots__ = ("lat", "lon", "agl_m", "psi_deg", "phi_deg", "alpha_deg", "beta_deg",
+    __slots__ = ("lat", "lon", "agl_m", "msl_m", "psi_deg", "phi_deg", "alpha_deg", "beta_deg",
                  "r_rad", "tas_ms", "mass_kg", "rho", "t_zulu_s", "t_local_s", "sky_t_s", "day",
                  "wind_x_ms", "wind_z_ms")
 
     def __init__(self):
         self.lat = self.lon = 0.0
-        self.agl_m = 0.0
+        self.agl_m = self.msl_m = 0.0
         self.psi_deg = self.phi_deg = self.alpha_deg = self.beta_deg = 0.0
         self.r_rad = 0.0  # body yaw rate, positive yawing right
         self.tas_ms = 0.0
@@ -115,12 +123,13 @@ class Injection:
 class Nearest:
     """Nearest alive thermal, refreshed by slow_update."""
 
-    __slots__ = ("distance_m", "bearing_deg", "core_ms", "alive", "loaded")
+    __slots__ = ("distance_m", "bearing_deg", "core_ms", "floor_m", "alive", "loaded")
 
     def __init__(self):
         self.distance_m = -1.0  # -1: none within NEAREST_MAX_M
         self.bearing_deg = 0.0
         self.core_ms = 0.0  # lift at its centre, at the aircraft's height
+        self.floor_m = -1.0  # where its height starts, m MSL; -1: no thermal, or no floor
         self.alive = 0  # thermals alive among those loaded
         self.loaded = 0
 
@@ -182,6 +191,9 @@ class Injector:
         self.sky_wind = None  # (east, north) at the clouds' base, if that carries the sky
         self.nearest = Nearest()
         self.is_wet = None  # is_wet(lat, lon), set by the plugin: the terrain is not ours to read
+        self.heights = None  # clouds.CloudHeights, set by the plugin: the lift ends with its cloud
+        self._last_place = None  # (t, lat, lon) at the last slow update
+        self.floors_us = self.floors_us_max = 0.0  # the last time thermals got their floors
         self.water_checked = self.water_rejected = 0  # thermals asked about, and left out
 
     def set_geometry(self, geometry):
@@ -259,12 +271,25 @@ class Injector:
 
     # --- about once a second ----------------------------------------------
 
+    def _jumped(self, s):
+        """Did the clock or the aircraft jump since the last slow update? That is how a new
+        flight with the same aircraft, or a move on the map, shows up."""
+        last, self._last_place = self._last_place, (s.sky_t_s, s.lat, s.lon)
+        return last is not None and (abs(s.sky_t_s - last[0]) > JUMP_S
+                                     or LocalFrame(last[1], last[2]).distance_to_origin(s.lat, s.lon) > JUMP_M)
+
+    def _ground(self, s):
+        """The ground under the aircraft for the field, m MSL. None: no floors, the old way."""
+        return None if self.heights is None else s.msl_m - s.agl_m
+
     def slow_update(self, s):
         """Keep the field loaded around the aircraft. Not for every frame."""
         st = self.settings
         lat, lon = self.drift.to_air(s.lat, s.lon)
-        key = (st.seed, s.day, st.range_m, st.sky)
+        key = (st.seed, s.day, st.range_m, st.sky, st.zi_m)
+        new_sky = self._jumped(s)
         if self.field is None or key != self._field_key:
+            new_sky = True
             self.frame = LocalFrame(lat, lon)
             config = FieldConfig(seed=st.seed, day=s.day, range_m=st.range_m, sky=sky_named(st.sky))
             self.field = ThermalField(config, self.frame, self.accept_thermal if self.is_wet else None)
@@ -272,20 +297,40 @@ class Injector:
         elif self.frame.distance_to_origin(lat, lon) > st.recentre_m:
             self.frame = LocalFrame(lat, lon)
             self.field.set_frame(self.frame)
-        self.field.update(s.sky_t_s, lat, lon)
+        changed = self.field.update(s.sky_t_s, lat, lon)
+        if self.heights is not None:
+            self._set_floors(s, new_sky, changed)
 
         near = self.nearest
         e, n = self.sky_position(s)
         th, r = self.field.nearest(e, n, s.sky_t_s, NEAREST_MAX_M)
         if th is None:
-            near.distance_m, near.bearing_deg, near.core_ms = -1.0, 0.0, 0.0
+            near.distance_m, near.bearing_deg, near.core_ms, near.floor_m = -1.0, 0.0, 0.0, -1.0
         else:
             near.distance_m = r
             near.bearing_deg = math.degrees(math.atan2(th.e - e, th.n - n)) % 360.0
             near.core_ms = self.field.lift_at(th.e, th.n, s.agl_m, s.sky_t_s,
-                                              st.wstar_ms, st.zi_m)
+                                              st.wstar_ms, st.zi_m, self._ground(s))
+            near.floor_m = -1.0 if th.floor_m is None else th.floor_m
         near.alive = len(self.field.alive(s.sky_t_s))
         near.loaded = sum(1 for _ in self.field.thermals())
+
+    def _set_floors(self, s, new_sky, changed):
+        """Give each thermal its floor when it loads. A new sky has a new level, from the ground
+        under the aircraft now, and every thermal gets its floor again."""
+        heights = self.heights
+        zi = self.settings.zi_m
+        base_zzi = self.field.config.sky.cloud_base_zzi
+        if new_sky:
+            heights.reset()
+            heights.level_m = s.msl_m - s.agl_m + base_zzi * zi
+        if new_sky or changed:
+            t0 = time.perf_counter()
+            for th in self.field.thermals():
+                if new_sky or th.floor_m is None:
+                    th.floor_m = heights.floor_m(th, s.sky_t_s, self.drift, base_zzi, zi)
+            self.floors_us = (time.perf_counter() - t0) * 1e6
+            self.floors_us_max = max(self.floors_us_max, self.floors_us)
 
     # --- every frame ---------------------------------------------------------
 
@@ -302,10 +347,11 @@ class Injector:
             e, n = self.sky_position(s)
             g.update(e, n, s.agl_m, s.psi_deg, s.phi_deg)
             f, t, wstar, zi = self.field, s.sky_t_s, st.wstar_ms, st.zi_m
-            wc = f.lift_at(g.ce, g.cn, g.cz, t, wstar, zi)
-            wl = f.lift_at(g.le, g.ln, g.lz, t, wstar, zi)
-            wr = f.lift_at(g.re, g.rn, g.rz, t, wstar, zi)
-            wt = f.lift_at(g.te, g.tn, g.tz, t, wstar, zi)
+            ground = self._ground(s)
+            wc = f.lift_at(g.ce, g.cn, g.cz, t, wstar, zi, ground)
+            wl = f.lift_at(g.le, g.ln, g.lz, t, wstar, zi, ground)
+            wr = f.lift_at(g.re, g.rn, g.rz, t, wstar, zi, ground)
+            wt = f.lift_at(g.te, g.tn, g.tz, t, wstar, zi, ground)
         else:
             wl = wc = wr = wt = 0.0
         w = inj.span_average(wl, wc, wr)

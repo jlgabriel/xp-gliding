@@ -37,6 +37,7 @@ Pure Python: no `xp`.
 import math
 
 from . import updraft
+from .field import height_in_thermal
 
 # Ring radii (m) that exist as objects, steps of sqrt(2): instances cannot be
 # scaled. They cover the core radius r1 of what passes `min_core_ms` with the
@@ -96,22 +97,23 @@ def core_of(thermal, z, t, wstar, zi, we):
     return we + strength * (w - we), r1 * thermal.stretch
 
 
-def select_markers(field, e, n, z, t, wstar, zi, shown=(), params=None):
+def select_markers(field, e, n, z, t, wstar, zi, shown=(), params=None, ground_m=None):
     """Markers to show around (e, n) at height z and time t, best first.
 
     shown: the thermals already marked (a set or dict of Thermal). Same inputs,
-    same answer: ties are broken by position.
+    same answer: ties are broken by position. ground_m: the ground's height MSL under the
+    glider; with it each thermal is read at its own height (`height_in_thermal`), as the lift is.
     """
     params = params or MarkerParams()
-    if zi <= 0.0 or z <= 0.0 or z >= zi:
+    if zi <= 0.0 or z <= 0.0 or (z >= zi and ground_m is None):
         return []
-    we = field.environment_sink(z, wstar, zi)
     ranked = []
     for th, r in field.alive_within(e, n, t, params.keep_range_m):
         kept = th in shown
         if not kept and r > params.range_m:
             continue
-        core, r1 = core_of(th, z, t, wstar, zi, we)
+        zt = height_in_thermal(th, z, ground_m)
+        core, r1 = core_of(th, zt, t, wstar, zi, field.environment_sink(zt, wstar, zi))
         if core < (params.keep_core_ms if kept else params.min_core_ms):
             continue
         score = core - params.cost_ms_per_m * r + (params.sticky_ms if kept else 0.0)

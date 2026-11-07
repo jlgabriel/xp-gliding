@@ -46,7 +46,7 @@ import time
 
 import xp
 
-LOGGER_VERSION = "0.7.0"
+LOGGER_VERSION = "0.8.0"
 FLUSH_EVERY_ROWS = 300
 
 # (column, dataref, type) read after the flight model
@@ -134,6 +134,7 @@ XPG_DATAREFS = (
     ("xpg_debug_dw_dy", "xp_gliding/debug/dw_dy", "f"),
     ("xpg_nearest_m", "xp_gliding/nearest/distance_m", "f"),
     ("xpg_nearest_core_ms", "xp_gliding/nearest/core_ms", "f"),
+    ("xpg_nearest_floor_m", "xp_gliding/nearest/floor_m", "f"),
     ("xpg_frame_us", "xp_gliding/frame_us", "f"),
     ("xpg_markers", "xp_gliding/markers/count", "i"),
     ("xpg_markers_update_us", "xp_gliding/markers/update_us", "f"),

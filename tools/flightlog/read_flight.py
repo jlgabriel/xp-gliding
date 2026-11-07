@@ -19,6 +19,11 @@ A thermal's `core` and its ceiling leave out neighbours that overlap it. The log
 is read every few seconds; a log older than logger 0.7.0 has no clouds in it, so the base is
 then worked out from the first ground of the log and any raising for the ground is missed.
 
+The floors. Since logger 0.8.0 the lift ends with its cloud: each thermal is read from a floor of
+its own, which the plugin worked out from the ground (`engine.field.height_in_thermal`). A log that
+has them gives a thermal the floor logged while it was the nearest, or else one from its cloud's
+logged base, or else from the level. Older logs were flown with the height above the ground, and are read so.
+
 Measurement tool, not part of the plugin. License: GPL-3.0-or-later.
 """
 
@@ -37,7 +42,8 @@ from replay_sky import FPM_TO_MS, load  # noqa: E402
 from replay_vario import KT_TO_KMH  # noqa: E402
 from xp_gliding.engine import updraft  # noqa: E402
 from xp_gliding.engine.clouds import CLOUD_HALF_WIDTH_M, CloudParams, carries_cloud, cloud_scale  # noqa: E402
-from xp_gliding.engine.field import SKIES, SKY_NAMES, FieldConfig, ThermalField, sky_time  # noqa: E402
+from xp_gliding.engine.field import (SKIES, SKY_NAMES, FieldConfig, ThermalField, height_in_thermal,  # noqa: E402
+                                      sky_time)
 from xp_gliding.engine.geo import LocalFrame  # noqa: E402
 from xp_gliding.engine.markers import core_of  # noqa: E402
 
@@ -52,6 +58,7 @@ MIN_OWN_LIFT_MS = 0.3  # less than this from a thermal: the climb is not due to 
 TOP_S = 30.0  # the end of a climb, to say whether it was still going up
 STILL_CLIMBING_MS = 0.3
 SAME_CLOUD_M = 300.0  # the log's nearest cloud is this thermal's within this distance
+SAME_NEAREST_M = 50.0  # the log's nearest thermal is this one within this: 1 s of flight, plus a little
 CEILING_STEP_M = 10.0
 
 
@@ -65,6 +72,8 @@ def turned_rate(t, psi):
 
 def find_circlings(t, psi, east, north, agl):
     """Stretches of circling, as (first, last) row indices: t at one sample per second or so."""
+    if len(t) < SMOOTH_S:
+        return []
     rate, step = turned_rate(t, psi)
     moved = np.hypot(np.diff(east, prepend=east[0]), np.diff(north, prepend=north[0]))
     dt = np.maximum(np.diff(t, prepend=t[0]), 1e-3)
@@ -103,9 +112,12 @@ def spearman(x, y):
     return float(np.corrcoef(rank(x), rank(y))[0, 1])
 
 
-def own_lift(th, field, e, n, z, t, wstar, zi):
+def own_lift(th, field, e, n, z, t, wstar, zi, ground_m=None):
     """This one thermal's part of the lift at a point, as `ThermalField.lift_at` adds it."""
-    if z <= 0.0 or z >= zi:
+    if z <= 0.0:
+        return 0.0
+    z = height_in_thermal(th, z, ground_m)
+    if z >= zi:
         return 0.0
     s, rf = th.envelope(t)
     if s == 0.0:
@@ -116,15 +128,49 @@ def own_lift(th, field, e, n, z, t, wstar, zi):
     return s * (w - we)
 
 
-def ceiling_agl(th, field, sink, t, z_from, wstar, zi):
+def ceiling_agl(th, field, sink, t, z_from, wstar, zi, ground_m=None):
     """The height (m AGL) where this thermal's core no longer holds up a glider sinking at `sink`."""
     z = max(z_from, CEILING_STEP_M)
-    while z < zi:
-        core, _ = core_of(th, z, t, wstar, zi, field.environment_sink(z, wstar, zi))
+    while True:
+        zt = height_in_thermal(th, z, ground_m)
+        if zt >= zi:
+            return z - (zt - zi)
+        core, _ = core_of(th, zt, t, wstar, zi, field.environment_sink(zt, wstar, zi))
         if core <= sink:
             return z
         z += CEILING_STEP_M
-    return zi
+
+
+def logged_floors(field, log, rows, e, n, sky_t):
+    """The floors the log says, as {thermal: m MSL}. It logs the nearest thermal's, about once a second.
+
+    Thermals can stand 100 m apart with floors 900 m apart, so which one was the nearest is asked of
+    the rebuilt sky; the distance logged only checks it.
+    """
+    near, floors = log["xpg_nearest_m"], log["xpg_nearest_floor_m"]
+    seen = {}
+    for i in rows:
+        th, r = field.nearest(e[i], n[i], sky_t[i], SEARCH_M)
+        if th is not None and abs(r - near[i]) < SAME_NEAREST_M and floors[i] > -1.0:
+            seen.setdefault(th, []).append(floors[i])
+    return {th: float(np.median(values)) for th, values in seen.items()}
+
+
+def floor_of(th, seen, log, a, b, sky, zi, carries):
+    """This thermal's floor (m MSL) in a log that has floors, and where that comes from.
+
+    `logged_floors` if it was the nearest. If not, from its cloud's logged base or the level, the
+    same that the plugin worked it from.
+    """
+    if th in seen:
+        return seen[th], "logged"
+    level = log["xpg_cloud_level_m"][b]
+    if carries:
+        base, source = cloud_base_of(log, a, b, cloud_scale(th), sky, zi)
+        return base - sky.cloud_base_zzi * zi, f"from the base, {source}"
+    if level > 0.0:
+        return float(level) - sky.cloud_base_zzi * zi, "from the level"
+    return None, ""
 
 
 def phase_of_life(th, t):
@@ -137,7 +183,7 @@ def phase_of_life(th, t):
 class Climb:
     __slots__ = ("t0", "t1", "gain", "rate", "te", "bank", "ias", "sink", "top_msl", "top_agl", "end_te", "th",
                  "scale", "core", "r_parts", "cloud_parts", "under", "half_width", "base", "base_from", "ceiling_msl",
-                 "over_ground", "phase", "z_from")
+                 "over_ground", "phase", "z_from", "floor", "floor_from")
 
 
 def read_climb(log, sky_t, e, n, frame, a, b, seed, day, sky, wstar, zi):
@@ -165,19 +211,30 @@ def read_climb(log, sky_t, e, n, frame, a, b, seed, day, sky, wstar, zi):
     mid = 0.5 * (sky_t[a] + sky_t[b])
     field = ThermalField(FieldConfig(seed=seed, day=day, range_m=SEARCH_M + 2000.0, sky=sky), frame)
     field.update(mid, lat, lon)
+    floors = log.get("xpg_nearest_floor_m")
+    has_floors = floors is not None and len(floors) == len(t)
+    ground = elev - agl if has_floors else [None] * len(t)
+    seen = logged_floors(field, log, np.arange(a, b + 1, max((b - a) // 400, 1)), e, n, sky_t) if has_floors else {}
+    params = CloudParams()
     best, best_lift = None, MIN_OWN_LIFT_MS
+    c.floor_from = ""
     for th, _ in field.alive_within(e[rows].mean(), n[rows].mean(), mid, SEARCH_M):
-        lift = np.mean([own_lift(th, field, e[i], n[i], agl[i], sky_t[i], wstar, zi) for i in rows])
+        source = ""
+        if has_floors:
+            th.floor_m, source = floor_of(th, seen, log, a, b, sky, zi, carries_cloud(th, params))
+        lift = np.mean([own_lift(th, field, e[i], n[i], agl[i], sky_t[i], wstar, zi, ground[i]) for i in rows])
         if lift > best_lift:
+            c.floor_from = source
             best, best_lift = th, lift
+    c.floor = None if best is None else best.floor_m
     c.th, c.scale, c.core, c.r_parts, c.cloud_parts, c.under = best, None, None, [], [], None
     c.base, c.base_from, c.ceiling_msl, c.phase, c.half_width = None, "", None, "", None
     if best is None:
         return c
-    z_mid = float(np.mean(agl[rows]))
+    z_mid = height_in_thermal(best, float(np.mean(agl[rows])), float(np.mean(ground[rows])) if has_floors else None)
     c.core, _ = core_of(best, z_mid, mid, wstar, zi, field.environment_sink(z_mid, wstar, zi))
     c.phase = phase_of_life(best, mid)
-    c.ceiling_msl = (elev[b] - agl[b]) + ceiling_agl(best, field, c.sink, sky_t[b], agl[b], wstar, zi)
+    c.ceiling_msl = (elev[b] - agl[b]) + ceiling_agl(best, field, c.sink, sky_t[b], agl[b], wstar, zi, ground[b])
     r_cloud = np.hypot(e[a:b + 1] - best.e, n[a:b + 1] - best.n)
     lean_e, lean_n = log.get("xpg_lean_e_m"), log.get("xpg_lean_n_m")
     has_lean = lean_e is not None and len(lean_e) == len(t)
@@ -186,7 +243,7 @@ def read_climb(log, sky_t, e, n, frame, a, b, seed, day, sky, wstar, zi):
     for part in np.array_split(np.arange(b - a + 1), 4):
         c.r_parts.append(float(np.median(r_lift[part])))
         c.cloud_parts.append(math.hypot(e[a:b + 1][part].mean() - best.e, n[a:b + 1][part].mean() - best.n))
-    if carries_cloud(best, CloudParams()):
+    if carries_cloud(best, params):
         c.scale = cloud_scale(best)
         c.half_width = CLOUD_HALF_WIDTH_M * c.scale
         c.under = float(np.mean(r_cloud < c.half_width))
@@ -219,6 +276,8 @@ def report_climbs(climbs):
         else:
             cloud = f"cloud {c.scale:.2f}" if c.scale else "blue"
             own = f"{cloud}, core {c.core:.2f}, {c.phase}"
+            if c.floor is not None:
+                own += f", floor {c.floor:.0f} m ({c.floor_from})"
         print(f"| {c.t0:.0f}-{c.t1:.0f} | {c.t1 - c.t0:.0f} s | {c.gain:+.0f} m | {c.rate:+.2f} | {c.te:+.2f} "
               f"| {c.bank:.0f} | {c.ias:.0f} | {c.sink:.2f} | {c.over_ground:.0f} m | {own} |")
 

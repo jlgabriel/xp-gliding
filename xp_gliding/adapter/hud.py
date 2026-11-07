@@ -14,6 +14,7 @@ It never touches the forces, and a failure here only hides the panel: an
 exception must not leave a draw callback, because XPPython3 stops calling it.
 
 Metric units for now: m/s and m, except the wind, in knots as in X-Plane's weather settings.
+TOP is how far the clouds are, up from the glider: to the nearest one drawn, or to the sky's level.
 Plugins > xp-gliding > Soaring HUD toggles it, as does the command `xp_gliding/hud/toggle`.
 """
 
@@ -93,6 +94,7 @@ class Hud:
         self._wind_arrow = None
         self._te_text = self._netto_text = self._average_text = self._top_text = ""
         self._wind_text = ""
+        self.top_msl_m = None  # where the clouds are, from the plugin's slow path
         ref = xp.findDataRef
         self._time = ref("sim/time/total_running_time_sec")
         self._paused = ref("sim/time/paused")
@@ -123,12 +125,17 @@ class Hud:
             xp.destroyWindow(self.window)
             self.window = None
 
+    def set_top(self, nearest_base_m, level_m):
+        """The nearest drawn cloud's base (m MSL, -1: none), and the sky's level (None: no sky yet)."""
+        self.top_msl_m = nearest_base_m if nearest_base_m >= 0.0 else level_m
+
     def set_aircraft(self, path, eligible):
         self.eligible = eligible
         self.vario.polar = polar_for(path)
         self.vario.has_netto = self.vario.polar is not None
         self.vario.reset()
         self.aid.reset()
+        self.top_msl_m = None
 
     def _load_drawing(self):
         # Only in the simulator: tests have no OpenGL, and fonts need X-Plane.
@@ -188,7 +195,8 @@ class Hud:
         bank = getf(self._phi)
         psi = getf(self._psi)
         vario = self.vario
-        if not vario.update(t, xp.getDatad(self._elevation), getf(self._tas),
+        msl_m = xp.getDatad(self._elevation)
+        if not vario.update(t, msl_m, getf(self._tas),
                             getf(self._ias) * KT_TO_KMH, bank, getf(self._mass)):
             return
         self.aid.update(t, psi, bank, vario.netto_ms)
@@ -205,8 +213,11 @@ class Hud:
         self._te_text = f"{vario.te_ms:+.1f}"
         self._netto_text = f"NET {vario.netto_ms:+.1f}" if vario.has_netto else "NET --"
         self._average_text = f"AVG {vario.average_ms:+.1f}"
-        base_zzi = sky_named(self.settings.sky).cloud_base_zzi
-        self._top_text = f"TOP {height_to_top(self.settings.zi_m, getf(self._agl), base_zzi):+.0f} m"
+        if self.top_msl_m is not None:
+            top_m = self.top_msl_m - msl_m
+        else:
+            top_m = height_to_top(self.settings.zi_m, getf(self._agl), sky_named(self.settings.sky).cloud_base_zzi)
+        self._top_text = f"TOP {top_m:+.0f} m"
         wind_x, wind_z = getf(self._wind_x), getf(self._wind_z)
         self._wind_arrow = wind_arrow(wind_x, wind_z, psi)
         if self._wind_arrow is None:

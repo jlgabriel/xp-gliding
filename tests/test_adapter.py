@@ -3,9 +3,12 @@ import math
 import pytest
 
 from xp_gliding.adapter import aircraft, config
+from xp_gliding.adapter.clouds import MAX_BASES, CloudHeights
 from xp_gliding.adapter.core import (AircraftState, Injection, Injector, NativeThermalGuard)
 from xp_gliding.engine import injection as inj
-from xp_gliding.engine.field import SKY_NAMES, sky_named
+from xp_gliding.engine.clouds import CloudParams, carries_cloud
+from xp_gliding.engine.field import SKY_NAMES, Thermal, sky_named
+from xp_gliding.engine.wind import AirDrift
 
 # The wing parts of Laminar's ASK 21 (XP 12.4.3 ASK21.acf), lengths in feet.
 ASK21_ACF = """\
@@ -270,3 +273,97 @@ def test_helix_correction_rolls_out_of_a_climbing_turn():
     off = injector(helix_enabled=False)
     off.uniform_ms = 2.0
     assert run(off, s).roll_nm == 0.0
+
+
+# --- how high each cloud is --------------------------------------------------------------------
+
+
+class Ground:
+    """A ground that counts its readings."""
+
+    def __init__(self, height=1000.0):
+        self.height = height
+        self.reads = 0
+
+    def __call__(self, lat, lon):
+        self.reads += 1
+        return self.height
+
+
+def cloud_thermal(lat=-33.4, lon=-70.5, birth=1000.0):
+    return Thermal(lat, lon, birth, birth + 1800.0, 2.0, 1.2)
+
+
+def heights_over(ground, level=2000.0):
+    heights = CloudHeights(ground, CloudParams())
+    heights.level_m = level
+    return heights
+
+
+def test_a_cloud_stands_at_the_level_or_clear_of_the_ground():
+    assert heights_over(Ground(1000.0)).base_m(cloud_thermal(), 1500.0, AirDrift()) == 2000.0
+    assert heights_over(Ground(2500.0)).base_m(cloud_thermal(), 1500.0, AirDrift()) == 2800.0
+
+
+def test_the_field_and_the_catalog_get_the_same_height_for_the_same_thermal():
+    ground = Ground(2500.0)
+    heights = heights_over(ground)
+    first = heights.base_m(cloud_thermal(), 1500.0, AirDrift())
+    reads = ground.reads
+    assert reads >= 5
+    ground.height = 900.0  # had it read again, the answer would change
+    assert heights.base_m(cloud_thermal(), 1900.0, AirDrift()) == first
+    assert ground.reads == reads
+    assert heights.base_m(cloud_thermal(birth=1001.0), 1900.0, AirDrift()) == 2000.0  # another one
+
+
+def test_a_thermal_with_no_cloud_goes_by_the_level_and_reads_no_ground():
+    ground = Ground(2500.0)
+    heights = heights_over(ground)
+    blue = Thermal(-33.4, -70.5, 1000.0, 1100.0, 0.5, 0.6)  # weak, and short-lived
+    assert not carries_cloud(blue, CloudParams())
+    assert heights.base_m(blue, 1050.0, AirDrift()) == 2000.0
+    assert heights.floor_m(blue, 1050.0, AirDrift(), 0.75, 2000.0) == 500.0
+    assert ground.reads == 0
+
+
+def test_a_floor_puts_the_cloud_at_the_skys_share_of_zi():
+    heights = heights_over(Ground(2500.0))
+    assert heights.floor_m(cloud_thermal(), 1500.0, AirDrift(), 0.75, 2000.0) == 2800.0 - 1500.0
+
+
+def test_a_new_sky_forgets_every_height_and_says_so():
+    ground = Ground(2500.0)
+    heights = heights_over(ground)
+    heights.base_m(cloud_thermal(), 1500.0, AirDrift())
+    resets = heights.resets
+    heights.reset()
+    assert heights.level_m is None and heights.resets == resets + 1
+    heights.level_m = 3000.0
+    ground.height = 900.0
+    assert heights.base_m(cloud_thermal(), 1500.0, AirDrift()) == 3000.0
+
+
+def test_the_heights_do_not_grow_without_end():
+    heights = heights_over(Ground(1000.0))
+    drift = AirDrift()
+    for k in range(MAX_BASES + 10):
+        heights.base_m(cloud_thermal(birth=1000.0 + k), 1500.0, drift)
+    assert len(heights._bases) <= MAX_BASES
+
+
+def test_a_ground_not_loaded_is_counted_and_the_cloud_stays_at_the_level():
+    heights = heights_over(lambda lat, lon: None)
+    assert heights.base_m(cloud_thermal(), 1500.0, AirDrift()) == 2000.0
+    assert heights.misses >= 5
+
+
+def test_with_no_heights_the_injector_gives_no_floors_and_nothing_changes():
+    injector = Injector(config.Settings(), aircraft.DEFAULT_GEOMETRY)
+    s = AircraftState()
+    s.lat, s.lon, s.agl_m, s.msl_m, s.tas_ms, s.mass_kg, s.t_zulu_s, s.t_local_s, s.sky_t_s, s.day = (
+        -33.4, -70.5, 1400.0, 5000.0, 28.0, 541.0, 43200.0, 43200.0, 43200.0, 305)
+    injector.slow_update(s)
+    assert all(th.floor_m is None for th in injector.field.thermals())
+    assert injector.nearest.floor_m == -1.0
+    assert injector._ground(s) is None

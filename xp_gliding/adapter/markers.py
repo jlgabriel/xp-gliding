@@ -22,9 +22,8 @@ is the expensive part, runs every `SELECT_PERIOD_S`.
 Positions go through lat/lon and `xp.worldToLocal`, as `engine/geo.py` says. The field is
 in the air's frame, so each thermal is drawn at its position plus the wind's offset
 (`engine/wind.py`), once a second like everything else here.
-Heights follow the glider's, not the thermal's, ground: the engine's lift at a
-point uses the glider's AGL (no terrain under each thermal yet), so a marker
-shows what the glider would meet flying there at this height AGL.
+A ring shows what the glider would meet flying to it at this height MSL, and a column's top is
+at that thermal's cloud (`engine.field.height_in_thermal`).
 
 Nothing here imports `xp`: the SDK calls are in `xpio.SkyObjects`.
 """
@@ -137,19 +136,22 @@ class TrainingMarkers:
         st = self.status
         if now >= self._next_select:
             self._next_select = now + SELECT_PERIOD_S
-            self._reconcile(select_markers(field, e, n, s.agl_m, s.sky_t_s, wstar, zi, self.shown))
+            self._reconcile(select_markers(field, e, n, s.agl_m, s.sky_t_s, wstar, zi, self.shown,
+                                           ground_m=msl_m - s.agl_m))
             st.select_us = (time.perf_counter() - t0) * 1e6
-        top_dy = field.config.sky.cloud_base_zzi * zi - s.agl_m  # the column's top, above the glider
-        # The column hangs from its top, so its pitch swings the bottom toward its heading.
+        top_m = field.config.sky.cloud_base_zzi * zi  # the column's top, over its thermal's floor
         lean_m = math.hypot(lean_e_m, lean_n_m)
-        pitch = heading = 0.0
-        if lean_m > 0.0 and top_dy > MIN_LEAN_HEIGHT_M:
-            pitch = math.degrees(math.atan2(lean_m, top_dy))
-            heading = math.degrees(math.atan2(lean_e_m, lean_n_m)) % 360.0
+        lean_heading = math.degrees(math.atan2(lean_e_m, lean_n_m)) % 360.0
         best_r, best_x, best_y, best_z, best = math.inf, 0.0, 0.0, 0.0, None
         for item in self.shown.values():
             th = item.thermal
             x, y, z = self.sky.world_to_local(*drift.to_ground(th.lat, th.lon), msl_m)
+            top_dy = top_m - s.agl_m if th.floor_m is None else th.floor_m + top_m - msl_m
+            # The column hangs from its top, so its pitch swings the bottom toward its heading.
+            pitch = heading = 0.0
+            if lean_m > 0.0 and top_dy > MIN_LEAN_HEIGHT_M:
+                pitch = math.degrees(math.atan2(lean_m, top_dy))
+                heading = lean_heading
             # Local axes: x east, z south. The column starts at the cloud, and the ring is at
             # the lift's centre at this height.
             self.sky.set_position(item.column, x, y + top_dy, z, pitch=pitch, heading=heading)

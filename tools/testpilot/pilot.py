@@ -18,6 +18,7 @@ file name.
 Measurement tool, not part of the plugin. License: GPL-3.0-or-later.
 """
 
+import atexit
 import math
 import os
 import sys
@@ -85,15 +86,28 @@ def track_deg(v):
     return math.degrees(math.atan2(v[VX], -v[VZ])) % 360.0
 
 
+def give_logger_back(api):
+    """The logger records by itself again, so a person's next flight is not lost."""
+    try:
+        api.set(LOGGER_AUTO, 1)
+    except (KeyError, RuntimeError, OSError) as exc:
+        print(f"could not turn the logger's automatic start back on: {exc}", flush=True)
+
+
 def take_over_logger(api):
-    """The logger records flights by itself: keep it from starting, end what it started."""
+    """The logger records flights by itself: keep it from starting, end what it started.
+
+    Only until this tool ends: a hand flight in the same X-Plane went unrecorded (2026-11-06).
+    """
     try:
         api.set(LOGGER_AUTO, 0)
         if api.get(LOGGER_RECORDING):
             api.command(LOGGER_TOGGLE)
             time.sleep(0.1)
     except KeyError:  # a logger from before 0.5.0
-        pass
+        return
+    atexit.unregister(give_logger_back)
+    atexit.register(give_logger_back, api)
 
 
 def plugin_sky(api):

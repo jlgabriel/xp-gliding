@@ -351,11 +351,16 @@ class CircleMission:
         self.oracle = []  # the engine's lift at the glider, minus the plugin's
         self.ground_start = None
         self.wanted = None  # wanted(thermal, t): only these can be chosen
+        self.floors = None  # floors(field): gives this oracle the plugin's floors. Without it, over
+        # hills its lift differs from the plugin's (notes/phase4.md).
+        self.ground_m = None  # the ground under the glider now, for an oracle with floors
 
     def choose(self, lat, lon, z, t):
         self.frame = LocalFrame(*self.offset.to_air(lat, lon))
         self.field = ThermalField(FieldConfig(seed=self.seed, day=self.day, sky=self.sky), self.frame)
         self.field.update(t, *self.offset.to_air(lat, lon))
+        if self.floors:
+            self.floors(self.field)
         radius = self.radius
         best, best_score = None, -math.inf
         for th in self.field.alive(t):
@@ -364,7 +369,7 @@ class CircleMission:
                 continue
             ring = statistics.fmean(
                 self.field.lift_at(th.e + radius * math.cos(a), th.n + radius * math.sin(a), z, t,
-                                   self.wstar, self.zi)
+                                   self.wstar, self.zi, self.ground_m)
                 for a in (2.0 * math.pi * k / 16 for k in range(16)))
             score = ring - 0.0002 * d
             if score > best_score:
@@ -391,6 +396,8 @@ class CircleMission:
     def on_step(self, v, pilot):
         values = self.offset.read()
         t = self.zulu0 + v[SIM_TIME] - self.sim0
+        if self.floors:
+            self.ground_m = v[ELEV] - v[AGL]
         if self.state == "start":
             if pilot.flown < 10.0:  # the speed settles first
                 return
@@ -398,7 +405,7 @@ class CircleMission:
             self.state = "approach"
             pilot.guidance = self.line
         self.air_e, self.air_n = self.sky_position(v[LAT], v[LON], values)
-        self.oracle.append(self.field.lift_at(self.air_e, self.air_n, v[AGL], t, self.wstar, self.zi)
+        self.oracle.append(self.field.lift_at(self.air_e, self.air_n, v[AGL], t, self.wstar, self.zi, self.ground_m)
                            - values[LIFT_CENTRE])
         self.air_track = (values[PSI] - v[BETA]) % 360.0
         d = math.hypot(self.ce - self.air_e, self.cn - self.air_n)
@@ -413,7 +420,7 @@ class CircleMission:
                   f"counting turns of about {self.turn_s:.0f} s", flush=True)
         if self.state == "free":
             self.rows.append({"flown": pilot.flown, "d": d, "e": self.air_e, "n": self.air_n,
-                              "te": v[TE] * 0.00508, "lift": values[LIFT], "agl": v[AGL],
+                              "te": v[TE] * 0.00508, "lift": values[LIFT], "agl": v[AGL], "msl": v[ELEV],
                               "lat": v[LAT], "lon": v[LON], "ias": v[IAS] * 1.852,
                               "phi": v["sim/flightmodel/position/phi"]})
 

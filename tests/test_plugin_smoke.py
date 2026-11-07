@@ -15,6 +15,9 @@ import types
 
 import pytest
 
+from xp_gliding.engine.clouds import carries_cloud
+from xp_gliding.engine.field import sky_named
+
 DATA = {
     "sim/flightmodel/position/latitude": 32.6875,
     "sim/flightmodel/position/longitude": -103.217,
@@ -306,7 +309,7 @@ def markers_tick(pi, data):
 def test_markers_are_off_by_default(plugin):
     pi, xp, data = plugin
     assert dataref(xp, "markers_enabled") == 0
-    pi.injector.is_wet = None  # the field's own use of the terrain is not the markers'
+    pi.injector.is_wet = pi.injector.heights = None  # the field's use of the terrain is not the markers'
     for _ in range(3):
         markers_tick(pi, data)
     assert not xp.instances and not xp.objects
@@ -625,7 +628,7 @@ def test_the_level_stays_for_a_sky_and_is_new_with_the_next(plugin):
     fill_sky(pi, data)
     assert dataref(xp, "clouds/level_m") == level
     assert len({round(e[1], 3) for e in pi.clouds.instances.values()}) == 1
-    pi.clouds.clear()
+    pi.injector.reset_field()
     clouds_tick(pi, data)
     assert dataref(xp, "clouds/level_m") == pytest.approx(level + 300.0)
 
@@ -957,7 +960,7 @@ def test_the_wind_at_the_clouds_comes_from_the_layers_at_their_level(plugin):
     assert dataref(xp, "wind/e_ms") == pytest.approx(expected * 0.514444, abs=1e-3)
     assert dataref(xp, "wind/n_ms") == pytest.approx(0.0, abs=1e-6)
     # With clouds, at their level, wherever the glider is.
-    pi.clouds.level_m = 2000.0
+    pi.injector.heights.level_m = 2000.0
     pi.next_lean = 0.0
     data["sim/flightmodel/position/elevation"] += 500.0
     frame(pi, data)
@@ -1154,3 +1157,236 @@ def test_the_hud_gives_the_wind_in_knots_and_says_when_it_is_calm(plugin):
     data["sim/weather/aircraft/wind_now_x_msc"] = 7.72
     hud_samples(pi, xp, data)
     assert pi.hud._wind_text == "WIND 15 kt" and pi.hud._wind_arrow is not None
+
+
+# --- the lift ends with its cloud -----------------------------------------------------------------
+
+
+def hill_east(xp, data, height=3000.0):
+    """A long hill beginning 0.05 deg east of the glider, whose ground is 1116 m."""
+    edge = data["sim/flightmodel/position/longitude"] + 0.05
+    xp.ground = lambda lat, lon: height if lon > edge else 1116.0
+    return edge
+
+
+def test_each_thermal_gets_the_floor_that_puts_its_cloud_at_the_skys_share_of_zi(plugin):
+    pi, xp, data = plugin
+    edge = hill_east(xp, data)
+    frame(pi, data)
+    heights, field = pi.injector.heights, pi.injector.field
+    zi, base_zzi = pi.settings.zi_m, field.config.sky.cloud_base_zzi
+    level = 1116.0 + base_zzi * zi
+    assert heights.level_m == pytest.approx(level)
+    params = pi.clouds.planner.params
+    raised = 0
+    for th in field.thermals():
+        assert th.floor_m is not None
+        if carries_cloud(th, params) and th.lon > edge + 0.01:
+            assert th.floor_m == pytest.approx(3300.0 - base_zzi * zi)
+            raised += 1
+        elif not carries_cloud(th, params):
+            assert th.floor_m == pytest.approx(1116.0)
+    assert raised
+    assert dataref(xp, "nearest/floor_m") >= 1116.0
+
+
+def test_the_lift_at_a_drawn_cloud_ends_by_the_height_that_cloud_was_drawn_at(plugin):
+    pi, xp, data = plugin
+    edge = hill_east(xp, data)
+    fill_sky(pi, data)
+    zi = pi.settings.zi_m
+    base_zzi = pi.injector.field.config.sky.cloud_base_zzi
+    by_key = {(th.lat, th.lon, th.birth): th for th in pi.injector.field.thermals()}
+    both = [(c, by_key[(c.lat, c.lon, c.birth)]) for c in pi.clouds.instances
+            if (c.lat, c.lon, c.birth) in by_key]
+    assert both and any(c.lon > edge + 0.01 for c, _ in both)
+    for cloud, th in both:
+        assert th.floor_m == pytest.approx(pi.clouds.instances[cloud][1] - base_zzi * zi)
+
+
+def test_on_flat_ground_the_force_is_what_it_was_with_no_floors(plugin):
+    pi, xp, data = plugin
+    pi.injector.slow_update(pi.io.read_state(pi.state))
+    th, _ = pi.injector.field.nearest(0.0, 0.0, pi.state.sky_t_s, 5000.0)
+    data["sim/flightmodel/position/latitude"], data["sim/flightmodel/position/longitude"] = th.lat, th.lon
+    frame(pi, data)
+    with_floors = dataref(xp, "lift_centre_ms")
+    assert dataref(xp, "nearest/floor_m") == pytest.approx(1116.0, abs=0.01)
+    pi.injector.heights = None
+    frame(pi, data)
+    assert dataref(xp, "lift_centre_ms") == pytest.approx(with_floors, abs=1e-6)
+
+
+def glider_over_raised_thermal(pi, xp, data):
+    """Over a thermal with a raised cloud, on the hill: (thermal, ground there)."""
+    hill_east(xp, data)
+    data["sim/weather/aircraft/wind_now_x_msc"] = 0.0
+    frame(pi, data)
+    params = pi.clouds.planner.params
+    t = pi.state.sky_t_s
+    th = next(th for th in pi.injector.field.alive(t)
+              if carries_cloud(th, params) and th.floor_m > 1117.0 and th.envelope(t)[0] == 1.0)
+    data["sim/flightmodel/position/latitude"], data["sim/flightmodel/position/longitude"] = th.lat, th.lon
+    return th, 3000.0
+
+
+def test_over_a_hill_a_climb_ends_at_its_cloud_and_not_above_the_ground_under_it(plugin):
+    pi, xp, data = plugin
+    th, ground = glider_over_raised_thermal(pi, xp, data)
+    zi = pi.settings.zi_m
+    above = th.floor_m + zi / 1.1 + 50.0  # over the top of the lift
+    data["sim/flightmodel/position/elevation"], data["sim/flightmodel/position/y_agl"] = above, above - ground
+    frame(pi, data)
+    assert dataref(xp, "lift_centre_ms") < 0.0
+    # Under it, close over this hill, it climbs.
+    low = ground + 50.0
+    data["sim/flightmodel/position/elevation"], data["sim/flightmodel/position/y_agl"] = low, low - ground
+    frame(pi, data)
+    assert dataref(xp, "lift_centre_ms") > 0.3
+
+
+def test_a_jump_is_a_new_sky_with_a_new_level_and_new_floors(plugin):
+    pi, xp, data = plugin
+    clouds_tick(pi, data)
+    heights = pi.injector.heights
+    level, resets = heights.level_m, heights.resets
+    assert level == pytest.approx(1116.0 + pi.injector.field.config.sky.cloud_base_zzi * pi.settings.zi_m)
+    # A small step changes nothing, whatever the ground does.
+    data["sim/flightmodel/position/longitude"] += 0.01
+    data["sim/flightmodel/position/y_agl"] -= 300.0
+    frame(pi, data)
+    pi.next_slow = 0.0
+    frame(pi, data)
+    assert heights.level_m == level and heights.resets == resets
+    # Moved on the map, over other ground, same aircraft: no message from X-Plane says so.
+    old = set(xp.instances)
+    assert old
+    data["sim/flightmodel/position/longitude"] += 0.2
+    pi.next_slow = 0.0
+    frame(pi, data)
+    assert heights.resets == resets + 1
+    assert heights.level_m == pytest.approx(level + 300.0)
+    assert all(th.floor_m == pytest.approx(1416.0) for th in pi.injector.field.thermals()
+               if not carries_cloud(th, pi.clouds.planner.params))
+    # The clouds go with it, or they would stand at the old level over the new lift.
+    clouds_tick(pi, data)
+    assert not old & set(xp.instances)
+
+
+def test_the_clock_jumping_is_a_new_sky_too(plugin):
+    pi, xp, data = plugin
+    frame(pi, data)
+    heights = pi.injector.heights
+    resets = heights.resets
+    pi.next_slow = 0.0
+    frame(pi, data)
+    assert heights.resets == resets
+    data["sim/time/zulu_time_sec"] += 3600.0
+    pi.next_slow = 0.0
+    frame(pi, data)
+    assert heights.resets == resets + 1
+
+
+def test_a_new_zi_is_a_new_sky_even_written_by_a_tool(plugin):
+    pi, xp, data = plugin
+    frame(pi, data)
+    field = pi.injector.field
+    base_zzi = field.config.sky.cloud_base_zzi
+    dataref(xp, "zi_m", 1500.0)
+    pi.next_slow = 0.0
+    frame(pi, data)
+    assert pi.injector.field is not field
+    assert pi.injector.heights.level_m == pytest.approx(1116.0 + base_zzi * 1500.0)
+
+
+def test_the_top_on_the_hud_is_the_distance_up_to_the_clouds(plugin):
+    pi, xp, data = plugin
+    zi, agl = pi.settings.zi_m, data["sim/flightmodel/position/y_agl"]
+    pi.next_slow = 0.0
+    frame(pi, data)
+    base_zzi = pi.injector.field.config.sky.cloud_base_zzi
+    # With no cloud drawn, the level.
+    assert pi.clouds.status.nearest_base_m == -1.0
+    hud_samples(pi, xp, data, count=3)
+    assert pi.hud._top_text == f"TOP {1116.0 + base_zzi * zi - 1916.0:+.0f} m"
+    # With one, how far its base is from the glider: the ground under the glider does not count.
+    pi.clouds.status.nearest_base_m = 3000.0
+    pi.next_slow = 0.0
+    frame(pi, data)
+    hud_samples(pi, xp, data, count=3)
+    assert pi.hud._top_text == "TOP +1084 m"
+    data["sim/flightmodel/position/y_agl"] = agl - 500.0  # climbing into a hill's cloud, over the hill
+    hud_samples(pi, xp, data, count=3)
+    assert pi.hud._top_text == "TOP +1084 m"
+    data["sim/flightmodel/position/elevation"] += 1.0
+    hud_samples(pi, xp, data, count=3)
+    assert pi.hud._top_text == "TOP +1083 m"
+
+
+def test_the_top_on_the_hud_with_nothing_known_is_the_forecast(plugin):
+    pi, xp, data = plugin
+    pi.hud.set_top(-1.0, None)
+    hud_samples(pi, xp, data, count=3)
+    assert pi.hud.top_msl_m is None
+    base_zzi = sky_named(pi.settings.sky).cloud_base_zzi
+    assert pi.hud._top_text == f"TOP {pi.settings.zi_m * base_zzi - 800.0:+.0f} m"
+
+
+def test_each_column_stands_at_its_own_thermals_cloud(plugin):
+    pi, xp, data = plugin
+    hill_east(xp, data)
+    dataref(xp, "markers_enabled", 1)
+    data["sim/flightmodel/position/longitude"] += 0.05
+    frame(pi, data)
+    # Some of the markers raised, some not, to see the difference.
+    markers_tick(pi, data)
+    assert pi.markers.shown
+    zi = pi.settings.zi_m
+    base_zzi = pi.injector.field.config.sky.cloud_base_zzi
+    floors = [1116.0, 1500.0]
+    for k, th in enumerate(pi.markers.shown):
+        th.floor_m = floors[k % 2]
+    markers_tick(pi, data)
+    msl = data["sim/flightmodel/position/elevation"]
+    tops = set()
+    for item in pi.markers.shown.values():
+        ring = xp.instances[item.ring][1]
+        column = xp.instances[item.column][1]
+        assert column[1] - ring[1] == pytest.approx(item.thermal.floor_m + base_zzi * zi - msl)
+        tops.add(round(column[1], 3))
+    assert len(tops) == 2
+
+
+def test_each_column_leans_by_its_own_height(plugin):
+    pi, xp, data = plugin
+    dataref(xp, "markers_enabled", 1)
+    dataref(xp, "lean_enabled", 1)
+    pi.next_lean = 0.0
+    frame(pi, data)
+    markers_tick(pi, data)
+    assert len(pi.markers.shown) >= 2
+    a, b = list(pi.markers.shown)[:2]
+    a.floor_m, b.floor_m = 1116.0, 1300.0
+    markers_tick(pi, data)
+    lean = math.hypot(dataref(xp, "lean/e_m"), dataref(xp, "lean/n_m"))
+    assert lean > 0.0
+    for th in (a, b):
+        item = pi.markers.shown[th]
+        ring, column = xp.instances[item.ring][1], xp.instances[item.column][1]
+        assert column[3] == pytest.approx(math.degrees(math.atan2(lean, column[1] - ring[1])), abs=0.01)
+    assert xp.instances[pi.markers.shown[a].column][1][3] != xp.instances[pi.markers.shown[b].column][1][3]
+
+
+def test_the_floors_read_the_ground_only_when_a_thermal_loads(plugin):
+    pi, xp, data = plugin
+    reads = []
+    hill = xp.ground
+    xp.ground = lambda lat, lon: reads.append(1) or hill(lat, lon)
+    pi.clouds.heights.ground_m = pi.clouds.sky.ground_m
+    frame(pi, data)
+    assert reads
+    count = len(reads)
+    pi.next_clouds = pi.next_markers = float("inf")
+    for _ in range(3):
+        frame(pi, data)
+    assert len(reads) == count

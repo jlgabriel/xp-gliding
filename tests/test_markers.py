@@ -8,7 +8,7 @@ from PIL import Image
 
 from xp_gliding.engine import markers as mk
 from xp_gliding.engine import updraft
-from xp_gliding.engine.field import FieldConfig, ThermalField
+from xp_gliding.engine.field import FieldConfig, LOW_HEIGHT_M, ThermalField
 from xp_gliding.engine.geo import LocalFrame
 
 KHOB = (32.6875, -103.2170)
@@ -165,3 +165,40 @@ def test_assets_match_their_generator():
         assert mk.column_object(strength) + ".obj" in files
         for size in range(len(mk.SIZES_M)):
             assert mk.ring_object(size, strength) + ".obj" in files
+
+
+def test_with_floors_on_the_ground_the_markers_are_the_same(field):
+    before = mk.select_markers(field, 0.0, 0.0, 800.0, NOON, WSTAR, ZI)
+    for th in field.thermals():
+        th.floor_m = 1116.0
+    after = mk.select_markers(field, 0.0, 0.0, 800.0, NOON, WSTAR, ZI, ground_m=1116.0)
+    assert [(m.thermal, m.core_ms, m.r1_m) for m in after] == [(m.thermal, m.core_ms, m.r1_m) for m in before]
+    assert before
+
+
+def test_a_marker_reads_each_thermal_at_its_own_height(field):
+    for th in field.thermals():
+        th.floor_m = 500.0
+    z, ground = 400.0, 2000.0  # 2400 m MSL: past the top of the lift of these
+    assert mk.select_markers(field, 0.0, 0.0, z, NOON, WSTAR, ZI, ground_m=ground) == []
+    assert mk.select_markers(field, 0.0, 0.0, z, NOON, WSTAR, ZI)  # by its height AGL there would be some
+    for th in field.thermals():
+        th.floor_m = 1200.0  # raised clouds: 1200 m of their own height
+    raised = mk.select_markers(field, 0.0, 0.0, z, NOON, WSTAR, ZI, ground_m=ground)
+    assert raised
+    th = raised[0].thermal
+    core, r1 = mk.core_of(th, 1200.0, NOON, WSTAR, ZI, field.environment_sink(1200.0, WSTAR, ZI))
+    assert raised[0].core_ms == pytest.approx(core) and raised[0].r1_m == pytest.approx(r1)
+
+
+def test_a_glider_high_over_a_deep_valley_still_gets_markers(field):
+    for th in field.thermals():
+        th.floor_m = 3000.0
+    z, ground = ZI + 200.0, 100.0  # over zi above this ground, and still under the floor
+    assert mk.select_markers(field, 0.0, 0.0, z, NOON, WSTAR, ZI) == []
+    chosen = mk.select_markers(field, 0.0, 0.0, z, NOON, WSTAR, ZI, ground_m=ground,
+                               params=mk.MarkerParams(min_core_ms=-10.0))
+    assert chosen
+    th = chosen[0].thermal
+    core, _ = mk.core_of(th, LOW_HEIGHT_M, NOON, WSTAR, ZI, field.environment_sink(LOW_HEIGHT_M, WSTAR, ZI))
+    assert chosen[0].core_ms == pytest.approx(core)
