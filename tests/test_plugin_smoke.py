@@ -1067,8 +1067,26 @@ def test_the_menu_shows_the_current_choices(plugin):
 
 def test_every_sky_in_the_menu_exists_and_every_sky_is_in_the_menu(plugin):
     pi, xp, data = plugin
-    values = {refcon[1] for _, refcon in xp.menus["Sky"]["items"]}
+    values = {pi.choices[refcon][1] for _, refcon in xp.menus["Sky"]["items"]}
     assert values == set(importlib.import_module("xp_gliding.engine.field").SKY_NAMES)
+
+
+def test_a_menu_item_carries_a_plain_number_and_not_an_object_made_for_the_call(plugin):
+    # A tuple made in the loop did not come back intact in X-Plane, which stopped the plugin.
+    pi, xp, data = plugin
+    for title in ("Sky", "Strength of the day (w*)", "Depth of the thermal layer (zi)", "Seed of the sky"):
+        assert all(type(refcon) is int for _, refcon in xp.menus[title]["items"])
+
+
+def test_a_bad_menu_choice_is_logged_and_does_not_stop_the_plugin(plugin, capsys):
+    pi, xp, data = plugin
+    sky = pi.settings.sky
+    pi.on_choice("Sky", 9999)
+    pi.on_choice("Sky", ("not", "a place"))
+    assert pi.settings.sky == sky
+    assert "error in a menu choice" in capsys.readouterr().out
+    frame(pi, data)
+    assert not pi.failed
 
 
 def test_choosing_a_sky_changes_it_and_saves_it(plugin):

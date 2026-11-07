@@ -260,11 +260,16 @@ class PythonInterface:
             xp.appendMenuItemWithCommand(self.menu, label, cmd)
         xp.appendMenuSeparator(self.menu)
         self.submenus = []  # (menu, setting, values, in the menu's order)
+        # What each submenu item sets. An item carries only its place in this list: a tuple made
+        # for the call did not come back intact in X-Plane (2026-11-07), and XPPython3's samples
+        # pass plain numbers or functions kept alive elsewhere.
+        self.choices = []
         for title, attr, options in MENU_CHOICES:
             item = xp.appendMenuItem(self.menu, title, None)
             submenu = xp.createMenu(title, self.menu, item, self.on_choice, None)
             for label, value in options:
-                xp.appendMenuItem(submenu, label, (attr, value))
+                xp.appendMenuItem(submenu, label, len(self.choices))
+                self.choices.append((attr, value))
             self.submenus.append((submenu, attr, tuple(value for _, value in options)))
         self.refresh_menu()
 
@@ -337,15 +342,21 @@ class PythonInterface:
     def on_choice(self, menuRef, itemRef):
         """A value chosen in a submenu. A new sky or seed gives a new field in the slow path,
         and the clouds and markers follow it. The clouds' base comes from zi when each is
-        created, so a new zi starts them over."""
-        attr, value = itemRef
-        self.settings.update({attr: value})
-        if attr == "zi_m":
-            self.clouds.clear()
-        self.next_slow = 0.0
-        self.refresh_menu()
-        print(f"{TAG} {attr} = {getattr(self.settings, attr)}")
-        self.save()
+        created, so a new zi starts them over.
+
+        An exception here would stay pending and surface in the next flight loop, which would
+        stop the plugin's effect, so a failed choice is only written to the log."""
+        try:
+            attr, value = self.choices[itemRef]
+            self.settings.update({attr: value})
+            if attr == "zi_m":
+                self.clouds.clear()
+            self.next_slow = 0.0
+            self.refresh_menu()
+            print(f"{TAG} {attr} = {getattr(self.settings, attr)}")
+            self.save()
+        except Exception:
+            print(f"{TAG} error in a menu choice, ignored:\n" + traceback.format_exc())
 
     def save(self):
         failed = save_settings(self.settings, self.config_path)
