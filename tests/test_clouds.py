@@ -157,6 +157,34 @@ def test_an_old_cloud_fills_fast_rests_and_settles():
     assert run(planner, [th], 0.0, 0.0, rest_end + 5.0) == []
 
 
+def test_a_refill_fills_a_drawn_cloud_fast_rests_and_settles_again():
+    # A new instance taking over a cloud that comes nearer (cloud_order.py).
+    p = cl.CloudParams()
+    th = make_thermal(birth=0.0, life=2000.0)
+    planner = cl.CloudPlanner(p)
+    run(planner, [th], 0.0, 0.0, 500.0)
+    t = 700.0
+    run(planner, [th], 0.0, 0.0, t)
+    assert planner.shown[th].rate == 1.0 and planner.next_change == float("inf")
+    assert planner.refill(th, t) == p.prewarm
+    fill_end = t + p.mean_ttl_s / p.prewarm
+    assert planner.next_change == pytest.approx(fill_end)
+    assert run(planner, [th], 0.0, 0.0, fill_end) == [(cl.RATE, th, 0.0)]
+    rest_end = fill_end + p.rest_fraction * p.mean_ttl_s
+    assert run(planner, [th], 0.0, 0.0, rest_end) == [(cl.RATE, th, 1.0)]
+
+
+def test_a_fading_cloud_is_not_refilled():
+    p = cl.CloudParams()
+    th = make_thermal(birth=0.0, life=1000.0)
+    planner = cl.CloudPlanner(p)
+    run(planner, [th], 0.0, 0.0, 500.0)
+    run(planner, [th], 0.0, 0.0, 700.0)  # past fade_tau: stopped
+    assert planner.shown[th].stopped_at is not None
+    assert planner.refill(th, 701.0) == 0.0
+    assert planner.shown[th].fast_until < 701.0
+
+
 def alive_particles(th, planner, t0, t1, dt=1.0):
     """How many particles (in units of a steady cloud) the planner's rates keep alive, for
     lives spread evenly over 0.8-1.2 of the mean: (t, alive) from t0 to t1."""
@@ -289,6 +317,18 @@ def test_new_clouds_come_a_few_at_a_time():
     assert len([a for a in run(planner, thermals, 0.0, 0.0, 701.0) if a[0] == cl.CREATE]) == 2
     assert len([a for a in run(planner, thermals, 0.0, 0.0, 702.0) if a[0] == cl.CREATE]) == 1
     assert not planner.more_waiting
+
+
+def test_new_clouds_are_created_last_and_the_nearest_first():
+    # X-Plane draws the newest instance underneath (cloud_order.py).
+    p = cl.CloudParams(max_new=3)
+    thermals = [make_thermal(birth=0.0, life=2000.0, e=d) for d in (5000.0, -1000.0, 9000.0, 3000.0, -7000.0)]
+    planner = cl.CloudPlanner(p)
+    first = run(planner, thermals, 0.0, 0.0, 700.0)
+    assert [th.e for _, th, _ in first] == [-1000.0, 3000.0, 5000.0]
+    second = run(planner, thermals, 0.0, 0.0, 701.0)
+    assert [th.e for a, th, _ in second if a == cl.CREATE] == [-7000.0, 9000.0]
+    assert all(a == cl.CREATE for a, _, _ in second[-2:])
 
 
 def test_a_cloud_whose_tile_was_dropped_fades_instead_of_vanishing():

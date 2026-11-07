@@ -82,7 +82,7 @@ Choosing another sky, seed or depth in flight replaces the clouds at once, and n
 
 - **The day is chosen in the menu.** Strength and cloud base do not follow X-Plane's weather yet, so the thermals are the same on a dry day and a humid one.
 - **The sun is not read.** Thermals and clouds are there at any hour.
-- **A far cloud can appear in front of a near one,** with a sharp edge, most of all close to a big cloud. The likely cause is the order in which the simulator draws them.
+- **A far cloud can still appear in front of a near one at times,** mostly between clouds far away. X-Plane draws its particle clouds in the order they were created, not by distance, and the plugin works around it by distance rings. A cloud you have just come near can look denser for a few minutes while this settles.
 - **X-Plane's own cumulus mark none of these thermals.** The two can share a sky, and to read it, leave X-Plane's off.
 - **The Laminar ASK 21 is the reference.** Other gliders get the lift and no netto. A glider whose wings are not in the usual parts of its file is treated as an ASK 21 for the roll. An aircraft with engines gets nothing, so a motor glider is left out.
 - **A glider flies as well as its own flight model allows.** The Laminar ASK 21 sinks about 2.1 m/s circling at 45°, measured by a scripted autopilot in X-Plane 12.4.3, so steep turns cost a lot of climb.

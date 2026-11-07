@@ -305,3 +305,73 @@ I first told him that the clouds going and no jolt meant the change had worked a
 - `wind_now_direction_degt` says where the wind comes from: with a layer from 270 it read 270 and `wind_now_x_msc` +6.36, so the air goes east. It read 90 in the first three flights, so those winds were from the east, and I had told him in the air, wrongly, that they were from the west, and to stay on the face looking at Santiago, which was then the lee side.
 - The airbrakes stood at 100% on the ground at load, again.
 - He got dizzy after the climbs at 25 kt.
+
+## The order clouds are drawn in
+
+2026-11-07, evening, by the test pilot and the cloud lab, Juan Luis watching but not flying. The question of [stage 1](SPEC.md#stage-1-first-release): why a far cloud is drawn over a near one, with a sharp edge, as he saw in [his flights](#flights-by-hand-for-the-first-release), and whether a plugin can do anything about it.
+
+**The answer: X-Plane does not sort particles between instances; it draws them in the reverse of the order they were created.** The newest instance is drawn first, underneath, and the oldest last, on top, wherever they are. A far cloud created before a nearer one in the same direction is drawn over it. Since the order is fixed when an instance is created, a plugin can choose it, and the plugin now does: the fix is below, with what it leaves.
+
+Laminar's [particle system article](https://developer.x-plane.com/article/x-plane-11-particle-system/), the [OBJ8 specification](https://developer.x-plane.com/article/obj8-file-format-specification/) and the [XPLMInstance](https://developer.x-plane.com/sdk/XPLMInstance/) page say nothing about sorting, depth or the order emitters are drawn in. The article lists the blending modes (normal, additive, pre-multiplied) and nothing else that touches order.
+
+### In the lab
+
+`tools/cloudlab/` with new objects from [`make_order.py`](../tools/cloudlab/make_order.py): the plugin's cumulus at scale 1.5 and a fast rate with no dataref, in white, and in red and blue with their own particle types, plus objects with two emitters 6 km apart. The lab gained `touch`, `destroy_at` and `recreate`, and turns each instance to the aircraft's heading. KHOB, 2400 m MSL, straight flight east, each cloud's base 400 m under the glider, near at 2.5 km and far at 7 km ahead, a screenshot 14 s after placing them. One look each, all consistent:
+
+| Case | Created | Seen |
+| --- | --- | --- |
+| White, near and far | near, then far | The far one hidden |
+| White | far, then near | The far one drawn over the near one, a sharp edge and its own haze: Juan Luis's picture |
+| Red near, blue far | near, then far | Blue hidden |
+| Red near, blue far | far, then near | Blue over red |
+| One particle type each | both orders | The same as with three types |
+| Three clouds at 2.5, 4.5 and 7 km, a few degrees apart | near-mid-far, far-mid-near, mid-near-far, near-far-mid | Each time the first created on top and the last underneath: all four as the reverse of creation predicts |
+| Far, then near; then the far one's position set again, then the near one's | | No change: setting a position does not move an instance in the order |
+| A third cloud first, then the near one; the first destroyed; then the far one | | The far one hidden: a new instance goes underneath, it does not take the destroyed one's place |
+| Far, then near; then the far one destroyed and created again in the same place | | The far one hidden once it had refilled |
+| One object, a red emitter and a blue one 6 km behind it, in either order of the `EMITTER` lines | | Blue on top both times. Blue comes after red in the `.pss` and in particle types; which of them decides was not separated |
+
+Objects of different files (red and blue) followed creation order together, so the order is one list across objects. Nothing here depended on distance or on the number of particle types.
+
+### What can be done from a plugin
+
+Only creating an instance changes the order, and a new one always goes underneath. Destroying an instance removes its particles at once, so a cloud cannot simply be created again: it would vanish and refill. Moving an instance keeps its place in the order, and its particles stay where they were emitted. So the plugin can hand a cloud from one instance to another: the new one feeds at the cloud's rate in the same place and the old one stops, its particles dying over one particle life (144 to 216 s) as the new ones build up, which is the turnover a cloud has anyway.
+
+**Tried first and dropped: drawing a far cloud again** when a nearer one in front of it in view was created after it. A pass every 2 s, nearest first, with each cloud's reach in view (bearing, width, height). Offline, in the smoke tests' sky at KHOB: with every cloud as an obstacle, 40 to 90 clouds a minute drawn again with the glider still; with only clouds within 6 km as obstacles, 3.4 a minute still and 37 a minute flying straight at 108 km/h. Flown at 90 km/h it worked for clouds near each other, but a cloud drawn again goes under everything, also the clouds beyond it, and one such case showed: a big cloud under a farther row. Carrying those along brought it to 15 a minute still and 105 flying straight, filling 400 waiting instances. Dropped.
+
+**Built: rings of distance.** At the start of a sky, before any cloud, instances are made for rings around the glider (0-1.5, 1.5-3, 3-5 and 5-8 km; 10, 20, 40 and 100 instances), the nearest ring first, 30 per update. A cloud takes an idle instance of its ring, so every nearer ring is drawn over every farther one. Within a ring it takes one newer than those of the ring's clouds nearer than it and older than those of the farther ones, judged when it comes in. Beyond 8 km clouds are created as before, after all of them. A cloud that dies gives its instance back. Every 2 s (10 s while tiles load) a cloud the glider's moves took 300 m past a ring's edge is handed over to an instance of its new ring, and the old one returns to its ring once its particles have gone. The planner now creates new clouds last in a step, nearest first, and only within the distance where every tile has loaded. See [`engine/cloud_order.py`](../xp_gliding/engine/cloud_order.py) and [`adapter/clouds.py`](../xp_gliding/adapter/clouds.py).
+
+Offline, in the same sky: no handover at all with the glider still, since a cloud that is born takes its place directly; about 20 a minute flying straight at 108 km/h, with about 75 instances waiting for their particles to go. The first sizes (8, 16, 32, 64) ran short a few times in that run, hence the larger ones. The pass takes about 0.07 ms offline.
+
+### Flown
+
+Straight flights south from KHOB at 2450 m MSL for 300 s, a screenshot ahead and one looking back every 60 s (`fly_clouds.py look --back`), the same deterministic sky each time:
+
+| Version | Handed over | Waiting at the end | Ring misses | Seen looking back |
+| --- | --- | --- | --- | --- |
+| `main` | | | | Far clouds drawn over the base of nearer ones, sharp edges |
+| Nearest first only (no pass ran while tiles loaded) | | | | The big near clouds in front |
+| Rings | 65 | 56 | 0 | The big near clouds in front |
+
+Looking back is where the old order failed most: the clouds passed were created when they were ahead, so the farther ones are the older. Ahead, the old order was mostly right in the first minutes, since tiles load from the glider out.
+
+A climb by the test pilot under one cloud (`fly_clouds.py climb`, 2350 m MSL, 5 min), with a screenshot ahead every 20 s: near clouds in front of far ones while circling, but for the case below. 40 handovers, no ring ran short, the clouds' update at most 1.1 ms. Making the rings' 170 instances in one update had taken 3.9 ms, hence the batches of 30.
+
+Cost (`fly_clouds.py cost`, three blocks of 60 s each way, before the batches): main thread with clouds 428, 431 and 403 ms/s against 383, 351 and 406 without; GPU estimate 5.57, 5.56 and 5.64 ms against 5.57, 5.53 and 5.55. About what [phase 2](phase2.md#cost) measured with fewer instances, within the same noise. The instances made in advance and those waiting add about 170 to 270 to the 200-odd clouds'.
+
+### A cloud just approached
+
+Gliding to a cloud and climbing under it hands it over at each ring's edge, the last at 1.2 km. Its old particles keep the old ring's place for up to 3.6 min, so clouds of its new ring a little farther away were drawn over them, less and less as they went. Seen in the climb above: two clouds at about 2 to 3 km over the lower part of the cloud overhead, the same in two runs.
+
+Juan Luis chose the fix that costs a denser cloud for a while (same evening). A cloud handed over to a nearer ring now gets a new instance that fills fast and rests, the schedule of a new cloud (`CloudPlanner.refill`), so its particles in the right place cover the old ones within about 9 s; a cloud too young to need it, or fading, keeps its rate. Going away, a cloud is only turned over as before. For about 3.6 min the cloud holds the old particles too, up to twice the usual number at the start, fewer as they die.
+
+The same climb again, the same moment (2 min 44 s in): the base of the cloud overhead is drawn in front of the two clouds at 2 to 3 km, which now show below it, and the cloud overhead looks fuller. 40 handovers, 21 of them coming nearer, the clouds' update at most 0.9 ms.
+
+**Juan Luis's first impression,** watching the test flights on the screen, not flying: "se ven mejor las nubes que antes" (the clouds look better than before). Whether the denser cloud shows from the seat waits for a flight by hand. He then took three screenshots of the same flight from the cockpit, near 19:56, in calm wind and about 330 m under the base, looking along the rows of clouds: "está mejor ahora". In all three the near clouds are in front of the far ones, and no small cloud shows stuck on the face of a big one, by eye.
+
+### What it leaves
+
+- **Within a ring** the order is right when a cloud comes in, and is not followed as the glider moves within the ring.
+- **Beyond 8 km** errors between clouds are left: both are small.
+- **A screenshot Juan Luis sent that evening**, taken while the plugin drew clouds again: far clouds under the base of a big one and of another to the right. That version had the fault above, a cloud drawn again going under the clouds beyond it.
+- Not flown in wind, nor through an origin shift with the rings, nor judged by Juan Luis's eye.

@@ -15,6 +15,13 @@ should it, real cloud bases are level). Each keeps one for life, from `engine.cl
 the level, unless the ground under it or along its drift asks for more. The level is the sky's
 `cloud_base_zzi` over the ground under the glider, when a sky begins.
 
+The order they are drawn in. X-Plane draws the newest instance underneath and does not sort them,
+so a far cloud created before a nearer one is drawn over it (notes/phase4.md). At the start of a
+sky, instances are made for rings of distance, the nearest first, and a cloud takes one of its
+ring; beyond the last ring clouds are created as they come, nearest first. Every
+`ORDER_PERIOD_S` a cloud the glider's moves took into another ring is handed over to an instance
+of that ring, filled fast if it came nearer (`engine/cloud_order.py`).
+
 The lift ends with its cloud. `CloudHeights` keeps each cloud's base, also for a thermal whose
 cloud is not drawn, and `core.Injector` gives each thermal the floor that puts that base at the
 sky's `cloud_base_zzi` (`engine.field.height_in_thermal`).
@@ -25,6 +32,7 @@ Nothing here imports `xp`: the SDK calls are in `xpio.SkyObjects`.
 import math
 import time
 
+from ..engine.cloud_order import FAR, RING_SIZES, RingPool, ring_of
 from ..engine.clouds import (CLOUD_HALF_WIDTH_M, CREATE, DESTROY, RATE, CloudCatalog, CloudPlanner,
                              carries_cloud, cloud_base_m, cloud_scale, cloud_seconds_left, ground_points)
 
@@ -34,6 +42,13 @@ FILLING_PLAN_PERIOD_S = 1.0  # and while it fills, or while new clouds are waiti
 JUMP_S = 120.0  # a larger jump of the sim's clock than this: time was changed, start over
 MOVE_SLICES = 4  # in wind, updates to move every cloud once
 MAX_BASES = 5000  # past this many clouds' heights start over: those in use are worked out again
+DATAREFS = ("xp_gliding/clouds/rate", "xp_gliding/clouds/scale")
+# Drawing order (engine/cloud_order.py).
+ORDER_PERIOD_S = 2.0
+ORDER_LOADING_PERIOD_S = 10.0  # while tiles load, which takes about 5 min: less often, to load them
+MAX_HANDOVERS = 16  # clouds handed over to another ring per pass: four SDK calls each
+# The rings' instances made per update, before the first cloud: all at once took 3.9 ms (flown).
+RING_BATCH = 30
 
 
 class CloudStatus:
@@ -41,7 +56,8 @@ class CloudStatus:
 
     __slots__ = ("count", "created", "destroyed", "rate_changes", "moved", "tiles_missing",
                  "update_us", "update_us_max", "plan_us", "nearest_m", "rate_dummy", "scale_dummy",
-                 "level_m", "raised", "base_max_m", "nearest_base_m", "nearest_scale")
+                 "level_m", "raised", "base_max_m", "nearest_base_m", "nearest_scale", "handed_over",
+                 "refilled", "cooling", "pool_idle", "pool_misses", "order_us")
 
     def __init__(self):
         self.count = self.created = self.destroyed = self.rate_changes = self.moved = 0
@@ -54,6 +70,12 @@ class CloudStatus:
         self.rate_dummy = self.scale_dummy = 0.0
         self.level_m = self.base_max_m = 0.0  # m MSL
         self.raised = 0  # clouds created above the level, for the ground
+        self.handed_over = 0  # clouds handed over to an instance of another ring
+        self.refilled = 0  # of those, coming nearer: filled fast
+        self.cooling = 0  # instances of those, fed no more, until their particles have gone
+        self.pool_idle = 0  # instances made in advance that no cloud is using
+        self.pool_misses = 0  # times a ring had none left
+        self.order_us = 0.0  # the last pass looking for them
 
 
 class CloudHeights:
@@ -118,16 +140,28 @@ class CumulusClouds:
         self.config = None  # the field's config the catalog was made for
         self.frame = None
         self.instances = {}  # Thermal -> (instance, base height m MSL, rate)
+        self.rings = {}  # Thermal -> the ring it was placed in (engine/cloud_order.py)
+        self.pool = RingPool()  # instances made in advance, idle
+        self.owner = {}  # instance made in advance -> (its ring, its rank)
+        self.rank_of = {}  # instance -> the order it was created in: larger is drawn under
+        self.cooling = []  # (instance, sky time its particles have gone), oldest first
+        self._created = 0  # instances created in this sky: the rank of the next
+        self._pooled = False  # the rings' instances are made for this sky
         self.obj = None
         self._loading = False
         self.failed = False
         self.closed = False
-        self._next_plan = 0.0
+        self._next_plan = self._next_order = 0.0
         self._last_t = None
         self.more = False  # the planner left new clouds for later
         self._to_move = []  # clouds still to move in this round
         self._move_slice = 1
         self._moved_at = (0.0, 0.0)  # the wind's offset at the start of this round
+
+    @property
+    def holding(self):
+        """Does any instance of ours exist: a cloud's, one made in advance, or one cooling?"""
+        return bool(self.owner or self.instances or self.cooling)
 
     @property
     def level_m(self):
@@ -168,28 +202,41 @@ class CumulusClouds:
             self._heights_resets = self.heights.resets
             self.config = field.config
             self.catalog = CloudCatalog(field.config, frame, self.planner.params, field.accept)
+            self._next_order = now + ORDER_LOADING_PERIOD_S  # nothing to put in order yet
             self.frame = frame
         elif frame is not self.frame:
             self.catalog.set_frame(frame)
             self.frame = frame
         self._last_t = t
         lat, lon = drift.to_air(s.lat, s.lon)
-        # Planning and loading tiles are each close to a frame's budget: never both at once.
-        if self.catalog.started and now >= self._next_plan:
+        while self.cooling and t >= self.cooling[0][1]:
+            self._give_back(self.cooling.pop(0)[0])
+        # Planning and loading tiles are each close to a frame's budget: never both at once. The
+        # order takes an update of its own too.
+        if self.catalog.started and not self._pooled:
+            self._make_rings()
+        elif self.catalog.started and now >= self._next_plan:
             e, n = frame.to_enu(lat, lon)
-            self._apply(self.planner.step(self.catalog.thermals(), e, n, t), msl_m - s.agl_m, zi,
-                        drift, t)
+            actions = self.planner.step(self.catalog.thermals(), e, n, t, self.catalog.loaded_within_m(lat, lon))
+            self._apply(actions, msl_m - s.agl_m, zi, drift, t, e, n)
             self.more = self.planner.more_waiting
             soon = self.catalog.missing or self.more
             wait = FILLING_PLAN_PERIOD_S if soon else PLAN_PERIOD_S
             self._next_plan = now + min(wait, self.planner.next_change - t)
             self._note_nearest(e, n)
             st.plan_us = (time.perf_counter() - t0) * 1e6
+        elif self.catalog.started and now >= self._next_order:
+            self._next_order = now + (ORDER_LOADING_PERIOD_S if self.catalog.missing else ORDER_PERIOD_S)
+            self._order(*frame.to_enu(lat, lon), t, now, drift)
+            st.order_us = (time.perf_counter() - t0) * 1e6
         else:
             self.catalog.update(t, lat, lon)
             st.tiles_missing = self.catalog.missing
             self._move_some(drift)
         st.count = len(self.instances)
+        st.cooling = len(self.cooling)
+        st.pool_idle = self.pool.count()
+        st.pool_misses = self.pool.misses
         st.level_m = self.level_m or 0.0
         st.update_us = (time.perf_counter() - t0) * 1e6
         st.update_us_max = max(st.update_us_max, st.update_us)
@@ -225,6 +272,83 @@ class CumulusClouds:
                 self.status.moved += 1
         del self._to_move[-self._move_slice:]
 
+    def _order(self, e, n, t, now, drift):
+        """Hand over the clouds that the glider's moves took into another ring.
+
+        Coming nearer, the new instance fills fast: the old one's particles, drawn under the
+        farther clouds of the new ring, would otherwise show them over the cloud for up to a
+        particle's life, as it is approached (notes/phase4.md). Going away, the cloud only
+        turns over: its old particles drawn over a few clouds of its new ring matter less.
+        """
+        shown = self.planner.shown
+        moves = 0
+        refilled = False
+        for th, (old, base_m, rate) in list(self.instances.items()):
+            r = math.hypot(th.e - e, th.n - n)
+            ring = ring_of(r, self.rings[th])
+            if ring == self.rings[th]:
+                continue
+            item = shown.get(th)
+            if item is None or item.stopped_at is not None:
+                continue  # fading: nothing to hand over, it goes as it is
+            if ring < self.rings[th]:
+                rate = self.planner.refill(th, t)
+                refilled = True
+                self.status.refilled += 1
+            self._set(old, th, base_m, 0.0, drift)
+            self.cooling.append((old, t + self.planner.params.ttl_s))
+            self.instances[th] = (self._place(th, r, base_m, rate, drift, e, n), base_m, rate)
+            self.status.handed_over += 1
+            moves += 1
+            if moves >= MAX_HANDOVERS:
+                break
+        if refilled:
+            self._next_plan = min(self._next_plan, now + self.planner.next_change - t)
+
+    def _make_rings(self):
+        """Before the first cloud of a sky, a share of the rings' instances, the nearest ring first."""
+        for _ in range(RING_BATCH):
+            made = len(self.owner)
+            ring = next((k for k in range(len(RING_SIZES)) if made < sum(RING_SIZES[:k + 1])), None)
+            if ring is None:
+                self._pooled = True
+                return
+            instance = self._new_instance()
+            self.sky.set_position(instance, 0.0, 0.0, 0.0, (0.0, 1.0))
+            self.owner[instance] = (ring, self._created)
+            self.pool.add(ring, self._created, instance)
+
+    def _new_instance(self):
+        """X-Plane draws it underneath every one created before."""
+        instance = self.sky.create(self.obj, DATAREFS)
+        self.sky.auto_shift(instance)
+        self._created += 1
+        self.rank_of[instance] = self._created
+        self.status.created += 1
+        return instance
+
+    def _place(self, th, r, base_m, rate, drift, e, n):
+        """An instance for a cloud r metres away: one of its ring's, or a new one beyond them."""
+        ring = ring_of(r)
+        neighbours = [] if ring >= FAR else [
+            (math.hypot(other.e - e, other.n - n), self.rank_of[entry[0]])
+            for other, entry in self.instances.items() if self.rings.get(other) == ring and other is not th]
+        got = self.pool.take(r, neighbours)
+        instance = self._new_instance() if got is None else got[2]
+        self.rings[th] = ring
+        self._set(instance, th, base_m, rate, drift)
+        return instance
+
+    def _give_back(self, instance):
+        """An instance with no particles left: back to its ring, or gone if it had none."""
+        if instance in self.owner:
+            ring, rank = self.owner[instance]
+            self.pool.add(ring, rank, instance)
+        else:
+            del self.rank_of[instance]
+            self.sky.destroy(instance)
+            self.status.destroyed += 1
+
     def _base_m(self, th, t, drift):
         """The height of a cloud being created, and the count of them for the datarefs."""
         st = self.status
@@ -233,18 +357,15 @@ class CumulusClouds:
         st.base_max_m = max(st.base_max_m, base_m)
         return base_m
 
-    def _apply(self, actions, ground_m, zi, drift, t):
+    def _apply(self, actions, ground_m, zi, drift, t, e, n):
         st = self.status
         for action, th, rate in actions:
             if action == CREATE:
-                instance = self.sky.create(self.obj, ("xp_gliding/clouds/rate", "xp_gliding/clouds/scale"))
                 if self.level_m is None:
                     self.heights.level_m = ground_m + self.config.sky.cloud_base_zzi * zi
                 base_m = self._base_m(th, t, drift)
-                self.instances[th] = (instance, base_m, rate)
-                self._set(instance, th, base_m, rate, drift)
-                self.sky.auto_shift(instance)
-                st.created += 1
+                r = math.hypot(th.e - e, th.n - n)
+                self.instances[th] = (self._place(th, r, base_m, rate, drift, e, n), base_m, rate)
             elif action == RATE:
                 instance, base_m, _ = self.instances[th]
                 self.instances[th] = (instance, base_m, rate)
@@ -252,23 +373,32 @@ class CumulusClouds:
                 st.rate_changes += 1
             elif action == DESTROY:
                 instance, _, _ = self.instances.pop(th)
-                self.sky.destroy(instance)
-                st.destroyed += 1
+                del self.rings[th]
+                self._give_back(instance)  # faded: fed no more for a particle's life
 
     # --- off --------------------------------------------------------------------
 
     def clear(self):
         """Destroy every instance: their particles go at once. The object stays loaded."""
-        for instance, _, _ in self.instances.values():
+        doomed = [instance for instance, _, _ in self.instances.values()]
+        doomed += [instance for instance, _ in self.cooling] + self.pool.clear()
+        for instance in doomed:
             self.sky.destroy(instance)
         self.instances.clear()
+        self.rings.clear()
+        self.owner.clear()
+        self.rank_of.clear()
+        self.cooling = []
+        self._created = 0
+        self._pooled = False
+        self.status.cooling = self.status.pool_idle = 0
         self.status.base_max_m = 0.0
         self._to_move = []
         self._moved_at = (0.0, 0.0)
         self.planner.clear()
         self.status.count = 0
         self.status.nearest_m = self.status.nearest_base_m = self.status.nearest_scale = -1.0
-        self._next_plan = 0.0
+        self._next_plan = self._next_order = 0.0
 
     def shutdown(self):
         """The plugin is being disabled: nothing of ours stays in X-Plane."""

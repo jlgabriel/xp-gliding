@@ -211,6 +211,20 @@ class CloudCatalog:
             self._tiles[key] = kept
         return bool(self._missing)
 
+    def loaded_within_m(self, lat, lon):
+        """How far from (lat, lon) every tile has loaded (m): no new thermal can turn up nearer."""
+        if not self._missing:
+            return math.inf
+        tile = self.config.tile_deg
+        m, n = radii_of_curvature(lat)
+        to_n, to_e = math.radians(1.0) * m, math.radians(1.0) * n * max(math.cos(math.radians(lat)), 1e-6)
+        nearest = math.inf
+        for i, j, _ in self._missing:
+            dlat = max(i * tile - lat, 0.0, lat - (i + 1) * tile)
+            dlon = max(j * tile - lon, 0.0, lon - (j + 1) * tile)
+            nearest = min(nearest, math.hypot(dlat * to_n, dlon * to_e))
+        return nearest
+
     def set_frame(self, frame):
         self.frame = frame
         for thermals in self._tiles.values():
@@ -259,10 +273,14 @@ class CloudPlanner:
         within about +40% and -20% of the steady number. Without the rest a cloud reaches
         twice that number (found in review).
         """
-        p = self.params
-        start, _ = feeding_window(thermal, p)
         item = _Shown(thermal)
         item.level = self._steady(item, r)
+        self._fill(item, t)
+        return item
+
+    def _fill(self, item, t):
+        p = self.params
+        start, _ = feeding_window(item.thermal, p)
         filled = min((t - start) / p.mean_ttl_s, 1.0)  # how much of it has formed by now
         fill_s = filled * p.mean_ttl_s / p.prewarm
         if fill_s >= p.min_fast_s:
@@ -270,7 +288,19 @@ class CloudPlanner:
             item.fast_until = t + fill_s
             item.rest_until = item.fast_until + p.rest_fraction * filled * p.mean_ttl_s
         item.rate = self._rate_now(item, t)
-        return item
+
+    def refill(self, thermal, t):
+        """The rate for a new instance taking over a drawn cloud that should look whole at once:
+        it fills fast and rests, as a new cloud would, while the old instance's particles go.
+
+        For a while the cloud has both, up to twice its particles. Not for a cloud that is
+        fading, which keeps its rate. The caller should plan again soon after `next_change`.
+        """
+        item = self.shown[thermal]
+        if item.stopped_at is None and item.level > 0.0:
+            self._fill(item, t)
+            self._note_change(item, t)
+        return item.rate
 
     @staticmethod
     def _rate_now(item, t):
@@ -280,17 +310,19 @@ class CloudPlanner:
             return 0.0
         return item.level
 
-    def step(self, thermals, e, n, t):
+    def step(self, thermals, e, n, t, loaded_m=math.inf):
         """Actions for now: a list of (action, thermal, rate). thermals: the catalog's.
 
         action is CREATE (a new cloud emitting at rate), RATE (a new rate for a drawn
         cloud) or DESTROY. Same inputs and same state, same answer. Call this soon after
-        `next_change`, or a fast emission runs on for as long as it is late.
+        `next_change`, or a fast emission runs on for as long as it is late. The creations
+        come last, nearest first, and should be done in that order; a new cloud farther than
+        loaded_m (`CloudCatalog.loaded_within_m`) waits, since a nearer one may still turn up.
         """
         p = self.params
         actions = []
         seen = set()
-        new = 0
+        new = []  # (distance, thermal) of clouds that could be created
         self.more_waiting = False
         self.next_change = math.inf
         for th in thermals:
@@ -304,24 +336,32 @@ class CloudPlanner:
             seen.add(th)
             if item is None:
                 if start <= t < stop and r <= p.range_m:
-                    if new >= p.max_new:
+                    if r > loaded_m:
                         self.more_waiting = True
-                        continue
-                    new += 1
-                    item = self.shown[th] = self._plan_new(th, r, t)
-                    actions.append((CREATE, th, item.rate))
-            else:
-                self._step_shown(item, r, t, start, stop, actions)
-            if item is not None:
-                for when in (item.fast_until, item.rest_until):
-                    if t < when < self.next_change:
-                        self.next_change = when
+                    else:
+                        new.append((r, th))
+                continue
+            self._step_shown(item, r, t, start, stop, actions)
+            self._note_change(item, t)
         # No longer in the catalog: its tile was dropped, far from the glider, so its numbers
         # for the distance go stale. The particles are still in the sky, so it fades as usual.
         for th in [th for th in self.shown if th not in seen]:
             self._fade(self.shown[th], t, actions)
         actions.sort(key=lambda a: (a[0], a[1].lat, a[1].lon))
+        # New clouds last, the nearest first: X-Plane draws the newest instance underneath, so
+        # created in this order the far ones are drawn under the near ones (cloud_order.py).
+        new.sort(key=lambda rt: (rt[0], rt[1].lat, rt[1].lon))
+        self.more_waiting = self.more_waiting or len(new) > p.max_new
+        for r, th in new[:p.max_new]:
+            item = self.shown[th] = self._plan_new(th, r, t)
+            actions.append((CREATE, th, item.rate))
+            self._note_change(item, t)
         return actions
+
+    def _note_change(self, item, t):
+        for when in (item.fast_until, item.rest_until):
+            if t < when < self.next_change:
+                self.next_change = when
 
     def _fade(self, item, t, actions):
         """Stop feeding the cloud; later, with nothing left to see, it goes."""

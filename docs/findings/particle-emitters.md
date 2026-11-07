@@ -14,6 +14,7 @@ Found in X-Plane 12.4.3 under Vulkan, in November 2026, by building cumulus clou
 | **Which wind, when it changes with height?** | They appear to move at about the wind at the aircraft, not at their own height | An inference from screenshots, in speed shear only |
 | **What do 200 of them cost?** | Nothing that can be told from the noise on the GPU estimate, and up to about 1 ms per frame on the main thread | Timed, at a 60 fps cap, with drag 0 and no wind |
 | **Does the graphics menu change them?** | Not between the two ends compared, with Cloud Quality at Low in both | By eye, one paused flight |
+| **In what order are instances drawn?** | In the reverse of the order they were created, whatever their distance: the oldest last, on top. Setting a position again does not change it | Screenshots of tinted clouds, one look per case |
 
 ## How it was tested
 
@@ -28,7 +29,7 @@ Found in X-Plane 12.4.3 under Vulkan, in November 2026, by building cumulus clou
 
 The flights logged no particle data. Where a result says where a cloud is, it comes from a screenshot or from the emitter's position, never from the particles themselves.
 
-The tools are [`tools/cloudlab/`](../../tools/cloudlab/), a small plugin that places test emitters and the scripts that drive it, [`fly_clouds.py`](../../tools/testpilot/fly_clouds.py) for the cost, and [`fly_wind.py`](../../tools/testpilot/fly_wind.py) for the shear. The flight logs and screenshots are not in the repository.
+The tools are [`tools/cloudlab/`](../../tools/cloudlab/), a small plugin that places test emitters and the scripts that drive it, [`fly_clouds.py`](../../tools/testpilot/fly_clouds.py) for the cost and the draw order in flight, [`make_order.py`](../../tools/cloudlab/make_order.py) for the tinted clouds of the draw order, and [`fly_wind.py`](../../tools/testpilot/fly_wind.py) for the shear. The flight logs and screenshots are not in the repository.
 
 **The object tested.** The technique comes from Alex Ferrer's [xplane_thermals](https://github.com/alexferrer/xplane_thermals) plugin, which draws its cumulus as an almost empty object holding one particle emitter, instanced at cloud base over each thermal. The object, particle system and texture tested here are separately authored, so the results below describe them and not that plugin's clouds. [`make_cloud_objs.py`](../../tools/make_cloud_objs.py) writes them. No public specification of the particle system file format was found. The OBJ8 directives are in Laminar's [file format specification](https://developer.x-plane.com/article/obj8-file-format-specification/), and the concepts in its [particle system article](https://developer.x-plane.com/article/x-plane-11-particle-system/), written for X-Plane 11.
 
@@ -73,6 +74,29 @@ The generator's record adds that a dataref in a slot must exist when the object 
 **Creating instances.** X-Plane's log says that creating them in a post-flight-loop callback is discouraged. The lab's callback ran after the flight model and its clouds still drew. No other effect is on record.
 
 **Loading.** The documentation warns (XPD-16090) that loading an object with an emitter in `XPluginStart` or `XPluginEnable` can crash the simulator. That was not tested here: all loading was from the flight loop.
+
+## Draw order
+
+X-Plane does not sort particles between instances. It draws instances in the reverse of the order they were created: the newest first, underneath, and the oldest last, on top. So a far cloud created before a nearer one in the same direction is drawn over it, with a sharp edge and the haze of its own distance, and from the seat it looks like a small cloud stuck on the face of a big one. Laminar's particle article, the OBJ8 specification and the XPLMInstance page say nothing about sorting or depth for particles.
+
+Tested with copies of the cloud object tinted red and blue, so that which one is in front can be read from a screenshot. Two or three clouds were placed ahead of the glider, 2.5 to 7 km away, overlapping in view, created in different orders, and photographed 14 s later. One look per case:
+
+| Case | Seen |
+| --- | --- |
+| Near created first, then far | The far cloud hidden behind the near one |
+| Far created first, then near | The far cloud drawn over the near one |
+| Three clouds, in four orders of creation | Each time the first created on top and the last underneath |
+| One particle type per cloud instead of three | The same |
+| The far cloud's position set again after both were created | No change |
+| A third instance created first, then destroyed, then the far cloud created | The far cloud underneath: a new instance does not take the place of a destroyed one |
+| The far cloud destroyed and created again in the same place | It refilled underneath |
+| One object with two emitters 6 km apart, listed in either order | The same emitter on top both times. It was listed after the other in the particle system file and used later particle types; which of the two decides was not separated |
+
+Instances of different objects followed the order of creation together.
+
+**Working with it.** The order is fixed when an instance is created, and moving an instance keeps its place, so a plugin can choose it. One way, used here: at the start, before any cloud, make idle instances for rings of distance around the aircraft, the nearest ring first, and give each cloud an idle instance of its ring. A nearer ring is then always drawn over a farther one. When the aircraft's moves take a cloud into another ring, an instance of the new ring starts feeding in the same place and the old one stops, and goes back to its ring once its particles have died. Over one particle life the old particles keep their old place in the order, so after a cloud comes nearer, clouds of its new ring a little farther away showed over it for minutes. Filling the new instance fast when a cloud comes nearer covers the old particles within seconds, at the cost of a cloud up to twice as dense until they have died. Within a ring the order is only right when a cloud comes in.
+
+Drawing a far cloud again whenever a nearer one in front of it was created after it was tried first and dropped: a cloud drawn again goes under everything, also under the clouds beyond it, and fixing those in turn took around a hundred new instances a minute when flying straight.
 
 ## Wind
 
@@ -185,6 +209,7 @@ Nothing between these two was looked at, nor dawn, nor a low sun in front of the
 - **A shift of X-Plane's local origin:** one, flying east in calm air. Instances here use `instanceSetAutoShift`, and the particles already in the sky stayed in place, by eye: the same clouds 13 s before and 1 s after it, and a marker placed through `worldToLocal` under the cloud ahead 10 s after. Not looked at: north or south, in wind, or in a climb. See [the record](../../notes/phase4.md#a-shift-of-x-planes-local-origin).
 - **Time acceleration** above 2× was not tried.
 - **Only one object design:** long-lived billboards with no speed and no gravity, at cloud sizes. A smaller or faster effect may behave differently.
+- **The draw order was seen with up to three clouds in the lab,** and with about 200 to 400 instances only through the result: near clouds in front once instances were made in that order. Additive and pre-multiplied blending were not tried.
 - **Only X-Plane 12.4.3 under Vulkan on Windows,** on one machine.
 - **Laminar's article does not describe** the wind behaviour above, so a later version could change it without contradicting anything documented.
 
@@ -199,7 +224,8 @@ Nothing between these two was looked at, nor dawn, nor a low sun in front of the
 - **Do not take a distance limit measured on geometry as true for an emitter,** or the reverse.
 - **Do not read the cost from the frame rate under a cap.** Compare the GPU estimate and the main thread's time, and expect noise.
 - **Fade each puff inside its texture cell,** or its edge shows from close up.
+- **Create instances in the order they should be drawn:** what is to be on top first. Moving an instance does not change its place, and a new one always goes underneath, so make the instances for near effects in advance and reuse them.
 
 ## Full record
 
-The working notes hold the record and the reasoning: [what X-Plane does with an emitter](../../notes/phase2.md#what-x-plane-does-with-an-emitter), [the cost](../../notes/phase2.md#cost), [clouds in wind](../../notes/phase3.md#clouds-in-wind), [which wind carries the sky in shear](../../notes/phase3.md#which-wind-carries-the-sky-in-shear), [the disc and its distance limit](../../notes/shadows.md#other-findings), [next to X-Plane's clouds and at dusk](../../notes/phase4.md#next-to-xp12s-clouds-and-at-dusk) and [the graphics menu](../../notes/phase4.md#does-the-graphics-menu-change-the-sky).
+The working notes hold the record and the reasoning: [what X-Plane does with an emitter](../../notes/phase2.md#what-x-plane-does-with-an-emitter), [the cost](../../notes/phase2.md#cost), [clouds in wind](../../notes/phase3.md#clouds-in-wind), [which wind carries the sky in shear](../../notes/phase3.md#which-wind-carries-the-sky-in-shear), [the disc and its distance limit](../../notes/shadows.md#other-findings), [next to X-Plane's clouds and at dusk](../../notes/phase4.md#next-to-xp12s-clouds-and-at-dusk), [the graphics menu](../../notes/phase4.md#does-the-graphics-menu-change-the-sky) and [the order clouds are drawn in](../../notes/phase4.md#the-order-clouds-are-drawn-in).

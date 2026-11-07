@@ -3,6 +3,7 @@
 Usage:
     python tools/cloudlab/fly_cloud.py install [--version 1]
     python tools/cloudlab/fly_cloud.py gen --version 2     (a new look, no restart needed)
+    python tools/cloudlab/fly_cloud.py gen --version 3 --order   (the objects of make_order.py)
     python tools/cloudlab/fly_cloud.py fly [--msl 2400] [--heading 90] [--seconds 1800]
     python tools/cloudlab/fly_cloud.py do [name=value ...] [--view forward] [--shot] [--sample 30]
 
@@ -30,6 +31,7 @@ sys.path.insert(0, os.path.join(REPO, "tools", "hudlab"))
 sys.path.insert(0, REPO)
 
 import make_cloud  # noqa: E402
+import make_order  # noqa: E402
 from airstart import air_start  # noqa: E402
 from pilot import Pilot  # noqa: E402
 from thread_cpu import main_thread, thread_times, xplane_pid  # noqa: E402
@@ -91,8 +93,10 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="what", required=True)
     p = sub.add_parser("install")
     p.add_argument("--version", type=int, default=1)
+    p.add_argument("--order", action="store_true", help="write make_order.py's objects")
     p = sub.add_parser("gen")
     p.add_argument("--version", type=int, required=True)
+    p.add_argument("--order", action="store_true", help="write make_order.py's objects")
     p = sub.add_parser("fly")
     p.add_argument("--msl", type=float, default=2400.0)
     p.add_argument("--heading", type=float, default=90.0)
@@ -105,11 +109,11 @@ def main(argv=None):
     p.add_argument("--sample", type=float, default=0.0)
     args = parser.parse_args(argv)
 
-    if args.what == "install":
-        shutil.copy(os.path.join(HERE, "PI_xpg_cloudlab.py"), PLUGINS)
-        print("installed", make_cloud.write_all(LAB_DIR, args.version), "in", LAB_DIR)
-    elif args.what == "gen":
-        print("wrote", make_cloud.write_all(LAB_DIR, args.version), "in", LAB_DIR)
+    if args.what in ("install", "gen"):
+        writer = make_order if args.order else make_cloud
+        if args.what == "install":
+            shutil.copy(os.path.join(HERE, "PI_xpg_cloudlab.py"), PLUGINS)
+        print("wrote", writer.write_all(LAB_DIR, args.version), "in", LAB_DIR)
     elif args.what == "fly":
         api = XPlaneWebAPI(timeout=30.0)
         air_start(api, args.msl, args.kmh, args.heading)

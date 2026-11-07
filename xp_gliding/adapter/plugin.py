@@ -79,6 +79,12 @@ DATAREFS = (
     ("clouds/destroyed", "clouds", "status.destroyed", "i", 0),
     ("clouds/rate_changes", "clouds", "status.rate_changes", "i", 0),
     ("clouds/moved", "clouds", "status.moved", "i", 0),
+    ("clouds/handed_over", "clouds", "status.handed_over", "i", 0),
+    ("clouds/refilled", "clouds", "status.refilled", "i", 0),
+    ("clouds/cooling", "clouds", "status.cooling", "i", 0),
+    ("clouds/pool_idle", "clouds", "status.pool_idle", "i", 0),
+    ("clouds/pool_misses", "clouds", "status.pool_misses", "i", 0),
+    ("clouds/order_us", "clouds", "status.order_us", "f", 0),
     ("clouds/tiles_missing", "clouds", "status.tiles_missing", "i", 0),
     ("clouds/update_us", "clouds", "status.update_us", "f", 0),
     ("clouds/update_us_max", "clouds", "status.update_us_max", "f", 0),
@@ -398,7 +404,7 @@ class PythonInterface:
         if not markers and self.markers.shown:
             self.markers.clear()
         clouds = active and st.thermals_enabled and st.clouds_enabled
-        if not clouds and self.clouds.instances:
+        if not clouds and self.clouds.holding:
             self.clouds.clear()
         if not active or self.io.frozen():
             self.status.active = 0

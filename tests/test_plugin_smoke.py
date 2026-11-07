@@ -531,6 +531,15 @@ def clouds_tick(pi, data):
     pi.next_slow = 0.0
 
 
+def first_clouds(pi, data):
+    """Until the first clouds: those within the tiles loaded all around (CloudCatalog.loaded_within_m)."""
+    for _ in range(200):
+        clouds_tick(pi, data)
+        if pi.clouds.instances:
+            return
+    raise AssertionError("no cloud")
+
+
 def fill_sky(pi, data):
     """Until every tile has loaded and no new cloud is waiting."""
     for _ in range(2000):
@@ -544,12 +553,13 @@ def fill_sky(pi, data):
 def test_clouds_are_on_by_default_and_fill_the_sky_over_many_updates(plugin):
     pi, xp, data = plugin
     assert dataref(xp, "clouds_enabled") == 1
-    clouds_tick(pi, data)
-    assert 0 < len(xp.instances) <= 2 * pi.clouds.planner.params.max_new
+    first_clouds(pi, data)
+    assert 0 < len(xp.instances) - dataref(xp, "clouds/pool_idle") <= 2 * pi.clouds.planner.params.max_new
     assert dataref(xp, "clouds/tiles_missing") > 0
     fill_sky(pi, data)
     count = dataref(xp, "clouds/count")
-    assert count > 40 and len(xp.instances) == count == dataref(xp, "clouds/created")
+    idle = dataref(xp, "clouds/pool_idle")  # made in advance for the near rings
+    assert count > 40 and len(xp.instances) == count + idle == dataref(xp, "clouds/created")
     assert all("xp_gliding/assets/clouds/cumulus.obj" in p for p in xp.objects.values())
     assert set(xp.instances) == xp.shifted
     assert dataref(xp, "clouds/nearest_m") >= 0.0
@@ -567,10 +577,15 @@ def test_clouds_carry_their_rate_and_scale_at_the_base_of_the_clouds(plugin):
     # under the glider: 1916 - 800, plus the top of the lift.
     base = 1916.0 - 800.0 + 2000.0 / 1.1
     from xp_gliding.engine.clouds import SCALE_RANGE
-    for _, position, values, drefs in xp.instances.values():
+    used = {inst for inst, _, _ in pi.clouds.instances.values()}
+    assert used
+    for ref, (_, position, values, drefs) in xp.instances.items():
         assert drefs == wanted
-        assert position[1] == pytest.approx(base - 1000.0)
-        assert values[0] > 0.0 and SCALE_RANGE[0] <= values[1] <= SCALE_RANGE[1]
+        if ref in used:
+            assert position[1] == pytest.approx(base - 1000.0)
+            assert values[0] > 0.0 and SCALE_RANGE[0] <= values[1] <= SCALE_RANGE[1]
+        else:  # made in advance for a ring, not used yet
+            assert values[0] == 0.0
 
 
 def test_clouds_keep_a_level_over_low_ground_and_clear_a_hill(plugin):
@@ -690,6 +705,123 @@ def test_a_filled_cloud_settles_to_its_steady_rate(plugin):
                > data["sim/time/zulu_time_sec"] for rate, th in near)
 
 
+def settled_sky(pi, data):
+    """A full sky, every cloud past its fast fill and its rest: in steps, or it is a new sky."""
+    fill_sky(pi, data)
+    for _ in range(5):
+        data["sim/time/zulu_time_sec"] += 60.0
+        clouds_tick(pi, data)
+    shown = pi.clouds.planner.shown
+    steady = [rate == shown[th].level for th, (_, _, rate) in pi.clouds.instances.items()]
+    assert sum(steady) > 0.9 * len(steady)  # but the clouds of new thermals
+
+
+def order_tick(pi, data):
+    """The frame of a cloud update that hands clouds over between rings."""
+    pi.next_slow = float("inf")
+    pi.next_clouds = 0.0
+    pi.clouds._next_plan = float("inf")
+    pi.clouds._next_order = 0.0
+    frame(pi, data)
+    pi.next_slow = 0.0
+
+
+def made(ref):
+    """The order the fake X-Plane created an instance in."""
+    return int(ref[len("inst"):])
+
+
+def distances(pi, data):
+    clouds = pi.clouds
+    e, n = clouds.frame.to_enu(data["sim/flightmodel/position/latitude"],
+                               data["sim/flightmodel/position/longitude"])
+    return {th: math.hypot(th.e - e, th.n - n) for th in clouds.instances}
+
+
+def test_a_nearer_ring_is_always_drawn_over_a_farther_one(plugin):
+    from xp_gliding.engine.cloud_order import FAR, RING_SIZES, ring_of
+    pi, xp, data = plugin
+    fill_sky(pi, data)
+    clouds = pi.clouds
+    assert len(clouds.instances) > 100
+    assert dataref(xp, "clouds/pool_idle") + sum(1 for i, _, _ in clouds.instances.values() if i in clouds.owner) \
+        == sum(RING_SIZES)
+    assert dataref(xp, "clouds/pool_misses") == 0
+    rings = {th: ring_of(r) for th, r in distances(pi, data).items()}
+    assert set(rings.values()) == set(range(FAR + 1))
+    # Created earlier is drawn later, on top: every instance of a ring before any of the next.
+    made_in = {}
+    for th, ring in rings.items():
+        made_in.setdefault(ring, []).append(made(clouds.instances[th][0]))
+    for ring in range(FAR):
+        assert max(made_in[ring]) < min(made_in[ring + 1])
+    # Within a near ring too, as a new sky is created nearest first.
+    r = distances(pi, data)
+    for ring in range(FAR):
+        by_distance = sorted((r[th], made(clouds.instances[th][0])) for th, k in rings.items() if k == ring)
+        assert [m for _, m in by_distance] == sorted(m for _, m in by_distance)
+    assert len(xp.instances) == len(clouds.instances) + dataref(xp, "clouds/pool_idle")
+
+
+def test_a_cloud_the_glider_moves_into_another_ring_is_handed_over(plugin):
+    from xp_gliding.engine.cloud_order import ring_of
+    pi, xp, data = plugin
+    settled_sky(pi, data)
+    clouds = pi.clouds
+    old = {th: inst for th, (inst, _, _) in clouds.instances.items()}
+    before = {th: (xp.instances[inst][1], xp.instances[inst][2]) for th, inst in old.items()}
+    rings_before = dict(clouds.rings)
+    for _ in range(3):  # 3 km east, a slow update at each step: not a jump
+        data["sim/flightmodel/position/longitude"] += 1000.0 / (111320.0 * math.cos(math.radians(32.6875)))
+        clouds_tick(pi, data)
+    for _ in range(20):
+        order_tick(pi, data)
+    handed = [th for th, (inst, _, _) in clouds.instances.items() if th in old and inst != old[th]]
+    assert handed and dataref(xp, "clouds/handed_over") == len(handed) == dataref(xp, "clouds/cooling")
+    assert dataref(xp, "clouds/order_us") > 0.0
+    r = distances(pi, data)
+    for th in handed:
+        new = xp.instances[clouds.instances[th][0]]
+        assert new[1][:3] == before[th][0][:3] and new[2][0] == clouds.instances[th][2] > 0.0
+        assert xp.instances[old[th]][2][0] == 0.0  # the old one fed no more
+        assert clouds.rings[th] == ring_of(r[th])
+    # Coming nearer, the new instance fills fast; going away, it goes on at the cloud's rate.
+    nearer = [th for th in handed if clouds.rings[th] < rings_before[th]]
+    assert nearer and dataref(xp, "clouds/refilled") == len(nearer) < len(handed)
+    prewarm = clouds.planner.params.prewarm
+    # As the planner has it: fast for most, not for a cloud too young to need it.
+    assert all(clouds.instances[th][2] == clouds.planner.shown[th].rate for th in nearer)
+    assert sum(clouds.instances[th][2] == prewarm for th in nearer) > len(nearer) / 2
+    assert all(clouds.instances[th][2] < prewarm * 0.3 for th in handed if th not in nearer)
+    # Every cloud is in its ring now: nothing more to hand over.
+    order_tick(pi, data)
+    assert dataref(xp, "clouds/handed_over") == len(handed)
+    # Once its particles have gone, an instance of a ring goes back to it; one of the far sky goes.
+    params = clouds.planner.params
+    idle = dataref(xp, "clouds/pool_idle")
+    pooled = [th for th in handed if old[th] in clouds.owner]
+    for _ in range(4):
+        data["sim/time/zulu_time_sec"] += (params.ttl_s - 1.0) / 4
+        clouds_tick(pi, data)
+    assert all(old[th] in xp.instances for th in handed)
+    data["sim/time/zulu_time_sec"] += 2.0
+    clouds_tick(pi, data)
+    assert dataref(xp, "clouds/cooling") == 0
+    assert all((old[th] in xp.instances) == (th in pooled) for th in handed)
+    assert dataref(xp, "clouds/pool_idle") >= idle + len(pooled) - dataref(xp, "clouds/handed_over") + len(handed)
+
+
+def test_instances_waiting_or_idle_go_with_the_clouds(plugin):
+    pi, xp, data = plugin
+    settled_sky(pi, data)
+    data["sim/flightmodel/position/longitude"] += 0.02
+    clouds_tick(pi, data)
+    order_tick(pi, data)
+    assert pi.clouds.cooling and pi.clouds.pool.count()
+    pi.clouds.clear()
+    assert not xp.instances and not pi.clouds.cooling and not pi.clouds.owner and not pi.clouds.pool.count()
+
+
 def test_clouds_go_when_switched_off_and_with_the_thermals(plugin):
     pi, xp, data = plugin
     handler, attr = xp.handlers["xp_gliding/clouds/toggle"]
@@ -720,16 +852,16 @@ def test_clouds_stay_put_while_paused(plugin):
 
 def test_clouds_start_over_with_a_new_flight_and_when_the_clock_jumps(plugin):
     pi, xp, data = plugin
-    clouds_tick(pi, data)
-    assert xp.instances
+    first_clouds(pi, data)
     pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0)
     assert not xp.instances
-    clouds_tick(pi, data)
-    assert xp.instances
+    first_clouds(pi, data)
     created = dataref(xp, "clouds/created")
     old = set(xp.instances)
     data["sim/time/zulu_time_sec"] += 3600.0
     clouds_tick(pi, data)
+    assert not old & set(xp.instances)
+    first_clouds(pi, data)
     assert not old & set(xp.instances) and dataref(xp, "clouds/created") > created
 
 
@@ -761,7 +893,7 @@ def test_a_cloud_object_still_loading_when_switched_off_is_not_left_behind(plugi
 def test_the_sky_does_not_change_at_zulu_midnight(plugin):
     pi, xp, data = plugin
     data["sim/time/zulu_time_sec"], data["sim/time/local_time_sec"] = 86390.0, 61190.0
-    clouds_tick(pi, data)
+    first_clouds(pi, data)
     before = set(xp.instances)
     assert before
     data["sim/time/zulu_time_sec"], data["sim/time/local_time_sec"] = 10.0, 61210.0

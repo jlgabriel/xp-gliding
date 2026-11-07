@@ -2,14 +2,16 @@
 
 Usage (X-Plane running with the xp-gliding plugin and flight logger):
     python tools/testpilot/fly_clouds.py look [--msl 2400] [--heading 90] [--seconds 300]
-        [--hour 12] [--wind-kt 0] [--native-cover 0] [--every 30]
+        [--hour 12] [--wind-kt 0] [--native-cover 0] [--every 30] [--back]
     python tools/testpilot/fly_clouds.py cost [--msl 2800] [--blocks 3] [--seconds 60]
     python tools/testpilot/fly_clouds.py under [--msl 2400] [--count 6] [--kmh 100]
     python tools/testpilot/fly_clouds.py climb [--msl 2100] [--minutes 20] [--kmh 85] [--bank 45]
 
 look: air start, straight flight, a screenshot every 30 s from the front with nothing in
 the way, and what the plugin reports at each one, to see a sky form. Local time, wind
-from the east and a layer of X-Plane's own cumulus can be chosen.
+from the east and a layer of X-Plane's own cumulus can be chosen. With --back, a second
+screenshot looking back each time: the clouds already passed, where a far one drawn over a
+near one showed most (notes/phase4.md, the order clouds are drawn in).
 
 cost: straight flight with the clouds off and on in alternating blocks. Prints the
 plugin's frame_us (median, 99th percentile), the frame rate, X-Plane's own estimate of
@@ -61,8 +63,11 @@ LIFT = "xp_gliding/lift_ms"
 GPU_TIME = "sim/time/gpu_time_per_frame_sec_approx"
 SCREENSHOT = "sim/operation/screenshot"
 FRONT_VIEW, COCKPIT_VIEW = "sim/view/forward_with_nothing", "sim/view/3d_cockpit_cmnd_look"
+BACK_VIEW = "sim/view/back"
 STATUS_NAMES = ("count", "created", "destroyed", "rate_changes", "tiles_missing", "update_us",
-                "update_us_max", "plan_us", "nearest_m")
+                "update_us_max", "plan_us", "nearest_m", "handed_over", "refilled", "cooling", "pool_idle",
+                "pool_misses",
+                "order_us")
 WATCH = (LIFT, GPU_TIME, *(PREFIX + name for name in STATUS_NAMES))
 
 
@@ -70,7 +75,8 @@ def status_of(values):
     return {name: round(values[PREFIX + name], 1) for name in STATUS_NAMES}
 
 
-def run_look(api, msl, heading, seconds, kmh, hour=12.0, wind_kt=0.0, native_cover=0.0, every=30.0):
+def run_look(api, msl, heading, seconds, kmh, hour=12.0, wind_kt=0.0, native_cover=0.0, every=30.0,
+             back=False):
     lat, lon, elev = KHOB
     wind = ()
     if wind_kt > 0.0:
@@ -92,6 +98,13 @@ def run_look(api, msl, heading, seconds, kmh, hour=12.0, wind_kt=0.0, native_cov
             state["next"] = p.flown + every
             api.command(SCREENSHOT)
             print(f"{p.flown:5.0f} s: screenshot; {status_of(stream.snapshot()[0])}", flush=True)
+            if back:
+                api.command(BACK_VIEW)
+                time.sleep(1.0)
+                api.command(SCREENSHOT)
+                time.sleep(1.0)
+                api.command(FRONT_VIEW)
+                print(f"{p.flown:5.0f} s: screenshot looking back", flush=True)
 
     try:
         reason, _ = Pilot(api).run(kmh, seconds, quiet=True, on_step=on_step)
@@ -366,6 +379,7 @@ def main(argv=None):
     p.add_argument("--wind-kt", type=float, default=0.0)
     p.add_argument("--native-cover", type=float, default=0.0)
     p.add_argument("--every", type=float, default=30.0)
+    p.add_argument("--back", action="store_true", help="a screenshot looking back too")
     p = sub.add_parser("cost")
     p.add_argument("--msl", type=float, default=2800.0)
     p.add_argument("--blocks", type=int, default=3)
@@ -386,7 +400,7 @@ def main(argv=None):
     api = XPlaneWebAPI(timeout=30.0)
     if args.what == "look":
         run_look(api, args.msl, args.heading, args.seconds, args.kmh, args.hour, args.wind_kt,
-                 args.native_cover, args.every)
+                 args.native_cover, args.every, args.back)
     elif args.what == "cost":
         run_cost(api, args.msl, args.blocks, args.seconds, args.kmh)
     elif args.what == "climb":
