@@ -7,6 +7,7 @@ xp-gliding is in development and has not been released. This documentation is gr
 What was measured about X-Plane 12 along the way, written for plugin authors and anyone curious about how it handles soaring. Each finding gives its method and limits, so the results can be checked or repeated.
 
 - [Measuring X-Plane 12's native soaring](findings/native-soaring.md): ridge lift, thermals and wave, measured in flight, with the thermal part still incomplete.
+- [What X-Plane 12's particle emitters do, found by building clouds](findings/particle-emitters.md): driving each instance, drawing distance, what the wind does to particles and the cost, mostly judged by eye from screenshots.
 
 ## Still to come
 
