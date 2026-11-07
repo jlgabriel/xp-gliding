@@ -7,8 +7,10 @@ A straight flight across a wind from the east, with screenshots from the front. 
 `wind_enabled` is off, so the emitters stay where they are and any stretch of a cloud along the
 wind is the wind moving the particles. With --moving the emitters go with the wind as in normal
 use, and a cloud should stay whole. --shear makes the wind grow with height, reaching about
---wind-kt at the clouds, and then the particles travel at the wind of the clouds while the
-emitters travel at the wind of the glider. Compare with the same flight at --wind-kt 0.
+--wind-kt at the clouds, while the emitters travel at the wind of the glider. If the particles
+travelled at the wind of the clouds, a cloud would stretch; the flights saw no such stretch, and
+the particles appear to move at about the wind at the aircraft (notes/phase3.md). Compare with the
+same flight at --wind-kt 0.
 
 Measurement tool, not part of the plugin. License: GPL-3.0-or-later.
 """

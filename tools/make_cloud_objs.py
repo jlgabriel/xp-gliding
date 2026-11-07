@@ -7,9 +7,9 @@ All of it is authored here; nothing comes from another plugin's assets. The outp
 committed, and a test checks that it matches this script.
 
 The cloud is three particle types over an object with no geometry: a flat grey base, a
-white body, and small bright tops. Particles have no speed, gravity or drag, so they stay
-where they were emitted: the emitter's random offsets (DX, DY, DZ) are the cloud's shape,
-and rate x life is the number alive. Two values come per instance, as datarefs of the
+white body, and small bright tops. Particles have no speed of their own and no gravity. With
+`DRAG` 1 XP12's wind carries them, and in calm air they stay where they were emitted: the
+emitter's random offsets (DX, DY, DZ) are the cloud's shape, and rate x life is the number alive. Two values come per instance, as datarefs of the
 instance (`xp_gliding.adapter.clouds`), and drive the emitter's tables:
 - rate: 0 stops feeding, 1 is the steady cloud, up to `RATE_TOP` fills it fast.
 - scale: 1 is the object's size. It scales the offsets and the particles' size.

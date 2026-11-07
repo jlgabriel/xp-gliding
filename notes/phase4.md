@@ -185,3 +185,85 @@ An oracle with no floors differs from the plugin by 0.005 m/s RMS over 2535 samp
 - Cloud size against climb: still no data.
 - Whether clouds at two heights look natural. Whether a big cloud on a crest touches it.
 - The HUD's TOP jumps when the nearest cloud changes, if the two are at different heights. Whether that helps or misleads.
+
+## A climb by hand towards a cloud
+
+2026-11-07, Juan Luis, Santiago, Laminar ASK 21, `wide_carriers`, w\* 3, zi 2000 m, 15 kt, the first flight by hand since [the lift ended with its cloud](#the-lift-ends-with-its-cloud). Log `flightlog_20261107_055814.csv`, read with `read_flight.py`. The markers were on for the first 64 s of the circling, up to 1323 m, so this thermal was not found by its cloud alone. From there it was flown with them off.
+
+The cloud's base was 2150 m MSL, over flat ground at about 630 m. Size 1.30, a core of 3.2 m/s, mature.
+
+| Under the base | Climb | Time |
+| --- | --- | --- |
+| 900-1000 m | +1.59 | 29 s |
+| 800-900 m | +1.73 | 58 s |
+| 700-800 m | +0.99 | 101 s |
+| 600-700 m | +1.89 | 53 s |
+| 500-600 m | +1.61 | 62 s |
+| 400-500 m | +1.10 | 91 s |
+| 300-400 m | +1.13 | 89 s |
+| 200-300 m | +0.81 | 124 s |
+
+- **The whole climb:** +777 m in 653 s, +1.19 m/s, bank 28 degrees, 92 km/h, sink 1.30 m/s, 179 m from the thermal's centre. Time is flying time, without the pauses. The rows above run from the first time each height was reached, and mix the lift's decline with how well it was centred.
+- **Where it stopped:** Juan Luis left it at 1988 m, **162 m under the base**, still climbing at +0.53 over the last 30 s. So this flight does not show where a climb ends by itself. `read_flight.py` has this thermal holding this glider to 2182 m if perfectly centred, 32 m over the base. Unlike the [evening before](#a-flight-by-hand-through-a-cloud), nothing suggests the climb would have gone far past its cloud, but it was not flown that far.
+- **The cloud overhead:** under it for the whole climb. The circles' centre was 62, 95, 78 and 53 m from the emitter by quarter of the climb, while the wind carried it about 4.9 km over the ground.
+- **From the seat.** Juan Luis: it feels right, and at the HUD's TOP of about +200 m it looks about 200 m below the cloud. Asked at +208 m and +0.9 on the vario, so before the climb faded. This is one climb, one cloud, on flat ground.
+
+Size against climb: still only this one climb.
+
+## Next to XP12's clouds, and at dusk
+
+2026-11-07, `fly_clouds.py look`, by the test pilot near Hobbs, calm air, `wide_carriers`, graphics at the low end ([Cloud Quality Low](#does-the-graphics-menu-change-the-sky)). Judged from screenshots, plus Juan Luis's own and his eye while it flew. Straight flights of 90-150 s, in a sky still filling. So each is one look, not a study.
+
+**XP12's cumulus.** `--native-cover 0.5`, a layer with its base 318 m above ours, since the mission placed it at zi / 1.1 then (it now goes at our base). Both drew together, ours in front, with no fault of order seen. XP12's look flat and blurred far off, with some horizontal streaks, which Juan Luis puts down to XP12 and not to the plugin. Side by side the two styles are easy to tell apart. Juan Luis: it does not look bad. Not tried: flying in or close to an XP12 cloud, or XP12's layer at the height of ours.
+
+**Reading the sky with both.** The drawing is not the problem. An XP12 cloud marks none of our thermals, so a pilot reading the sky can go to one and find nothing. A first install should say so: they can share a sky, and to read it, leave XP12's cumulus off. Whether to do more is for later.
+
+**Dusk.** Air start at local 17:00 and 18:00, with the sun read at the end of each flight.
+
+| Local time | Sun | Clouds |
+| --- | --- | --- |
+| 17:00 | -0.9 degrees | Pink, darker below, against a graded sky. Juan Luis: lovely |
+| 18:00 | -13.2 degrees | Nothing to see: the whole picture is black but for stars and a few lights. Our clouds do not glow |
+
+Nothing between these two was looked at. Nor dawn, nor a sun low and in front of the clouds. So the `DIFFUSE`/`AMBIENT` of 1.2 in [the list](phase2.md#still-open) shows no fault at these two.
+
+## A shift of X-Plane's local origin
+
+2026-11-07, `fly_origin.py`, by the test pilot near Hobbs, calm air, `wide_carriers`, markers on, graphics at the low end. Log `flightlog_20261107_065412.csv`. The question [from phase 2](phase2.md#still-open): do the particles already in the sky move with the origin? A cloud that did not would jump by tens of kilometres.
+
+**Where it shifts.** The origin was on a whole degree of longitude, seen from `local_x` and the position. `lon_ref` went up by one degree when the glider was 61.0 km east of the origin, and `local_x` fell to -32.8 km. Sliding the glider east in an earlier try shifted at 62.9 km. Those are the only two, both eastwards, with an X-Plane origin that had moved once or twice. At 90 km/h that is rare, but a cross-country flight will meet it.
+
+**The clouds stayed.** Screenshots from the front, every 15 s and just after the shift. 13 s before and 1 s after it, the same clouds stand in the same arrangement, grown only by the glider's approach. Ten seconds after, a marker's column, which goes through `worldToLocal` each second, stands under the middle of the cloud ahead, and the next regular shots look alike. By eye, with one shift.
+
+**The numbers ran on.** Across the shift the nearest thermal's distance went 430, 381, 333 m at a steady rate, the lift at the centre stayed -0.05 m/s and the force -9 N, clouds created rose as they had (92 to 96), none were destroyed, and the plugin's frame stayed at 120-130 µs. So the plugin saw no new sky: it moves through lat/lon, which do not shift. X-Plane's own stutter, if any, was not timed. The glider was flying in sink, not in a thermal, across the shift.
+
+**Not looked at.** A shift north or south. A shift in wind, or in a climb, or while a cloud is close by on all sides. Graphics at the high end. In one shot after the shift two pale round shapes show high up ahead, like those [seen on 2026-11-06](#a-flight-by-hand-through-a-cloud); they are probably not from the shift but this does not show it.
+
+The slide to get near the shift was on the sim paused, in steps of 2.5 km.
+
+## `medium_carriers` again, no use
+
+2026-11-07, `fly_sky.py top --sky medium_carriers --agl 1100 --seconds 280` near Hobbs. Log `flightlog_20261107_071032.csv`. The mission ended by itself after 81 s, from 1021 to 1041 m AGL, the circles 100-210 m from the centre of a thermal with a core of 5 m/s. So it did not centre this narrower thermal, and says nothing about this sky. The choice of a default still waits for a flight by hand. The first two results [above](#how-high-does-a-climb-go) stand.
+
+## Does the graphics menu change the sky?
+
+2026-11-07, by hand, X-Plane 12.4.3, Santiago, Laminar ASK 21, `wide_carriers`, markers on. Paused in flight at 1323 m MSL, about 650 m AGL, with the HUD's TOP at +828 m. Seven screenshots in outside views all around at each setting, then compared by eye, view by view. The question came from another project of Juan Luis's, whose pylons are objects in a DSF and go missing with World Objects Density low.
+
+| | Low | High |
+| --- | --- | --- |
+| Cloud Quality | Low | Low |
+| Shadow Quality | Aircraft Only | Low |
+| World Objects Density | Minimal | Maximum |
+| Vegetation Density | Minimal | Minimal |
+| Rendering Distance | Minimal | Maximum |
+| `reno/LOD_bias_rat` | 5.0 | 1.0 |
+| Clouds drawn (`clouds/count`) | 208 | 208 |
+| Markers drawn (`markers/count`) | 12 | 12 |
+
+The Low column is from a screenshot of the menu. The High column is the menu as shown before the flight, taken as what it went back to; no screenshot of it for this series, though the ratio read 1.0 as it did then.
+
+**Nothing of ours changed.** The same clouds stand in the same places in each pair of views, small ones near the horizon included, and the same columns and rings. The ground changed a lot: no city, roads or trees at Low.
+
+**So the earlier note needs a limit.** [A disc with `ATTR_LOD 0 40000`](shadows.md#other-findings) stopped drawing between 4 and 8 km with this ratio at 5, which fits 40 km / 5. Clouds have the same `ATTR_LOD` and show no such limit at 5: the ones low over the horizon stand about 2 degrees above it, which at 828 m under their base would be some 20 km, a rough figure from an assumed field of view. So the rule seen with a disc does not hold for an emitter. The markers are placed within 3 km, inside any of these limits.
+
+**Not tested.** Which slider moves the ratio, since they moved together. Settings between these two. Frame cost: nothing was timed. Juan Luis finds the difference large, which is why the test pilot's flights ran at the low end, so their costs say little about a full scene. Native clouds. Tone: some high views look slightly lighter, perhaps exposure over the darker city, not measured.

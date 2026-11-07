@@ -77,7 +77,7 @@ def run_look(api, msl, heading, seconds, kmh, hour=12.0, wind_kt=0.0, native_cov
         wind = [(elev / 0.3048 + alt, wind_kt, 90.0, 0.0) for alt in (500.0, 5000.0, 12000.0)]
     clouds = ()
     if native_cover > 0.0:  # base and top: the layer of our own clouds
-        base_ft = (elev + 1818.0) / 0.3048
+        base_ft = (elev + 1500.0) / 0.3048
         clouds = (("cumulus", native_cover, base_ft, base_ft + 3000.0),)
     air_start(api, msl, kmh, heading, lat, lon, wx=weather(lat, lon, elev, wind=wind, clouds=clouds),
               hour=hour)
