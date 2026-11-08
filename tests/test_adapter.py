@@ -213,9 +213,9 @@ def test_thermal_field_gives_lift_in_a_core_and_is_deterministic():
 
 
 def test_the_sky_comes_from_the_settings_by_name():
-    plain = injector()
+    plain = injector()  # the settings' default is the wide sky
     plain.slow_update(state())
-    assert plain.field.config.sky is sky_named("default")
+    assert plain.field.config.sky is sky_named("wide_carriers")
     wide = injector(sky="wide_carriers")
     wide.slow_update(state())
     assert wide.field.config.sky is sky_named("wide_carriers")

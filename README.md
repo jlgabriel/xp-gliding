@@ -6,7 +6,7 @@ It is an independent take on thermals, offered as another option for soaring in 
 
 ![A Laminar ASK 21 over a mountain ridge near Santiago, beside a cumulus drawn by the plugin, with its soaring HUD on the left](docs/images/ask21-over-a-ridge.jpg)
 
-> **Status: in development, not released yet.** It flies, and the current work is a first public alpha, with an install guide and its limits stated.
+> **Version 0.1, an alpha.** It flies, and its limits are stated. Download it from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and follow the [pilot guide](docs/pilot-guide.md) to install it: it needs only X-Plane 12 and [XPPython3](https://xppython3.readthedocs.io/).
 
 ## What it does today
 
@@ -21,12 +21,12 @@ It is an independent take on thermals, offered as another option for soaring in 
 
 ## Where it is going
 
-The work is in three stages. The first is a public release of what flies today, once a default sky has been chosen by flying it. The second brings strength and cloud base from X-Plane's weather with a daily cycle, a sky tuned with what pilots report, and a better HUD and clouds. The third holds pieces that are not promised, such as XCSoar, other gliders, and thermals born where global land data says they would be. The details are in the [stages](notes/SPEC.md#stages).
+The work is in three stages. The first is this public alpha of what flies today. The second brings strength and cloud base from X-Plane's weather with a daily cycle, a sky tuned with what pilots report, and a better HUD and clouds. The third holds pieces that are not promised, such as XCSoar, other gliders, and thermals born where global land data says they would be. The details are in the [stages](notes/SPEC.md#stages).
 
 ## Documentation
 
 - **[Documentation](docs/README.md):** start here, including [measurements of X-Plane's native soaring](docs/findings/native-soaring.md).
-- **[Pilot guide](docs/pilot-guide.md):** installing, a first flight, reading the sky, and the known limits. A draft until the first release.
+- **[Pilot guide](docs/pilot-guide.md):** installing, a first flight, reading the sky, and the known limits.
 - **[Working notes](notes/README.md):** the full records of the work, with the current design and [stages](notes/SPEC.md#stages).
 
 ## What it is not

@@ -222,6 +222,11 @@ def dataref(xp, name, value=None):
     return read(refcon)
 
 
+def narrow_sky(pi):
+    """The narrow sky, whose cloud base the numbers in these tests were worked out for."""
+    pi.settings.sky = "default"
+
+
 def frame(pi, data):
     for k in ("faxil", "fside", "fnrml", "L"):
         data[f"sim/flightmodel/forces/{k}_plug_acf"] = 0.0  # X-Plane clears them every frame
@@ -319,6 +324,7 @@ def test_markers_are_off_by_default(plugin):
 
 def test_markers_create_two_instances_per_thermal_at_the_right_heights(plugin):
     pi, xp, data = plugin
+    narrow_sky(pi)
     dataref(xp, "markers_enabled", 1)
     markers_tick(pi, data)
     count = dataref(xp, "markers/count")
@@ -569,6 +575,7 @@ def test_clouds_are_on_by_default_and_fill_the_sky_over_many_updates(plugin):
 
 def test_clouds_carry_their_rate_and_scale_at_the_base_of_the_clouds(plugin):
     pi, xp, data = plugin
+    narrow_sky(pi)
     fill_sky(pi, data)
     wanted = ("xp_gliding/clouds/rate", "xp_gliding/clouds/scale")
     for name in wanted:
@@ -590,6 +597,7 @@ def test_clouds_carry_their_rate_and_scale_at_the_base_of_the_clouds(plugin):
 
 def test_clouds_keep_a_level_over_low_ground_and_clear_a_hill(plugin):
     pi, xp, data = plugin
+    narrow_sky(pi)
     lon0 = data["sim/flightmodel/position/longitude"]
     level = 1916.0 - 800.0 + 2000.0 / 1.1
     # A hill well above the level, beginning 0.05 deg east of the glider.
@@ -611,6 +619,7 @@ def test_clouds_keep_a_level_over_low_ground_and_clear_a_hill(plugin):
 
 def test_a_cloud_is_high_enough_for_the_hill_it_will_drift_into(plugin):
     pi, xp, data = plugin
+    narrow_sky(pi)
     lon0 = data["sim/flightmodel/position/longitude"]
     level = 1916.0 - 800.0 + 2000.0 / 1.1
     start, end = lon0 + 0.10, lon0 + 0.15
@@ -626,6 +635,7 @@ def test_a_cloud_is_high_enough_for_the_hill_it_will_drift_into(plugin):
 
 def test_with_no_ground_loaded_a_cloud_stays_at_the_level(plugin):
     pi, xp, data = plugin
+    narrow_sky(pi)
     xp.ground = lambda lat, lon: None
     fill_sky(pi, data)
     level = 1916.0 - 800.0 + 2000.0 / 1.1
@@ -1081,6 +1091,7 @@ def test_by_default_the_wind_at_the_glider_carries_the_sky_whatever_the_layers(p
 
 def test_the_wind_at_the_clouds_comes_from_the_layers_at_their_level(plugin):
     pi, xp, data = plugin
+    narrow_sky(pi)
     shear_layers(data)
     data["sim/weather/aircraft/wind_now_x_msc"] = 1.0  # at the glider: it must not matter
     dataref(xp, "wind_at_clouds", 1)
@@ -1150,7 +1161,7 @@ def test_the_setting_has_a_switch_in_the_menu_saved_and_taken_back_at_once(plugi
     handler("xp_gliding/wind/clouds/toggle", xp.CommandBegin, attr)
     assert pi.settings.wind_at_clouds
     assert saved(pi)["wind_at_clouds"] is True
-    assert "Sky moves with the wind at the clouds" in checked(xp, "xp-gliding")
+    assert "Sky moves with the wind at the clouds (experiment)" in checked(xp, "xp-gliding")
     pi.next_lean = 0.0
     frame(pi, data)
     frame(pi, data)
@@ -1191,7 +1202,7 @@ def saved(pi):
 
 def test_the_menu_shows_the_current_choices(plugin):
     pi, xp, data = plugin
-    assert checked(xp, "Sky") == ["Narrow thermals, as the paper"]
+    assert checked(xp, "Sky") == ["Wide thermals under the clouds (x2)"]
     assert checked(xp, "Strength of the day (w*)") == ["3 m/s"]
     assert checked(xp, "Depth of the thermal layer (zi)") == ["2000 m"]
     assert checked(xp, "Seed of the sky") == ["1"]
@@ -1224,14 +1235,14 @@ def test_a_bad_menu_choice_is_logged_and_does_not_stop_the_plugin(plugin, capsys
 def test_choosing_a_sky_changes_it_and_saves_it(plugin):
     pi, xp, data = plugin
     frame(pi, data)
-    choose(xp, "Sky", "Wide thermals under the clouds (x2)")
-    assert pi.settings.sky == "wide_carriers"
-    assert checked(xp, "Sky") == ["Wide thermals under the clouds (x2)"]
-    assert saved(pi)["sky"] == "wide_carriers"
+    choose(xp, "Sky", "Medium thermals under the clouds (x1.5)")
+    assert pi.settings.sky == "medium_carriers"
+    assert checked(xp, "Sky") == ["Medium thermals under the clouds (x1.5)"]
+    assert saved(pi)["sky"] == "medium_carriers"
     old = pi.injector.field
     frame(pi, data)  # at once, not up to a second later
     assert pi.injector.field is not old
-    assert pi.injector.field.config.sky is importlib.import_module("xp_gliding.engine.field").SKIES["wide_carriers"]
+    assert pi.injector.field.config.sky is importlib.import_module("xp_gliding.engine.field").SKIES["medium_carriers"]
 
 
 def test_choosing_a_new_day_keeps_the_numbers_as_numbers(plugin):

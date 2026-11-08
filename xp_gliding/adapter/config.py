@@ -30,7 +30,7 @@ DEFAULTS = {
     "wstar_ms": 3.0,  # convective velocity scale w* (m/s)
     "zi_m": 2000.0,  # convective layer depth zi (m AGL)
     "seed": 1,  # field seed; with the date and place it fixes the sky
-    "sky": "default",  # a name in engine.field.SKIES; an unknown name is the default sky
+    "sky": "wide_carriers",  # a name in engine.field.SKIES; an unknown name is the narrow "default" sky
     "range_m": 10000.0,  # thermals are loaded this far around the aircraft
     "recentre_m": 20000.0,  # move the local origin when this far from it
 }
@@ -39,9 +39,9 @@ DEFAULTS = {
 # names in engine.field.SKIES, and all of them are first guesses to judge by flying.
 MENU_CHOICES = (
     ("Sky", "sky", (
-        ("Narrow thermals, as the paper", "default"),
-        ("Medium thermals under the clouds (x1.5)", "medium_carriers"),
         ("Wide thermals under the clouds (x2)", "wide_carriers"),
+        ("Medium thermals under the clouds (x1.5)", "medium_carriers"),
+        ("Narrow thermals, as the paper", "default"),
     )),
     ("Strength of the day (w*)", "wstar_ms", (
         ("2 m/s", 2.0), ("2.5 m/s", 2.5), ("3 m/s", 3.0), ("3.5 m/s", 3.5), ("4 m/s", 4.0), ("5 m/s", 5.0),
