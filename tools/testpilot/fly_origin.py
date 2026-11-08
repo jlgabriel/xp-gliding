@@ -24,7 +24,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from airstart import KHOB, air_start  # noqa: E402
+from airstart import KHOB, air_start, weather  # noqa: E402
 from pilot import Pilot, release, take_over_logger  # noqa: E402
 from xpweb import XPlaneStream, XPlaneWebAPI  # noqa: E402
 
@@ -40,7 +40,8 @@ WATCH = (LAT_REF, LON_REF, LOCAL_X, LON, PLUGIN + "clouds/count", PLUGIN + "clou
          PLUGIN + "clouds/destroyed", PLUGIN + "markers/count", PLUGIN + "lift_centre_ms",
          PLUGIN + "force_n", PLUGIN + "nearest/distance_m", PLUGIN + "frame_us",
          PLUGIN + "markers/probe_dy_m", PLUGIN + "markers/probe_local_distance_m",
-         PLUGIN + "markers/probe_distance_m")
+         PLUGIN + "markers/probe_distance_m", PLUGIN + "hud/draw_us", PLUGIN + "hud/sample_us",
+         PLUGIN + "clouds/update_us_max")
 SHIFT_X_M = 61000.0  # east of the origin, measured: see the docstring
 START_LON = -102.55
 SLIDE_STEP_M = 2500.0  # the plugin takes 5 km between its slow updates for a move on the map
@@ -70,10 +71,16 @@ def main():
     parser.add_argument("--seconds", type=float, default=270.0)
     parser.add_argument("--every", type=float, default=15.0)
     parser.add_argument("--kmh", type=float, default=90.0)
+    parser.add_argument("--wind-kt", type=float, default=0.0, help="uniform wind from the west (kt)")
     args = parser.parse_args()
     api = XPlaneWebAPI()
     lat, _, elev = KHOB
-    air_start(api, elev + 1000.0, args.kmh, 90.0, lat, START_LON)
+    wx = None
+    if args.wind_kt:
+        ft = elev / 0.3048
+        wx = weather(lat, START_LON, elev, wind=[(ft + 500.0, args.wind_kt, 270.0, 0.0),
+                                                 (ft + 15000.0, args.wind_kt, 270.0, 0.0)])
+    air_start(api, elev + 1000.0, args.kmh, 90.0, lat, START_LON, wx=wx)
     take_over_logger(api)
     markers_before = api.get(MARKERS)
     api.set(MARKERS, 1)
@@ -107,7 +114,8 @@ def main():
                   f"created {x[PLUGIN + 'clouds/created']:4.0f} destroyed {x[PLUGIN + 'clouds/destroyed']:4.0f} "
                   f"markers {x[PLUGIN + 'markers/count']:2.0f} near {x[PLUGIN + 'nearest/distance_m']:6.0f} m "
                   f"lift {x[PLUGIN + 'lift_centre_ms']:+.2f} force {x[PLUGIN + 'force_n']:6.0f} N "
-                  f"frame {x[PLUGIN + 'frame_us']:.0f} us", flush=True)
+                  f"frame {x[PLUGIN + 'frame_us']:.0f} us hud {x[PLUGIN + 'hud/draw_us'] + x[PLUGIN + 'hud/sample_us']:.0f} us "
+                  f"clouds max {x[PLUGIN + 'clouds/update_us_max']:.0f} us", flush=True)
 
     def until(v, pilot):
         return state["at"] is not None and pilot.flown - state["at"] >= AFTER_SHIFT_S
