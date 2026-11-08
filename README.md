@@ -32,7 +32,7 @@ The work is in three stages. The first is this public version of what flies toda
 
 ## What it is not
 
-It is not a simulation of the atmosphere. The thermals start from a published model ([Allen, 2006](https://ntrs.nasa.gov/citations/20060004052)) and are tuned by flying, with each departure from the paper documented. It is not a soaring simulator either: no tasks, no traffic, no wave. Condor's soaring is the inspiration, not the target, and a glider still flies as well as its own flight model allows.
+It is not a simulation of the atmosphere. The thermals start from a published model ([Allen, 2006](https://ntrs.nasa.gov/citations/20060004052)) and are tuned by flying, with each departure from the paper documented. It is not a soaring simulator either: no tasks, no traffic, no wave. A glider still flies as well as its own flight model allows.
 
 ## Principles
 
