@@ -4,8 +4,7 @@ xp-gliding {version}
 Thermals for gliders in X-Plane 12: find them by reading the clouds, and climb
 in them by hand.
 
-This is the first public version. Its known limits are listed in the pilot
-guide.
+Its known limits are listed in the pilot guide.
 
 Full pilot guide:
 https://github.com/jlgabriel/xp-gliding/blob/main/docs/pilot-guide.md
@@ -48,11 +47,14 @@ in X-Plane 12/Output/xp-gliding/config.json, which can be deleted too.
 A FIRST FLIGHT
 --------------
 
-1. Weather: fly by day, and turn off X-Plane's own cumulus clouds. The plugin
-   draws its own clouds over its thermals, and X-Plane's clouds mark none of
-   them. Wind is fine.
+1. Weather: fly by day, and turn off X-Plane's own cumulus clouds. Thermals
+   are born only while the sun is at least 5 degrees up, so the sky empties
+   around sunset and fills again after sunrise. The plugin draws its own
+   clouds over its thermals, and X-Plane's clouds mark none of them. Wind is
+   fine.
 2. Aircraft: the Laminar ASK 21. The plugin does nothing on aircraft with
-   engines.
+   engines, unless you choose Treat this aircraft as a glider in the menu,
+   which is how a motor glider gets the thermals.
 3. For the first climb, turn on Plugins > xp-gliding > Training markers: a
    ring at your height shows where each nearby thermal is. Turn them off later
    and fly by the clouds.
@@ -72,6 +74,7 @@ THE MENU (Plugins > xp-gliding)
 - Enabled: the plugin on or off.
 - Training markers: show where the thermals are.
 - Cumulus clouds, Soaring HUD: turn each off if you like.
+- Treat this aircraft as a glider: for a motor glider, remembered by its file.
 - Sky: wide thermals (the default, easiest), medium, or narrow (hardest).
 - Strength of the day, Depth of the thermal layer: stronger or weaker
   thermals, higher or lower clouds.
