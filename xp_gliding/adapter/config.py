@@ -26,7 +26,10 @@ DEFAULTS = {
     "markers_enabled": False,  # training mode: draw a ring and a column over nearby thermals
     "clouds_enabled": True,  # cumulus over the thermals that carry one
     "hud_enabled": True,  # soaring HUD: vario, netto, average, height to the top, centring aid
-    "gliders_only": True,  # only act on aircraft without engines
+    "gliders_only": True,  # only act on gliders: filed as one, with no engines, or in also_gliders
+    # Aircraft files (.acf names, any case) the pilot treats as gliders from the menu: motor
+    # gliders, which their authors file as something else (filed as gliders, X-Plane tows them).
+    "also_gliders": [],
     "wstar_ms": 3.0,  # convective velocity scale w* (m/s)
     "zi_m": 2000.0,  # convective layer depth zi (m AGL)
     "seed": 1,  # field seed; with the date and place it fixes the sky
@@ -60,7 +63,7 @@ class Settings:
 
     def __init__(self, values=None):
         for key, default in DEFAULTS.items():
-            setattr(self, key, default)
+            setattr(self, key, list(default) if isinstance(default, list) else default)
         if values:
             self.update(values)
 
@@ -70,6 +73,10 @@ class Settings:
             if key not in DEFAULTS:
                 continue
             kind = type(DEFAULTS[key])
+            if kind is list:
+                if isinstance(value, list) and all(isinstance(v, str) for v in value):
+                    setattr(self, key, list(value))
+                continue
             try:
                 setattr(self, key, bool(value) if kind is bool else kind(value))
             except (TypeError, ValueError):
@@ -77,6 +84,15 @@ class Settings:
 
     def as_dict(self):
         return {key: getattr(self, key) for key in DEFAULTS}
+
+    def treated_as_glider(self, acf):
+        """True if the pilot chose to treat the aircraft file `acf` (its name) as a glider."""
+        return acf.lower() in (name.lower() for name in self.also_gliders)
+
+    def treat_as_glider(self, acf, wanted):
+        """Add or remove the aircraft file `acf` (its name) in the list of aircraft treated as gliders."""
+        others = [name for name in self.also_gliders if name.lower() != acf.lower()]
+        self.also_gliders = others + [acf] if wanted else others
 
 
 def save_settings(settings, path):

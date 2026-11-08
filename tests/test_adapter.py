@@ -74,6 +74,20 @@ def test_settings_coerce_types_and_ignore_unknown_keys():
     assert s.zi_m == config.DEFAULTS["zi_m"]
 
 
+def test_aircraft_treated_as_gliders_are_kept_by_file_name_in_any_case():
+    s = config.Settings({"also_gliders": "VSL SF-25C.acf"})  # not a list: ignored
+    assert s.also_gliders == [] and config.DEFAULTS["also_gliders"] == []
+    s = config.Settings({"also_gliders": ["VSL SF-25C.acf", 3]})  # not all names: ignored
+    assert s.also_gliders == []
+    s.treat_as_glider("VSL SF-25C.acf", True)
+    s.treat_as_glider("vsl sf-25c.ACF", True)  # once, whatever the case
+    assert s.also_gliders == ["vsl sf-25c.ACF"] and s.treated_as_glider("VSL SF-25C.acf")
+    assert config.DEFAULTS["also_gliders"] == []  # the default is not shared
+    s.treat_as_glider("VSL SF-25C.acf", False)
+    assert s.also_gliders == [] and not s.treated_as_glider("VSL SF-25C.acf")
+    assert config.Settings({"also_gliders": ["A.acf"]}).as_dict()["also_gliders"] == ["A.acf"]
+
+
 def test_missing_settings_file_is_created_with_defaults(tmp_path):
     path = tmp_path / "config.json"
     s, how = config.load_settings(str(path))

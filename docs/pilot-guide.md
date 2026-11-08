@@ -24,7 +24,7 @@ The plugin comes ready to fly: no file to edit, and nothing to set in X-Plane's 
 ## A first flight
 
 1. **Set the weather.** Fly by day, and leave out X-Plane's own cumulus clouds: the plugin draws its own over its thermals, and X-Plane's clouds mark none of them, so flying towards one finds nothing. Wind is fine, steady or not.
-2. **Choose the glider.** The Laminar ASK 21. The plugin acts only on aircraft without engines, and does nothing on the rest.
+2. **Choose the glider.** The Laminar ASK 21. The plugin acts only on gliders, and does nothing on the rest. A motor glider counts once you choose *Treat this aircraft as a glider* in the menu (see [The menu](#the-menu)).
 3. **Turn on the markers for the first climb.** *Plugins → xp-gliding → Training markers* puts a ring at your height over each nearby thermal, and a thin column up to its cloud. It helps while learning how a climb feels. Turn them off later and fly by the clouds.
 4. **Get airborne,** by tow, winch or an air start, and fly towards a cloud.
 5. **Check that the airbrakes are closed.** The ASK 21 can start with them open, which feels like a heavy glider and reads as strong sink.
@@ -71,6 +71,7 @@ Everything is in *Plugins → xp-gliding*. What you choose is saved for the next
 | Training markers | A ring at your height over each nearby thermal, and a column up to its cloud | `xp_gliding/markers/toggle` |
 | Cumulus clouds | The plugin's clouds | `xp_gliding/clouds/toggle` |
 | Soaring HUD | The panel above | `xp_gliding/hud/toggle` |
+| Treat this aircraft as a glider | For a motor glider: the plugin acts on the aircraft loaded, with its engine running or not, and remembers it by its file. Ticked and greyed out for a glider | `xp_gliding/aircraft/glider/toggle` |
 | Sky | How wide the thermals are: wide (the default and easiest), medium, or narrow (hardest) | |
 | Strength of the day (w\*) | How strong the thermals are. 3 m/s by default | |
 | Depth of the thermal layer (zi) | How high they go, and so the height of the clouds. 2000 m by default | |
@@ -86,7 +87,7 @@ Choosing another sky, seed or depth in flight replaces the clouds at once, and n
 - **The sun is not read.** Thermals and clouds are there at any hour, including at night.
 - **A far cloud can appear in front of a near one at times,** mostly between clouds far away. A cloud you have just come near can look denser for a few minutes.
 - **X-Plane's own cumulus mark none of these thermals.** The two can share a sky, but to read it, leave X-Plane's off.
-- **The Laminar ASK 21 is the reference.** Other gliders get the lift, and no netto on the HUD. A glider whose wings are not in the usual parts of its file is treated as an ASK 21 for the roll. An aircraft with engines gets nothing, so a motor glider is left out.
+- **The Laminar ASK 21 is the reference.** Other gliders get the lift, and no netto on the HUD. A glider whose wings are not in the usual parts of its file is treated as an ASK 21 for the roll. An aircraft with engines gets nothing unless you treat it as a glider from the menu, which is how a motor glider gets the lift, with its engine running or not, since the air rises for it either way.
 - **A glider flies as well as its own flight model allows.** The Laminar ASK 21 sinks about 2.1 m/s circling at 45°, measured by a scripted autopilot in X-Plane 12.4.3, so steep turns cost a lot of climb.
 - **Lift is a push on the aircraft, not moving air,** since X-Plane has no way to move air at a point. A climbing turn tends to overbank a little, and a glider's own netto instrument may read wrong. Its total energy vario reads right.
 - **Two pilots at the same place and time do not see the same sky.**

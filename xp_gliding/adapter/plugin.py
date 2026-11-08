@@ -5,7 +5,8 @@
 
 One flight loop runs every frame, before the flight model. While the plugin is
 active (enabled, and the user's aircraft is a glider unless `gliders_only` is
-off) and the sim is neither paused nor in replay, it reads the aircraft state,
+off: filed as a glider, with no engines, or treated as one from the menu, which is how a
+motor glider gets in) and the sim is neither paused nor in replay, it reads the aircraft state,
 asks the engine for the lift, and adds the forces (see `core` and `xpio`).
 About once a second it keeps the thermal field loaded around the aircraft and
 re-checks the native thermal setting, and, in frames apart so that they never share
@@ -25,6 +26,8 @@ Commands (also in the menu):
   xp_gliding/markers/toggle    training markers on / off (off by default)
   xp_gliding/clouds/toggle     cumulus on / off
   xp_gliding/hud/toggle        soaring HUD on / off
+  xp_gliding/aircraft/glider/toggle  treat this aircraft as a glider, for a motor glider; saved
+                               by its .acf name in `also_gliders`
 
 Datarefs (`xp_gliding/...`, see DATAREFS): settings and debug modes are
 writable, so the flight logger and the test pilot can read what the adapter
@@ -219,6 +222,9 @@ class PythonInterface:
         self.injector.heights = self.clouds.heights
         self.hud = Hud(self.settings, lambda text: print(f"{TAG} {text}"))
         self.eligible = False
+        self.acf_path = ""
+        self.acf = ""  # the user's aircraft file name, "" when none is loaded
+        self.native_glider = False  # a glider without the pilot saying so: filed as one, or no engines
         self.failed = False
         self.next_slow = 0.0
         self.next_markers = 0.0
@@ -264,6 +270,11 @@ class PythonInterface:
         for cmd, handler, attr, label in self.commands:
             xp.registerCommandHandler(cmd, handler, 1, attr)
             xp.appendMenuItemWithCommand(self.menu, label, cmd)
+        self.glider_cmd = xp.createCommand("xp_gliding/aircraft/glider/toggle",
+                                           "xp-gliding: treat this aircraft as a glider (motor gliders)")
+        xp.registerCommandHandler(self.glider_cmd, self.on_glider_toggle, 1, None)
+        self.glider_item = xp.appendMenuItemWithCommand(self.menu, "Treat this aircraft as a glider",
+                                                        self.glider_cmd)
         xp.appendMenuSeparator(self.menu)
         self.submenus = []  # (menu, setting, values, in the menu's order)
         # What each submenu item sets. An item carries only its place in this list: a tuple made
@@ -287,6 +298,7 @@ class PythonInterface:
         self.hud.stop()
         for cmd, handler, attr, _ in self.commands:
             xp.unregisterCommandHandler(cmd, handler, 1, attr)
+        xp.unregisterCommandHandler(self.glider_cmd, self.on_glider_toggle, 1, None)
         for submenu, _, _ in self.submenus:
             xp.destroyMenu(submenu)
         xp.destroyMenu(self.menu)
@@ -320,6 +332,7 @@ class PythonInterface:
         geometry = read_acf_geometry(path) if path else None
         self.injector.set_geometry(geometry or DEFAULT_GEOMETRY)
         engines = self.io.engine_count()
+        glider = self.io.is_glider()
         self.clouds.clear()  # a new flight: X-Plane may have dropped the particles
         self.injector.drift.reset()  # and the sky starts where the field drew it
         self.injector.reset_field()  # which ground each thermal was born over depends on that
@@ -328,12 +341,25 @@ class PythonInterface:
         self.next_lean = 0.0
         # At the main menu the "aircraft" is X-Plane's own folder: stay inert until
         # a real aircraft is loaded (a plane-loaded message follows).
-        loaded = path.lower().endswith(".acf")
-        self.eligible = loaded and (engines == 0 or not self.settings.gliders_only)
-        self.hud.set_aircraft(path, self.eligible)
+        self.acf_path = path
+        self.acf = os.path.basename(path) if path.lower().endswith(".acf") else ""
+        self.native_glider = glider or engines == 0
+        self.update_eligibility()
         print(f"{TAG} aircraft {path or '(none)'}: {engines} engines, "
+              f"{'filed as a glider' if glider else 'not filed as a glider'}, "
+              f"{'treated as a glider' if self.settings.treated_as_glider(self.acf) else 'not in also_gliders'}, "
               f"{'eligible' if self.eligible else 'not a glider, inactive'}; "
               f"{self.injector.geometry}")
+
+    def update_eligibility(self):
+        """A glider is an aircraft filed as one, one with no engines, or one the pilot treats as a
+        glider from the menu: a motor glider, which its author files as something else, since
+        X-Plane would launch an aircraft filed as a glider by tow. The air rises for a motor glider
+        with its engine running too, so the engine's state does not matter."""
+        glider = self.native_glider or self.settings.treated_as_glider(self.acf)
+        self.eligible = bool(self.acf) and (glider or not self.settings.gliders_only)
+        self.hud.set_aircraft(self.acf_path, self.eligible)
+        self.refresh_menu()
 
     # --- commands and menu ----------------------------------------------------
 
@@ -342,6 +368,17 @@ class PythonInterface:
             setattr(self.settings, attr, not getattr(self.settings, attr))
             self.refresh_menu()
             print(f"{TAG} {attr} = {getattr(self.settings, attr)}")
+            self.save()
+        return 1
+
+    def on_glider_toggle(self, commandRef, phase, refcon):
+        """Treat the user's aircraft as a glider, or no longer. Nothing to do with no aircraft, or
+        with one that is a glider already."""
+        if phase == xp.CommandBegin and self.acf and not self.native_glider:
+            wanted = not self.settings.treated_as_glider(self.acf)
+            self.settings.treat_as_glider(self.acf, wanted)
+            self.update_eligibility()
+            print(f"{TAG} {self.acf} {'treated as a glider' if wanted else 'no longer treated as a glider'}")
             self.save()
         return 1
 
@@ -377,6 +414,10 @@ class PythonInterface:
             current = getattr(self.settings, attr)
             for index, value in enumerate(values):
                 xp.checkMenuItem(submenu, index, xp.Menu_Checked if value == current else xp.Menu_Unchecked)
+        # Checked for any glider; only an aircraft with engines that is not filed as a glider can change it.
+        glider = self.native_glider or self.settings.treated_as_glider(self.acf)
+        xp.checkMenuItem(self.menu, self.glider_item, xp.Menu_Checked if glider else xp.Menu_Unchecked)
+        xp.enableMenuItem(self.menu, self.glider_item, int(bool(self.acf) and not self.native_glider))
 
     # --- per frame -------------------------------------------------------------
 

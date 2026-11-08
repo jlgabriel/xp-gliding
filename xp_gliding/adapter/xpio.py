@@ -52,6 +52,8 @@ class XPlaneIO:
         self._roll = xp.findDataRef("sim/flightmodel/forces/L_plug_acf")
         self._native = xp.findDataRef("sim/weather/region/thermal_rate_ms")
         self._engines = xp.findDataRef("sim/aircraft/engine/acf_num_engines")
+        # The "Glider" category ticked in Plane Maker: how a motor glider says it is one.
+        self._is_glider = xp.findDataRef("sim/aircraft2/metadata/is_glider")
         self._local = tuple(xp.findDataRef("sim/flightmodel/position/local_" + c) for c in "xyz")
         self._wind_alt = xp.findDataRef("sim/weather/aircraft/wind_altitude_msl_m")
         self._wind_speed = xp.findDataRef("sim/weather/aircraft/wind_speed_kts")
@@ -93,6 +95,10 @@ class XPlaneIO:
 
     def engine_count(self):
         return xp.getDatai(self._engines)
+
+    def is_glider(self):
+        """True if the aircraft's author filed it as a glider. False where X-Plane has no such dataref."""
+        return self._is_glider is not None and bool(xp.getDatai(self._is_glider))
 
     @staticmethod
     def user_aircraft_path():

@@ -47,6 +47,7 @@ DATA = {
     "sim/time/total_running_time_sec": 100.0,
     "sim/flightmodel/position/indicated_airspeed": 48.6,
     "sim/aircraft/engine/acf_num_engines": 0,
+    "sim/aircraft2/metadata/is_glider": 1,
     "sim/weather/aircraft/wind_now_x_msc": 0.0,
     "sim/weather/aircraft/wind_now_z_msc": 0.0,
     # Thirteen layers from near the ground up, 15 kt from the west in all of them by default.
@@ -96,7 +97,7 @@ def make_fake_xp(tmp_path, data):
     xp.menus = {}  # title -> {"handler", "items": [(label, refcon)], "checked": {index}}
 
     def create_menu(title, parent, item, handler, refcon):
-        xp.menus[title] = {"handler": handler, "items": [], "checked": set()}
+        xp.menus[title] = {"handler": handler, "items": [], "checked": set(), "disabled": set()}
         return title
 
     def append_item(menu, name, refcon):
@@ -116,6 +117,11 @@ def make_fake_xp(tmp_path, data):
     xp.appendMenuItemWithCommand = lambda menu, name, cmd: append_item(menu, name, cmd)
     xp.appendMenuSeparator = lambda menu: None
     xp.checkMenuItem = check_item
+
+    def enable_item(menu, index, enabled):
+        (xp.menus[menu]["disabled"].discard if enabled else xp.menus[menu]["disabled"].add)(index)
+
+    xp.enableMenuItem = enable_item
     xp.destroyMenu = lambda menu: xp.menus.pop(menu)
     xp.removeMenuItem = lambda menu, index: None
     xp.createFlightLoop = lambda cb, phase, refcon: "loop"
@@ -274,11 +280,99 @@ def test_native_thermals_held_at_zero_while_active_and_restored(plugin):
 def test_powered_aircraft_is_left_alone(plugin):
     pi, xp, data = plugin
     data["sim/aircraft/engine/acf_num_engines"] = 1
+    data["sim/aircraft2/metadata/is_glider"] = 0
     pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0)
     dataref(xp, "debug/uniform_ms", 1.0)
     frame(pi, data)
     assert data["sim/flightmodel/forces/faxil_plug_acf"] == 0.0
     assert data["sim/weather/region/thermal_rate_ms"] == pytest.approx(0.62)
+
+
+def test_a_motor_glider_filed_as_a_glider_gets_the_lift(plugin):
+    pi, xp, data = plugin
+    data["sim/aircraft/engine/acf_num_engines"] = 1
+    pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0)
+    dataref(xp, "debug/uniform_ms", 1.0)
+    frame(pi, data)
+    assert data["sim/flightmodel/forces/faxil_plug_acf"] < 0.0 and dataref(xp, "active") == 1
+    assert data["sim/weather/region/thermal_rate_ms"] == 0.0
+
+
+def test_a_glider_not_filed_as_one_is_known_by_its_lack_of_engines(plugin):
+    pi, xp, data = plugin
+    data["sim/aircraft2/metadata/is_glider"] = 0
+    pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0)
+    frame(pi, data)
+    assert dataref(xp, "active") == 1
+
+
+def glider_item(xp):
+    """(checked, enabled) of the menu's "Treat this aircraft as a glider"."""
+    menu = xp.menus["xp-gliding"]
+    index = next(i for i, (name, _) in enumerate(menu["items"]) if name == "Treat this aircraft as a glider")
+    return index in menu["checked"], index not in menu["disabled"]
+
+
+def test_the_pilot_can_treat_a_motor_glider_as_a_glider_and_it_is_saved(plugin):
+    pi, xp, data = plugin
+    data["sim/aircraft/engine/acf_num_engines"] = 1
+    data["sim/aircraft2/metadata/is_glider"] = 0
+    data["acf_path"] = "Aircraft/VSKYLABS/Falke/VSL SF-25C.acf"
+    pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0)
+    frame(pi, data)
+    assert dataref(xp, "active") == 0 and glider_item(xp) == (False, True)
+    handler, refcon = xp.handlers["xp_gliding/aircraft/glider/toggle"]
+    handler("xp_gliding/aircraft/glider/toggle", xp.CommandBegin, refcon)
+    frame(pi, data)
+    assert dataref(xp, "active") == 1 and glider_item(xp) == (True, True)
+    with open(pi.config_path, encoding="utf-8") as f:
+        assert json.load(f)["also_gliders"] == ["VSL SF-25C.acf"]
+    # Loaded again, by a path in another case: still a glider.
+    data["acf_path"] = "Aircraft/VSKYLABS/Falke/vsl sf-25c.ACF"
+    pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0)
+    frame(pi, data)
+    assert dataref(xp, "active") == 1
+    # Another powered aircraft is not.
+    data["acf_path"] = "Aircraft/Laminar Research/Cessna 172/Cessna_172SP.acf"
+    pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0)
+    frame(pi, data)
+    assert dataref(xp, "active") == 0 and glider_item(xp) == (False, True)
+    # And back to the Falke, to take it off the list.
+    data["acf_path"] = "Aircraft/VSKYLABS/Falke/VSL SF-25C.acf"
+    pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0)
+    handler("xp_gliding/aircraft/glider/toggle", xp.CommandBegin, refcon)
+    frame(pi, data)
+    assert dataref(xp, "active") == 0 and pi.settings.also_gliders == []
+
+
+def test_a_glider_cannot_be_taken_off_from_the_menu(plugin):
+    pi, xp, data = plugin
+    assert glider_item(xp) == (True, False)
+    handler, refcon = xp.handlers["xp_gliding/aircraft/glider/toggle"]
+    handler("xp_gliding/aircraft/glider/toggle", xp.CommandBegin, refcon)
+    frame(pi, data)
+    assert dataref(xp, "active") == 1 and pi.settings.also_gliders == []
+
+
+def test_at_the_main_menu_there_is_no_aircraft_to_treat_as_a_glider(plugin):
+    pi, xp, data = plugin
+    data["sim/aircraft/engine/acf_num_engines"] = 1
+    data["sim/aircraft2/metadata/is_glider"] = 0
+    data["acf_path"] = str(xp.getSystemPath())
+    pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0)
+    assert glider_item(xp) == (False, False)
+    handler, refcon = xp.handlers["xp_gliding/aircraft/glider/toggle"]
+    handler("xp_gliding/aircraft/glider/toggle", xp.CommandBegin, refcon)
+    assert pi.settings.also_gliders == []
+
+
+def test_without_the_category_dataref_only_the_engines_count(plugin):
+    pi, xp, data = plugin
+    pi.io._is_glider = None  # an X-Plane without sim/aircraft2/metadata/is_glider
+    data["sim/aircraft/engine/acf_num_engines"] = 1
+    pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0)
+    frame(pi, data)
+    assert dataref(xp, "active") == 0
 
 
 def test_an_error_stops_the_effect_without_raising(plugin, capsys):
