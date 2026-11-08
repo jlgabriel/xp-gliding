@@ -11,9 +11,10 @@ It is an independent take on thermals, offered as another option for soaring in 
 ## What it does today
 
 - **Thermals** with a life cycle: they grow, peak and fade, and never vanish abruptly. The same seed, date and place give the same sky.
+- **Thermals by day.** A thermal is born only while the sun is up, so the sky empties around sunset and fills again after sunrise.
 - **Cumulus** drawn by the plugin over the thermals that carry one. Each forms and fades with its thermal, so a cloud means something. Clouds keep to a level for the area, and stand higher where the ground under them and along their drift would reach them.
 - **Lift that ends with its cloud,** over any ground, rather than following the ground under the glider. No thermal is born over water.
-- **Lift with no per-aircraft calibration.** It is applied as the energy rising air would give the glider, and measured within 0.01 m/s of the intended climb at different speeds, banks and frame rates. The reference glider is the Laminar ASK 21. Other gliders get the lift, and no netto on the HUD.
+- **Lift with no per-aircraft calibration.** It is applied as the energy rising air would give the glider, and measured within 0.01 m/s of the intended climb at different speeds, banks and frame rates. The reference glider is the Laminar ASK 21. Other gliders get the lift, and no netto on the HUD. A motor glider gets it once treated as a glider from the menu.
 - **Thermals and clouds that follow the wind.** The wind is X-Plane's, real or set by hand: the plugin reads it and has no wind of its own.
 - **A soaring HUD:** total energy, netto, average climb, height up to the clouds, the wind and a centring aid.
 - **A menu** in *Plugins → xp-gliding* to choose the sky and the day, saved between sessions.

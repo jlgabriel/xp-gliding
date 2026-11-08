@@ -89,7 +89,7 @@ Choosing another sky, seed or depth in flight replaces the clouds at once, and n
 - **X-Plane's own cumulus mark none of these thermals.** The two can share a sky, but to read it, leave X-Plane's off.
 - **The Laminar ASK 21 is the reference.** Other gliders get the lift, and no netto on the HUD. A glider whose wings are not in the usual parts of its file is treated as an ASK 21 for the roll. An aircraft with engines gets nothing unless you treat it as a glider from the menu, which is how a motor glider gets the lift, with its engine running or not, since the air rises for it either way.
 - **A glider flies as well as its own flight model allows.** The Laminar ASK 21 sinks about 2.1 m/s circling at 45°, measured by a scripted autopilot in X-Plane 12.4.3, so steep turns cost a lot of climb.
-- **Lift is a push on the aircraft, not moving air,** since X-Plane has no way to move air at a point. A climbing turn tends to overbank a little, and a glider's own netto instrument may read wrong. Its total energy vario reads right.
+- **Lift is a push on the aircraft, not moving air,** since a plugin has no way to move X-Plane's air at a point. A climbing turn tends to overbank a little, and a glider's own netto instrument may read wrong. Its total energy vario reads right.
 - **Two pilots at the same place and time do not see the same sky.**
 
 ## Reporting a problem
