@@ -158,7 +158,7 @@ class CloudCatalog:
                                   lifetime_max_s=config.lifetime_max_s,
                                   wgain_sigma=config.wgain_sigma, rgain_sigma=config.rgain_sigma,
                                   range_m=self.params.keep_range_m, cell_m=config.cell_m,
-                                  sky=config.sky)
+                                  sky=config.sky, sun_min_deg=config.sun_min_deg)
         self.frame = frame
         self.accept = accept
         self._tiles = {}  # (i, j, slot) -> list of Thermal with a cloud

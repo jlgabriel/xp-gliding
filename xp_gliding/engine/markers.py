@@ -83,18 +83,19 @@ class Marker:
         self.distance_m = distance_m
 
 
-def core_of(thermal, z, t, wstar, zi, we):
+def core_of(thermal, z, t, wstar, zi, we, sink_share=1.0):
     """This thermal's lift at its centre (m/s) and core radius r1 (m) at height z and time t.
 
-    we is the environment sink at z (`ThermalField.environment_sink`).
+    we is the environment sink at z (`ThermalField.environment_sink`), and sink_share the
+    share of it the air between thermals has now (`ThermalField.sink_share`), as the lift has.
     """
     strength, radius = thermal.envelope(t)
     if strength == 0.0:
-        return we, 0.0
+        return we * sink_share, 0.0
     rgain = thermal.rgain * radius
     w = updraft.updraft_velocity(0.0, z, zi, wstar, thermal.wgain * thermal.gain, rgain, we)
     r1, _ = updraft.core_radii(z, zi, rgain)
-    return we + strength * (w - we), r1 * thermal.stretch
+    return we * sink_share + strength * (w - we), r1 * thermal.stretch
 
 
 def select_markers(field, e, n, z, t, wstar, zi, shown=(), params=None, ground_m=None):
@@ -113,7 +114,8 @@ def select_markers(field, e, n, z, t, wstar, zi, shown=(), params=None, ground_m
         if not kept and r > params.range_m:
             continue
         zt = height_in_thermal(th, z, ground_m)
-        core, r1 = core_of(th, zt, t, wstar, zi, field.environment_sink(zt, wstar, zi))
+        core, r1 = core_of(th, zt, t, wstar, zi, field.environment_sink(zt, wstar, zi),
+                           field.sink_share)
         if core < (params.keep_core_ms if kept else params.min_core_ms):
             continue
         score = core - params.cost_ms_per_m * r + (params.sticky_ms if kept else 0.0)

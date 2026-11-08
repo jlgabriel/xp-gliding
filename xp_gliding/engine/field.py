@@ -41,14 +41,18 @@ The wind carries the whole sky from outside (`wind.py`): this module is in the a
 The lean is from outside too: the field is the sky at the clouds' base, and whoever asks at a
 height shifts the point by `wind.Lean` first.
 
-Not modeled yet: daily cycle of w* and zi (SPEC, stage 2), terrain triggers (stages 2 and 3). Ground where no
+The sun (`sun.py`): with `FieldConfig.sun_min_deg` set, a thermal is born only while the sun is
+that high at its place and birth, and the environment sink fades with the share of thermals alive
+(`ThermalField.sink_share`). A cutoff, not the daily cycle of w* and zi (SPEC, stage 2).
+
+Not modeled yet: the daily cycle, terrain triggers (stages 2 and 3). Ground where no
 thermal is born (the adapter: water) is excluded with an optional `accept(lat, lon, birth)`
-predicate, which never shifts the random stream.
+predicate, which never shifts the random stream; nor does the sun.
 """
 
 import math
 
-from . import updraft
+from . import sun, updraft
 from .geo import radii_of_curvature
 from .rng import SplitMix64, hash_key
 
@@ -117,13 +121,15 @@ def life_envelope(tau):
     return strength, radius
 
 
+def envelope_flux(tau):
+    """strength * radius^2 at life fraction tau: a thermal's mass flux relative to full size."""
+    s, rf = life_envelope(tau)
+    return s * rf * rf
+
+
 def _mean_life_flux(steps=2000):
-    """Life-average of strength * radius^2: a thermal's mass flux relative to full size."""
-    total = 0.0
-    for k in range(steps):
-        s, rf = life_envelope((k + 0.5) / steps)
-        total += s * rf * rf
-    return total / steps
+    """Life-average of `envelope_flux`."""
+    return sum(envelope_flux((k + 0.5) / steps) for k in range(steps)) / steps
 
 
 MEAN_LIFE_FLUX = _mean_life_flux()
@@ -198,12 +204,15 @@ class FieldConfig:
     """Parameters of a thermal field. All defaults are first guesses to tune."""
 
     __slots__ = ("seed", "day", "tile_deg", "density_per_km2", "lifetime_min_s",
-                 "lifetime_max_s", "wgain_sigma", "rgain_sigma", "range_m", "cell_m", "sky")
+                 "lifetime_max_s", "wgain_sigma", "rgain_sigma", "range_m", "cell_m", "sky",
+                 "sun_min_deg")
 
     def __init__(self, seed=0, day=0, tile_deg=0.02, density_per_km2=None,
                  lifetime_min_s=300.0, lifetime_max_s=1800.0, wgain_sigma=0.3,
-                 rgain_sigma=0.2, range_m=10000.0, cell_m=400.0, zi_ref_m=1400.0, sky=None):
+                 rgain_sigma=0.2, range_m=10000.0, cell_m=400.0, zi_ref_m=1400.0, sky=None,
+                 sun_min_deg=None):
         self.seed = int(seed)
+        # Days since 1 January (X-Plane's local date). With sun_min_deg it places the sun.
         self.day = int(day)
         self.tile_deg = float(tile_deg)
         if density_per_km2 is None:
@@ -217,6 +226,8 @@ class FieldConfig:
         self.range_m = float(range_m)
         self.cell_m = float(cell_m)
         self.sky = sky if sky is not None else SKIES["default"]
+        # A thermal is born only with the sun at least this high (degrees); None: at any hour.
+        self.sun_min_deg = None if sun_min_deg is None else float(sun_min_deg)
 
     @property
     def slot_s(self):
@@ -322,6 +333,9 @@ def generate_tile(config, i, j, slot, accept=None):
             if thin is not None and thin.uniform() >= sky.blue_keep:
                 continue
             gain, stretch = sky.blue_gain, sky.blue_stretch
+        if config.sun_min_deg is not None and not sun.sunlit(lat, lon, config.day, birth,
+                                                              config.sun_min_deg):
+            continue
         if accept is not None and not accept(lat, lon, birth):
             continue
         thermals.append(Thermal(lat, lon, birth, birth + life, wgain, rgain, gain, stretch))
@@ -346,6 +360,13 @@ class ThermalField:
         self._flux_density = (config.density_per_km2 * 1e-6 * MEAN_LIFE_FLUX
                               * mean_flux_gain(config))
         self._max_stretch = config.sky.max_stretch
+        # The share of a full day's thermals alive, which scales the sink between them. 1 with
+        # no sun; with it, set by `update`.
+        self.sink_share = 1.0
+        self._share = None
+        if config.sun_min_deg is not None:
+            self._share = sun.ThermalShare(config.lifetime_min_s, config.lifetime_max_s, envelope_flux,
+                                           min_deg=config.sun_min_deg)
 
     # --- loading -----------------------------------------------------------
 
@@ -367,8 +388,10 @@ class ThermalField:
     def update(self, t, lat, lon):
         """Load tiles and slots around (lat, lon) at time t, drop the rest.
 
-        Returns True if the set of thermals changed.
+        Returns True if the set of thermals changed. With the sun, also sets `sink_share`.
         """
+        if self._share is not None:
+            self.sink_share = self._share.at(lat, lon, self.config.day, t)
         wanted = self.wanted_keys(t, lat, lon)
         changed = False
         for key in [k for k in self._tiles if k not in wanted]:
@@ -416,6 +439,8 @@ class ThermalField:
         return [th for th in self.thermals() if th.birth <= t < th.death]
 
     def environment_sink(self, z, wstar, zi):
+        """The sink of a full day at z, which each thermal's profile is drawn against. The air
+        between thermals sinks at this times `sink_share`."""
         return updraft.environment_sink(z, zi, wstar, self._flux_density)
 
     def nearest(self, e, n, t, max_m):
@@ -474,7 +499,7 @@ class ThermalField:
         cx = math.floor(e / cell_m)
         cy = math.floor(n / cell_m)
         grid = self._grid
-        total = we
+        total = we * self.sink_share
         last_z, last_we = z, we  # most thermals share a floor, the level's
         for ix in range(cx - k, cx + k + 1):
             for iy in range(cy - k, cy + k + 1):

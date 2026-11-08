@@ -10,7 +10,7 @@ from xp_gliding.engine.geo import LocalFrame, radii_of_curvature
 from xp_gliding.engine.wind import LEAN_FRACTION, LEAN_MAX_SLOPE, LEAN_SMOOTH_S, MAX_STEP_S, AirDrift, Lean
 
 KHOB = (32.6875, -103.2170)
-NOON = 12 * 3600.0
+NOON = 19 * 3600.0  # about solar noon at Hobbs, in UTC: the sun is up (engine/sun.py)
 
 
 def test_no_wind_changes_nothing_exactly():

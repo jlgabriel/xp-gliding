@@ -104,7 +104,7 @@ def test_missing_settings_file_is_created_with_defaults(tmp_path):
 # --- injector ----------------------------------------------------------------------
 
 def state(lat=KHOB[0], lon=KHOB[1], agl=800.0, tas=28.0, alpha=0.0, beta=0.0, psi=90.0,
-          phi=0.0, mass=541.0, t=12 * 3600.0, day=305):
+          phi=0.0, mass=541.0, t=19 * 3600.0, day=305):  # about solar noon at Hobbs, UTC
     s = AircraftState()
     s.lat, s.lon, s.agl_m, s.tas_ms = lat, lon, agl, tas
     s.alpha_deg, s.beta_deg, s.psi_deg, s.phi_deg = alpha, beta, psi, phi

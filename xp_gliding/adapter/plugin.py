@@ -64,6 +64,9 @@ DATAREFS = (
     ("thermals_enabled", "settings", "thermals_enabled", "i", 1),
     ("wind_enabled", "settings", "wind_enabled", "i", 1),
     ("wind_at_clouds", "settings", "wind_at_clouds", "i", 1),
+    ("sun_enabled", "settings", "sun_enabled", "i", 1),
+    ("sun/elevation_deg", "injector", "sun_elevation_deg", "f", 0),  # ours, against sun_pitch_degrees
+    ("sun/share", "injector", "sun_share", "f", 0),  # of a full day's thermals, alive now
     ("wind/e_ms", "injector", "drift.wind_e_ms", "f", 0),  # the wind that carries the sky
     ("wind/n_ms", "injector", "drift.wind_n_ms", "f", 0),
     ("wind/dlat_deg", "injector", "drift.dlat_deg", "f", 0),  # the sky's offset from the ground

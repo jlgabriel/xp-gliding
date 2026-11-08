@@ -23,7 +23,7 @@ The plugin comes ready to fly: no file to edit, and nothing to set in X-Plane's 
 
 ## A first flight
 
-1. **Set the weather.** Fly by day, and leave out X-Plane's own cumulus clouds: the plugin draws its own over its thermals, and X-Plane's clouds mark none of them, so flying towards one finds nothing. Wind is fine, steady or not.
+1. **Set the weather.** Fly by day: a thermal is born only while the sun is at least 5° above the horizon, so the sky empties over about half an hour around sunset and fills again after sunrise. Leave out X-Plane's own cumulus clouds: the plugin draws its own over its thermals, and X-Plane's clouds mark none of them, so flying towards one finds nothing. Wind is fine, steady or not.
 2. **Choose the glider.** The Laminar ASK 21. The plugin acts only on gliders, and does nothing on the rest. A motor glider counts once you choose *Treat this aircraft as a glider* in the menu (see [The menu](#the-menu)).
 3. **Turn on the markers for the first climb.** *Plugins → xp-gliding → Training markers* puts a ring at your height over each nearby thermal, and a thin column up to its cloud. It helps while learning how a climb feels. Turn them off later and fly by the clouds.
 4. **Get airborne,** by tow, winch or an air start, and fly towards a cloud.
@@ -84,7 +84,7 @@ Choosing another sky, seed or depth in flight replaces the clouds at once, and n
 ## Known limits
 
 - **The day is chosen in the menu.** Strength and cloud base do not follow X-Plane's weather yet, so the thermals are the same on a dry day and a humid one.
-- **The sun is not read.** Thermals and clouds are there at any hour, including at night.
+- **The sun only switches the thermals on and off.** From sunrise to sunset they are as strong as the day chosen in the menu, at 9 in the morning as at 3 in the afternoon.
 - **A far cloud can appear in front of a near one at times,** mostly between clouds far away. A cloud you have just come near can look denser for a few minutes.
 - **X-Plane's own cumulus mark none of these thermals.** The two can share a sky, but to read it, leave X-Plane's off.
 - **The Laminar ASK 21 is the reference.** Other gliders get the lift, and no netto on the HUD. A glider whose wings are not in the usual parts of its file is treated as an ASK 21 for the roll. An aircraft with engines gets nothing unless you treat it as a glider from the menu, which is how a motor glider gets the lift, with its engine running or not, since the air rises for it either way.

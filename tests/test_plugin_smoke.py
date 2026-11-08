@@ -34,8 +34,9 @@ DATA = {
     "sim/flightmodel/position/true_airspeed": 28.0,
     "sim/flightmodel/weight/m_total": 541.0,
     "sim/weather/rho": 1.0,
-    "sim/time/zulu_time_sec": 43200.0,
-    "sim/time/local_time_sec": 18000.0,
+    # Early afternoon at Hobbs, with the sun up and thermals born (engine/sun.py).
+    "sim/time/zulu_time_sec": 72000.0,
+    "sim/time/local_time_sec": 46800.0,
     "sim/time/local_date_days": 305,
     "sim/time/paused": 0,
     "sim/time/is_in_replay": 0,
@@ -994,8 +995,30 @@ def test_a_cloud_object_still_loading_when_switched_off_is_not_left_behind(plugi
     assert xp.instances
 
 
+def test_no_sun_no_thermals_and_no_clouds(plugin):
+    pi, xp, data = plugin
+    frame(pi, data)
+    assert dataref(xp, "thermals_alive") > 0 and dataref(xp, "sun/share") == 1.0
+    assert dataref(xp, "sun/elevation_deg") > 30.0
+    # 03:00 at Hobbs: a jump in time, so a new sky, and nothing in it.
+    data["sim/time/zulu_time_sec"], data["sim/time/local_time_sec"] = 36000.0, 10800.0
+    pi.next_slow = 0.0
+    frame(pi, data)
+    assert dataref(xp, "sun/elevation_deg") < -20.0 and dataref(xp, "sun/share") == 0.0
+    assert dataref(xp, "thermals_alive") == 0 and dataref(xp, "lift_ms") == 0.0
+    for _ in range(20):
+        clouds_tick(pi, data)
+    assert not pi.clouds.instances
+    # With the sun not read, as in 0.1: thermals at any hour.
+    dataref(xp, "sun_enabled", 0)
+    pi.next_slow = 0.0
+    frame(pi, data)
+    assert dataref(xp, "thermals_alive") > 0 and dataref(xp, "sun/share") == 1.0
+
+
 def test_the_sky_does_not_change_at_zulu_midnight(plugin):
     pi, xp, data = plugin
+    pi.settings.sun_enabled = False  # zulu midnight is at sunset in Hobbs, and the sun is not tested here
     data["sim/time/zulu_time_sec"], data["sim/time/local_time_sec"] = 86390.0, 61190.0
     first_clouds(pi, data)
     before = set(xp.instances)

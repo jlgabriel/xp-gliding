@@ -36,7 +36,8 @@ doing, so each thermal is read at a height from a floor of its own (`engine.fiel
 The floor comes from its cloud's base (`clouds.CloudHeights`), set in the slow path when the thermal
 loads. With no `heights`, thermals have no floor and the glider's AGL rules (notes/phase4.md).
 
-No thermal is born over water (`Injector.accept_thermal`). A thermal keeps its place in the air,
+No thermal is born with the sun low (`engine/sun.py`, unless `sun_enabled` is off), and none over
+water (`Injector.accept_thermal`). A thermal keeps its place in the air,
 so what counts is the ground under it at its birth, worked out in the present wind: the field and
 the clouds load the same thermal at different times, and in a steady wind must agree about it.
 Born over land, it can drift out over the sea.
@@ -58,6 +59,7 @@ import time
 from ..engine import injection as inj
 from ..engine.field import SKY_NAMES, FieldConfig, ThermalField, sky_index, sky_named
 from ..engine.geo import LocalFrame
+from ..engine.sun import SUN_MIN_DEG, sun_elevation_deg
 from ..engine.wind import AirDrift, Lean, layer_wind
 from .clouds import JUMP_S
 
@@ -195,6 +197,8 @@ class Injector:
         self._last_place = None  # (t, lat, lon) at the last slow update
         self.floors_us = self.floors_us_max = 0.0  # the last time thermals got their floors
         self.water_checked = self.water_rejected = 0  # thermals asked about, and left out
+        self.sun_elevation_deg = 0.0  # the engine's sun at the aircraft, to compare with X-Plane's
+        self.sun_share = 1.0  # the share of a full day's thermals alive (`ThermalField.sink_share`)
 
     def set_geometry(self, geometry):
         self.geometry = geometry
@@ -286,18 +290,21 @@ class Injector:
         """Keep the field loaded around the aircraft. Not for every frame."""
         st = self.settings
         lat, lon = self.drift.to_air(s.lat, s.lon)
-        key = (st.seed, s.day, st.range_m, st.sky, st.zi_m)
+        key = (st.seed, s.day, st.range_m, st.sky, st.zi_m, st.sun_enabled)
         new_sky = self._jumped(s)
         if self.field is None or key != self._field_key:
             new_sky = True
             self.frame = LocalFrame(lat, lon)
-            config = FieldConfig(seed=st.seed, day=s.day, range_m=st.range_m, sky=sky_named(st.sky))
+            config = FieldConfig(seed=st.seed, day=s.day, range_m=st.range_m, sky=sky_named(st.sky),
+                                 sun_min_deg=SUN_MIN_DEG if st.sun_enabled else None)
             self.field = ThermalField(config, self.frame, self.accept_thermal if self.is_wet else None)
             self._field_key = key
         elif self.frame.distance_to_origin(lat, lon) > st.recentre_m:
             self.frame = LocalFrame(lat, lon)
             self.field.set_frame(self.frame)
         changed = self.field.update(s.sky_t_s, lat, lon)
+        self.sun_elevation_deg = sun_elevation_deg(s.lat, s.lon, s.day, s.sky_t_s)
+        self.sun_share = self.field.sink_share
         if self.heights is not None:
             self._set_floors(s, new_sky, changed)
 
