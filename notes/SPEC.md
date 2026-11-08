@@ -543,7 +543,7 @@ Reorganized at Juan Luis's request on 2026-11-07, around an early release: ship 
 
 ### Stage 1: first release
 
-A public alpha (decided by Juan Luis, 2026-11-07): a prerelease on GitHub and a post on the X-Plane.org forum, with Alex Ferrer told first. Juan Luis publishes; the zip and the texts are prepared for him.
+A public alpha (decided by Juan Luis, 2026-11-07): a prerelease on GitHub and a post on the X-Plane.org forum. Juan Luis publishes; the zip and the texts are prepared for him. No notice to Alex Ferrer before it (Juan Luis, 2026-11-08): this is an independent project.
 
 **What it ships, already built:** thermals with a life cycle and no per-aircraft calibration, cumulus tied to them, the wind carrying both, lift that ends with its cloud, no thermals over water, the HUD, the menu and the training markers.
 
@@ -569,7 +569,7 @@ A public alpha (decided by Juan Luis, 2026-11-07): a prerelease on GitHub and a 
 - [ ] An install from that zip, with XPPython3 as its only requirement.
 - [ ] The pilot guide in `docs/`, under the [writing guide](../docs/writing-guide.md): installing, a first flight, reading the sky, the menu, the HUD, how to report a problem (what to send from `XPPython3Log.txt`), and the known limits below. Drafted 2026-11-07 ([pilot-guide.md](../docs/pilot-guide.md)), rewritten for pilots for 0.1 (2026-11-08), with the sun not read stated as a known limit.
 - [ ] README and documentation index brought up to date, and all the public text read once more for neutrality. Brought up to date for 0.1 (2026-11-08); the read for neutrality is left.
-- [ ] Publish (Juan Luis): tell Alex Ferrer, the prerelease, the forum post.
+- [ ] Publish (Juan Luis): the prerelease, the forum post. [v0.1](https://github.com/jlgabriel/xp-gliding/releases/tag/v0.1) is out (2026-11-08), from `6ac4119`, first as a prerelease and the same day, at Juan Luis's word, as a full release: not a draft and not called an alpha, so the public text no longer says alpha. The forum post is left.
 
 **Known limits, stated in the guide:**
 

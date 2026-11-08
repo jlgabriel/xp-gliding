@@ -4,8 +4,8 @@ xp-gliding {version}
 Thermals for gliders in X-Plane 12: find them by reading the clouds, and climb
 in them by hand.
 
-This is an alpha, the first public version. It flies, and it has known limits,
-listed in the pilot guide.
+This is the first public version. Its known limits are listed in the pilot
+guide.
 
 Full pilot guide:
 https://github.com/jlgabriel/xp-gliding/blob/main/docs/pilot-guide.md

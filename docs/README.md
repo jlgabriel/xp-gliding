@@ -1,6 +1,6 @@
 # xp-gliding documentation
 
-xp-gliding's first public version, 0.1, is an alpha. This documentation is growing with it, and describes what is true today.
+xp-gliding's first public version is 0.1. This documentation is growing with it, and describes what is true today.
 
 ## Flying it
 

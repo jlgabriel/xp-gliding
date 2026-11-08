@@ -1,6 +1,6 @@
 # Pilot guide
 
-How to install xp-gliding, make a first flight and read its sky. This guide is for version 0.1, an alpha: it flies, and its known limits are listed at the end.
+How to install xp-gliding, make a first flight and read its sky. This guide is for version 0.1, the first public version. Its known limits are listed at the end.
 
 ## What you need
 
