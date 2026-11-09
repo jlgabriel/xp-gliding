@@ -1325,6 +1325,64 @@ def test_the_menu_shows_the_current_choices(plugin):
     assert checked(xp, "Seed of the sky") == ["1"]
 
 
+# The menu as the pilot guide lists it (docs/pilot-guide.md, "The menu"): each switch's label,
+# command and setting, and each submenu's labels and values, in the menu's order.
+MENU_SWITCHES = (
+    ("Enabled", "xp_gliding/toggle", "enabled"),
+    ("Thermals", "xp_gliding/thermals/toggle", "thermals_enabled"),
+    ("Thermals follow the wind", "xp_gliding/wind/toggle", "wind_enabled"),
+    ("Thermals lean with the wind (experiment)", "xp_gliding/lean/toggle", "lean_enabled"),
+    ("Sky moves with the wind at the clouds (experiment)", "xp_gliding/wind/clouds/toggle", "wind_at_clouds"),
+    ("Training markers", "xp_gliding/markers/toggle", "markers_enabled"),
+    ("Cumulus clouds", "xp_gliding/clouds/toggle", "clouds_enabled"),
+    ("Soaring HUD", "xp_gliding/hud/toggle", "hud_enabled"),
+)
+MENU_SUBMENUS = (
+    ("Sky", "sky", (("Wide thermals under the clouds (x2)", "wide_carriers"),
+                    ("Medium thermals under the clouds (x1.5)", "medium_carriers"),
+                    ("Narrow thermals, as the paper", "default"))),
+    ("Strength of the day (w*)", "wstar_ms", (("2 m/s", 2.0), ("2.5 m/s", 2.5), ("3 m/s", 3.0),
+                                              ("3.5 m/s", 3.5), ("4 m/s", 4.0), ("5 m/s", 5.0))),
+    ("Depth of the thermal layer (zi)", "zi_m", (("1000 m", 1000.0), ("1500 m", 1500.0), ("2000 m", 2000.0),
+                                                 ("2500 m", 2500.0), ("3000 m", 3000.0))),
+    ("Seed of the sky", "seed", tuple((str(k), k) for k in range(1, 6))),
+)
+
+
+def test_the_menu_is_in_the_order_of_the_pilot_guide(plugin):
+    pi, xp, data = plugin
+    labels = [name for name, _ in xp.menus["xp-gliding"]["items"]]
+    assert labels == ([label for label, _, _ in MENU_SWITCHES] + ["Treat this aircraft as a glider"]
+                      + [title for title, _, _ in MENU_SUBMENUS])
+
+
+def test_every_switch_changes_its_own_setting_and_ticks_its_own_item(plugin):
+    # New switches go in the middle of the menu, so a label, its command and its tick must not part.
+    pi, xp, data = plugin
+    commands = dict(xp.menus["xp-gliding"]["items"])
+    attrs = [attr for _, _, attr in MENU_SWITCHES]
+    for label, cmd, attr in MENU_SWITCHES:
+        assert commands[label] == cmd
+        before = {a: getattr(pi.settings, a) for a in attrs}
+        handler, refcon = xp.handlers[cmd]
+        handler(cmd, xp.CommandBegin, refcon)
+        assert [a for a in attrs if getattr(pi.settings, a) != before[a]] == [attr]
+        assert (label in checked(xp, "xp-gliding")) == getattr(pi.settings, attr)
+        handler(cmd, xp.CommandBegin, refcon)
+        assert getattr(pi.settings, attr) == before[attr]
+        assert (label in checked(xp, "xp-gliding")) == before[attr]
+
+
+def test_every_choice_sets_the_value_its_label_says_and_ticks_only_itself(plugin):
+    pi, xp, data = plugin
+    for title, attr, options in MENU_SUBMENUS:
+        assert [name for name, _ in xp.menus[title]["items"]] == [label for label, _ in options]
+        for label, value in options:
+            choose(xp, title, label)
+            assert getattr(pi.settings, attr) == value
+            assert checked(xp, title) == [label]
+
+
 def test_every_sky_in_the_menu_exists_and_every_sky_is_in_the_menu(plugin):
     pi, xp, data = plugin
     values = {pi.choices[refcon][1] for _, refcon in xp.menus["Sky"]["items"]}
