@@ -6,7 +6,7 @@ It is an independent take on thermals, offered as another option for soaring in 
 
 ![A Laminar ASK 21 banking in a thermal under cumulus, beside a yellow training marker: a ring at its height and a column up to the cloud. The soaring HUD is on the left](docs/images/ask21-circling-at-a-marker.jpg)
 
-> **Version 0.2.** Its limits are stated in the guide. Download it from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and follow the [pilot guide](docs/pilot-guide.md) to install it: it needs only X-Plane 12 and [XPPython3](https://xppython3.readthedocs.io/).
+> **Version 0.3.** Its limits are stated in the guide. Download it from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and follow the [pilot guide](docs/pilot-guide.md) to install it: it needs only X-Plane 12 and [XPPython3](https://xppython3.readthedocs.io/).
 
 ## What it does today
 
@@ -17,7 +17,7 @@ It is an independent take on thermals, offered as another option for soaring in 
 - **Lift with no per-aircraft calibration.** It is applied as the energy rising air would give the glider, and measured within 0.01 m/s of the intended climb at different speeds, banks and frame rates. The reference glider is the Laminar ASK 21. Other gliders get the lift, and no netto on the HUD. A motor glider gets it once treated as a glider from the menu.
 - **Thermals and clouds that follow the wind.** The wind is X-Plane's, real or set by hand: the plugin reads it and has no wind of its own.
 - **A soaring HUD:** total energy, netto, average climb, height up to the clouds, the wind and a centring aid.
-- **A menu** in *Plugins → xp-gliding* to choose the sky and the day, saved between sessions.
+- **A menu** in *Plugins → xp-gliding* to choose the sky and the day, saved between sessions. As an experiment, the cloud base can come from X-Plane's weather instead.
 - **Optional training markers** showing where the thermals are.
 
 ## Where it is going

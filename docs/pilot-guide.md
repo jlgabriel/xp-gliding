@@ -1,6 +1,6 @@
 # Pilot guide
 
-How to install xp-gliding, make a first flight and read its sky. This guide is for version 0.2. Its known limits are listed at the end.
+How to install xp-gliding, make a first flight and read its sky. This guide is for version 0.3. Its known limits are listed at the end.
 
 ## What you need
 
@@ -10,7 +10,7 @@ How to install xp-gliding, make a first flight and read its sky. This guide is f
 
 ## Installing
 
-1. Download `xp-gliding-0.2.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
+1. Download `xp-gliding-0.3.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
 2. Close X-Plane.
 3. From the unzipped folder, copy `PI_xp_gliding.py` and the whole `xp_gliding` folder into `X-Plane 12/Resources/plugins/PythonPlugins/`. The two must sit side by side there. `README.txt` and `LICENSE` do not need to be copied.
 4. Start X-Plane. *Plugins → xp-gliding* appears in the menu.
@@ -71,7 +71,7 @@ Everything is in *Plugins → xp-gliding*. What you choose is saved for the next
 | Training markers | A ring at your height over each nearby thermal, and a column up to its cloud | `xp_gliding/markers/toggle` |
 | Cumulus clouds | The plugin's clouds | `xp_gliding/clouds/toggle` |
 | Soaring HUD | The panel above | `xp_gliding/hud/toggle` |
-| Cloud base from X-Plane's weather (experiment) | The clouds' height from the temperature and dew point of the weather you fly, kept between 500 m and 3500 m above the ground, in place of the depth below, which is greyed out. Off by default, not flown yet | `xp_gliding/day/weather/toggle` |
+| Cloud base from X-Plane's weather (experiment) | The clouds' height from the temperature and dew point of the weather you fly, kept between 500 m and 3500 m above the ground, in place of the depth below, which is greyed out. A cumulus layer set in X-Plane's weather moves it too, though our clouds can sit a few hundred metres off that layer. Off by default | `xp_gliding/day/weather/toggle` |
 | Treat this aircraft as a glider | For a motor glider: the plugin acts on the aircraft loaded, with its engine running or not, and remembers it by its file. Ticked and greyed out for a glider | `xp_gliding/aircraft/glider/toggle` |
 | Sky | How wide the thermals are: wide (the default and easiest), medium, or narrow (hardest) | |
 | Strength of the day (w\*) | How strong the thermals are. 3 m/s by default | |

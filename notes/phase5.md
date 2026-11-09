@@ -72,6 +72,23 @@ Hour 12 local, day 305 of the tools' date, and the real weather of the moment it
 
 Left: a hand flight under a low base and a high one (question 6).
 
+### By hand under a low base
+
+2026-11-09, Juan Luis, Santiago, 13:00, day 312, the ASK 21 started in the air 510 m under the base, the wide sky, w* 3, no wind, markers on. The day's real weather was cloudy, one layer at 7187 m MSL in X-Plane, and the rule gave a base of 1441 m above the ground, about the menu's default, so the low base came from a cumulus layer set by hand at 1600 m MSL.
+
+- **The rule over a low layer.** That layer gave a base of 1174 m above 644 m of ground: our clouds at 1817 m MSL, about 220 m *over* X-Plane's layer at 1600 m. Over a layer at 2500 m the rule was within 30 m, over one at 3500 m about 380 m under it. One case each, so X-Plane fits its dew point to its layers loosely, in both directions.
+- **The climb** (`tools/flightlog/read_flight.py`, log `flightlog_20261109_131909.csv`): one thermal, circled for 160 s, +275 m at +1.72 m/s (total energy +1.58), 36° of bank at 100 km/h, 128 m from the centre of a core offered at 3.80 m/s. He left at 1492 m MSL, 729 m above the ground and 325 m under the base, still climbing +1.40 over the last 30 s. The thermal could have held him to 1812 m.
+- **His word:** "bien". A low base gives a thermal that can be climbed.
+
+### By hand under a high base
+
+2026-11-09, Juan Luis, right after the low base: Hobbs, cumulus set at 3500 m MSL, the same sky, w* 3, no wind, markers on, the ASK 21 started in the air 718 m under the base. The rule gave 2005 m above 1112 m of ground: zi 2673 m, our clouds at 3116 m MSL.
+
+- **The climb** (log `flightlog_20261109_132536.csv`): one thermal, circled for 163 s, +306 m at +1.88 m/s (total energy +1.81), 32° at 98 km/h, 155 m from the centre of a decaying thermal whose core offered 2.39 m/s when he entered. He left at 2685 m MSL, 431 m under the base, still at +1.31 over the last 30 s. That was this thermal's ceiling: decaying, it could hold him no higher.
+- **His word:** it seemed to have "un poco más de fuerza" than the low base, and the marker ring changed colour as he climbed and ended white. The ring shows the core at the glider's height in four classes (`engine/markers.py`, white under 2 m/s), so white at the top is the thermal weakening towards its ceiling, as the log reads it.
+- **Next to X-Plane's cumulus.** Three screenshots of his at 2642 m MSL: our clouds sit as a row of puffs under X-Plane's softer layer, about 380 m above them, and to him they look "bastante bien" together and read as cumulus. The difference in height, which the rule leaves, shows as two levels and did not bother him. X-Plane's clouds still mark none of our thermals.
+- **Low against high.** One climb each, so no number can be drawn from it: +1.72 at the low base and +1.88 at the high one, a little more strength in the deeper sky, as he felt it. Both can be climbed, and neither feels wrong to him. Question 6 is answered well enough to release the switch as an experiment.
+
 ## Moved to stage 2
 
 2026-11-07, later the same day. With the project's [stages](SPEC.md#stages), the day comes after the first release, which ships with the day chosen in the menu and a simple cutoff when there is no sun. The six questions above wait until then.

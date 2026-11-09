@@ -79,7 +79,10 @@ THE MENU (Plugins > xp-gliding)
 - Strength of the day, Depth of the thermal layer: stronger or weaker
   thermals, higher or lower clouds.
 - Seed of the sky: another arrangement of thermals.
-- Items marked (experiment) are off by default and best left off.
+- Cloud base from X-Plane's weather (experiment): the clouds' height from the
+  weather you fly, in place of the depth.
+- Items marked (experiment) are off by default. The two about the wind are
+  best left off.
 
 Your choices are saved for the next session.
 
