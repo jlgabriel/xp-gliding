@@ -67,7 +67,7 @@ def make_fake_xp(tmp_path, data):
     xp.accessors = {}
     xp.handlers = {}
     for name in ("Type_Int", "Type_Float", "FlightLoop_Phase_BeforeFlightModel", "CommandBegin",
-                 "Menu_Checked", "Menu_Unchecked", "MSG_PLANE_LOADED",
+                 "Menu_Checked", "Menu_Unchecked", "MSG_PLANE_LOADED", "MSG_AIRPORT_LOADED",
                  "FlightLoop_Phase_AfterFlightModel", "WindowDecorationNone",
                  "WindowLayerFlightOverlay"):
         setattr(xp, name, name)
@@ -1336,6 +1336,7 @@ MENU_SWITCHES = (
     ("Training markers", "xp_gliding/markers/toggle", "markers_enabled"),
     ("Cumulus clouds", "xp_gliding/clouds/toggle", "clouds_enabled"),
     ("Soaring HUD", "xp_gliding/hud/toggle", "hud_enabled"),
+    ("Cloud base from X-Plane's weather (experiment)", "xp_gliding/day/weather/toggle", "weather_base_enabled"),
 )
 MENU_SUBMENUS = (
     ("Sky", "sky", (("Wide thermals under the clouds (x2)", "wide_carriers"),
@@ -1726,3 +1727,137 @@ def test_the_floors_read_the_ground_only_when_a_thermal_loads(plugin):
     for _ in range(3):
         frame(pi, data)
     assert len(reads) == count
+
+
+# --- the cloud base from X-Plane's weather (notes/phase5.md) ---
+
+WEATHER_SWITCH = "xp_gliding/day/weather/toggle"
+
+
+def weather_day(data, temp=12.0, dew=2.0):
+    """X-Plane's layers, the same at every height: a base 125 m per degree of spread over any ground."""
+    data["sim/weather/region/temperature_altitude_msl_m"] = [k * 1000.0 for k in range(13)]
+    data["sim/weather/aircraft/temperatures_aloft_deg_c"] = [temp] * 13
+    data["sim/weather/aircraft/dewpoint_deg_c"] = [dew] * 13
+
+
+def switch(xp, cmd):
+    handler, refcon = xp.handlers[cmd]
+    handler(cmd, xp.CommandBegin, refcon)
+
+
+def zi_item(xp):
+    labels = [name for name, _ in xp.menus["xp-gliding"]["items"]]
+    return labels.index("Depth of the thermal layer (zi)")
+
+
+def test_the_weather_sets_the_cloud_base_once_turned_on(plugin):
+    pi, xp, data = plugin
+    weather_day(data)
+    frame(pi, data)
+    assert dataref(xp, "day/zi_m") == 2000.0 and dataref(xp, "day/weather_base_m") == -1.0
+    assert zi_item(xp) not in xp.menus["xp-gliding"]["disabled"]
+    switch(xp, WEATHER_SWITCH)
+    assert zi_item(xp) in xp.menus["xp-gliding"]["disabled"]
+    frame(pi, data)
+    zi = 1250.0 / sky_named(pi.settings.sky).cloud_base_zzi
+    assert dataref(xp, "day/weather_base_m") == pytest.approx(1250.0)
+    assert dataref(xp, "day/zi_m") == pytest.approx(zi)
+    assert pi.injector.field.config is not None and pi.injector._field_key[4] == pytest.approx(zi)
+    assert pi.injector.heights.level_m == pytest.approx(1116.0 + 1250.0)
+    assert pi.hud.zi_m == pytest.approx(zi)
+    # The menu's zi is kept for when the weather is turned off, and both are saved.
+    assert pi.settings.zi_m == 2000.0
+    assert saved(pi)["zi_m"] == 2000.0 and saved(pi)["weather_base_enabled"] is True
+
+
+def test_a_base_from_the_weather_starts_the_clouds_over(plugin):
+    pi, xp, data = plugin
+    weather_day(data)
+    fill_sky(pi, data)
+    assert pi.clouds.instances
+    switch(xp, WEATHER_SWITCH)
+    frame(pi, data)
+    assert not pi.clouds.instances
+    fill_sky(pi, data)
+    assert {base for _, base, _ in pi.clouds.instances.values()} >= {1116.0 + 1250.0}
+
+
+def test_the_weather_is_read_once_more_later_and_then_kept(plugin):
+    pi, xp, data = plugin
+    weather_day(data)
+    switch(xp, WEATHER_SWITCH)
+    frame(pi, data)
+    assert dataref(xp, "day/weather_reads") == 1
+    weather_day(data, dew=0.0)  # real weather arrives: 1500 m
+    pi.next_slow = 0.0
+    frame(pi, data)
+    assert dataref(xp, "day/weather_reads") == 1  # not due yet
+    pi.injector.weather.next_s = 0.0
+    pi.next_slow = 0.0
+    frame(pi, data)
+    assert dataref(xp, "day/weather_reads") == 2
+    assert dataref(xp, "day/weather_base_m") == pytest.approx(1500.0)
+    assert pi.injector.heights.level_m == pytest.approx(1116.0 + 1500.0)
+    weather_day(data, dew=-4.0)  # the weather changes in flight: kept
+    pi.injector.weather.next_s = 0.0
+    pi.next_slow = 0.0
+    frame(pi, data)
+    assert dataref(xp, "day/weather_reads") == 2
+    assert dataref(xp, "day/weather_base_m") == pytest.approx(1500.0)
+
+
+def test_weather_with_no_data_keeps_the_menus_zi_until_it_arrives(plugin):
+    pi, xp, data = plugin
+    weather_day(data, dew=-100.0)
+    switch(xp, WEATHER_SWITCH)
+    frame(pi, data)
+    assert dataref(xp, "day/weather_base_m") == -1.0 and dataref(xp, "day/zi_m") == 2000.0
+    for _ in range(2):  # still nothing: it goes on asking
+        pi.injector.weather.next_s = 0.0
+        pi.next_slow = 0.0
+        frame(pi, data)
+    assert dataref(xp, "day/weather_reads") == 3 and dataref(xp, "day/zi_m") == 2000.0
+    weather_day(data)
+    pi.injector.weather.next_s = 0.0
+    pi.next_slow = 0.0
+    frame(pi, data)
+    assert dataref(xp, "day/weather_base_m") == pytest.approx(1250.0)
+
+
+def test_turning_the_weather_off_goes_back_to_the_menus_zi(plugin):
+    pi, xp, data = plugin
+    weather_day(data)
+    switch(xp, WEATHER_SWITCH)
+    frame(pi, data)
+    switch(xp, WEATHER_SWITCH)
+    assert zi_item(xp) not in xp.menus["xp-gliding"]["disabled"]
+    frame(pi, data)
+    assert dataref(xp, "day/zi_m") == 2000.0
+    assert pi.injector.heights.level_m == pytest.approx(1116.0 + sky_named(pi.settings.sky).cloud_base_zzi * 2000.0)
+
+
+def test_a_new_flight_reads_the_weather_again(plugin):
+    pi, xp, data = plugin
+    weather_day(data)
+    switch(xp, WEATHER_SWITCH)
+    frame(pi, data)
+    weather_day(data, dew=0.0)
+    pi.XPluginReceiveMessage(None, xp.MSG_PLANE_LOADED, 0)
+    pi.next_slow = 0.0  # within a second
+    frame(pi, data)
+    assert dataref(xp, "day/weather_reads") == 1
+    assert dataref(xp, "day/weather_base_m") == pytest.approx(1500.0)
+
+
+def test_a_new_flight_with_the_same_aircraft_reads_the_weather_again(plugin):
+    # X-Plane sends MSG_AIRPORT_LOADED for it, and no MSG_PLANE_LOADED.
+    pi, xp, data = plugin
+    weather_day(data)
+    switch(xp, WEATHER_SWITCH)
+    frame(pi, data)
+    weather_day(data, dew=-4.0)
+    pi.XPluginReceiveMessage(None, xp.MSG_AIRPORT_LOADED, 0)
+    frame(pi, data)
+    assert dataref(xp, "day/weather_reads") == 1
+    assert dataref(xp, "day/weather_base_m") == pytest.approx(2000.0)

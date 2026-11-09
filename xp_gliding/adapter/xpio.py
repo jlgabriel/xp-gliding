@@ -38,6 +38,7 @@ STATE = (
 )
 
 WIND_LAYERS = 13  # sim/weather/aircraft/wind_*: float[13]
+AIR_LAYERS = 13  # temperatures and dew points aloft, at region/temperature_altitude_msl_m: float[13]
 
 
 class XPlaneIO:
@@ -58,6 +59,9 @@ class XPlaneIO:
         self._wind_alt = xp.findDataRef("sim/weather/aircraft/wind_altitude_msl_m")
         self._wind_speed = xp.findDataRef("sim/weather/aircraft/wind_speed_kts")
         self._wind_from = xp.findDataRef("sim/weather/aircraft/wind_direction_degt")
+        self._air_alt = xp.findDataRef("sim/weather/region/temperature_altitude_msl_m")
+        self._air_temp = xp.findDataRef("sim/weather/aircraft/temperatures_aloft_deg_c")
+        self._air_dew = xp.findDataRef("sim/weather/aircraft/dewpoint_deg_c")
 
     def frozen(self):
         """True while paused or in replay: no force is applied then."""
@@ -91,6 +95,14 @@ class XPlaneIO:
         layers = [], [], []
         for ref, values in zip((self._wind_alt, self._wind_speed, self._wind_from), layers):
             xp.getDatavf(ref, values, 0, WIND_LAYERS)
+        return layers
+
+    def air_layers(self):
+        """Heights MSL (m), temperatures and dew points (C) of X-Plane's layers; -100 is no data.
+        Only when a sky begins and once more later (`core.WeatherBase`)."""
+        layers = [], [], []
+        for ref, values in zip((self._air_alt, self._air_temp, self._air_dew), layers):
+            xp.getDatavf(ref, values, 0, AIR_LAYERS)
         return layers
 
     def engine_count(self):

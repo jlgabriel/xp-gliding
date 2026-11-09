@@ -5,9 +5,10 @@ created with the defaults the first time the plugin starts. What the pilot choos
 in the menu is written back, so the next session starts from it. Changes made through
 the `xp_gliding/...` datarefs, as the test pilot does, are not written by themselves.
 
-Day parameters. Until they are read from XP12's atmosphere (SPEC, stage 2), the
-convective velocity scale w* and the mixed-layer depth zi (m above ground)
-are fixed numbers. Allen's thermals stop about 10% below zi.
+Day parameters. The convective velocity scale w* and the mixed-layer depth zi (m above
+ground) are fixed numbers. Allen's thermals stop about 10% below zi. With `weather_base_enabled`
+(off by default, not flown yet) zi comes from the cloud base in X-Plane's weather instead, and
+the setting is kept for when it is turned off (`core.Injector.zi_m`).
 
 Pure Python: no `xp`.
 """
@@ -33,6 +34,7 @@ DEFAULTS = {
     "also_gliders": [],
     "wstar_ms": 3.0,  # convective velocity scale w* (m/s)
     "zi_m": 2000.0,  # convective layer depth zi (m AGL)
+    "weather_base_enabled": False,  # zi from the cloud base in X-Plane's weather (notes/phase5.md)
     "seed": 1,  # field seed; with the date and place it fixes the sky
     "sky": "wide_carriers",  # a name in engine.field.SKIES; an unknown name is the narrow "default" sky
     "range_m": 10000.0,  # thermals are loaded this far around the aircraft

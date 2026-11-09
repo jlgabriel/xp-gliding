@@ -579,7 +579,7 @@ A public alpha (decided by Juan Luis, 2026-11-07): a prerelease on GitHub and a 
 
 **Known limits, stated in the guide:**
 
-- The day is chosen in the menu. It is not read from XP12's weather yet, so strength and cloud base do not follow the day flown.
+- The day is chosen in the menu. It is not read from XP12's weather yet, so strength and cloud base do not follow the day flown. Since 2026-11-09, after 0.2, the cloud base can follow it with a switch that is off by default (stage 2, below).
 - XP12's own cumulus mark none of our thermals, so the guide says to leave them off to read the sky ([phase4.md](phase4.md#next-to-xp12s-clouds-and-at-dusk)).
 - The Laminar ASK 21 is the reference. Other gliders get the lift and no netto, and a glider with wings outside the usual parts is treated as an ASK 21. An aircraft with engines gets nothing unless the pilot treats it as a glider from the menu, which is how a motor glider gets in.
 - A far cloud can still appear in front of a near one at times, mostly between clouds far away, and a cloud just approached looks denser for a few minutes ([phase4.md](phase4.md#the-order-clouds-are-drawn-in)).
@@ -594,7 +594,7 @@ The order is a starting point, and what pilots report can change it. Advanced bu
 
 **The day**
 
-- [ ] Cloud base and strength from XP12's weather instead of two fixed settings. Started 2026-11-07 ([phase5.md](phase5.md)), read and offline only: the layers of temperature and dew point are datarefs, and 125 m per degree of spread gave 2530 m for a cumulus layer set at 2500 m MSL, since XP12 fits its dew point to it. Real weather comes late, with -100 for no data. No strength found. Six questions for Juan Luis before wiring it.
+- [ ] Cloud base and strength from XP12's weather instead of two fixed settings. Started 2026-11-07 ([phase5.md](phase5.md)), read and offline only: the layers of temperature and dew point are datarefs, and 125 m per degree of spread gave 2530 m for a cumulus layer set at 2500 m MSL, since XP12 fits its dew point to it. Real weather comes late, with -100 for no data. No strength found. Six questions for Juan Luis before wiring it. **Answered and wired for the cloud base** (2026-11-09, [phase5.md](phase5.md#wired)): *Cloud base from X-Plane's weather (experiment)* in the menu, off by default, sets zi from the rule's base over the sky's `cloud_base_zzi`, between 500 m and 3500 m above the ground, read when a sky begins and once more 90 s later, then kept. Strength stays a setting. Left: a hand flight under a low and a high base.
 - [ ] Daily cycle, in place of stage 1's cutoff.
 - [ ] Cloud shadow: less lift under cloudy areas. The visible shadow on the ground is set aside ([shadows.md](shadows.md)).
 - *Done when:* two different days in XP12 give two different skies, and a pilot can tell from the air.

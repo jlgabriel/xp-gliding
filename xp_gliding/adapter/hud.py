@@ -95,6 +95,7 @@ class Hud:
         self._te_text = self._netto_text = self._average_text = self._top_text = ""
         self._wind_text = ""
         self.top_msl_m = None  # where the clouds are, from the plugin's slow path
+        self.zi_m = settings.zi_m  # the zi in use, from the plugin's slow path: maybe the weather's
         ref = xp.findDataRef
         self._time = ref("sim/time/total_running_time_sec")
         self._paused = ref("sim/time/paused")
@@ -216,7 +217,7 @@ class Hud:
         if self.top_msl_m is not None:
             top_m = self.top_msl_m - msl_m
         else:
-            top_m = height_to_top(self.settings.zi_m, getf(self._agl), sky_named(self.settings.sky).cloud_base_zzi)
+            top_m = height_to_top(self.zi_m, getf(self._agl), sky_named(self.settings.sky).cloud_base_zzi)
         self._top_text = f"TOP {top_m:+.0f} m"
         wind_x, wind_z = getf(self._wind_x), getf(self._wind_z)
         self._wind_arrow = wind_arrow(wind_x, wind_z, psi)

@@ -381,3 +381,50 @@ def test_with_no_heights_the_injector_gives_no_floors_and_nothing_changes():
     assert all(th.floor_m is None for th in injector.field.thermals())
     assert injector.nearest.floor_m == -1.0
     assert injector._ground(s) is None
+
+
+def test_weather_base_reads_twice_then_keeps():
+    from xp_gliding.adapter.core import WEATHER_REREAD_S, WeatherBase
+    w = WeatherBase()
+    w.reset(10.0)
+    assert not w.due(9.0) and w.due(10.0)
+    assert w.take(1200.0, 10.0) and w.base_m == 1200.0
+    assert not w.due(10.0 + WEATHER_REREAD_S - 1.0) and w.due(10.0 + WEATHER_REREAD_S)
+    assert not w.take(1250.0, 100.0) and w.base_m == 1200.0  # too close to be worth a new sky
+    assert not w.due(1e6)
+
+
+def test_weather_base_keeps_asking_until_it_has_data():
+    from xp_gliding.adapter.core import WEATHER_REREAD_S, WEATHER_RETRY_S, WeatherBase
+    w = WeatherBase()
+    w.reset(0.0)
+    for k in range(3):
+        assert w.due(k * WEATHER_RETRY_S)
+        assert not w.take(None, k * WEATHER_RETRY_S)
+        assert not w.due(k * WEATHER_RETRY_S + WEATHER_RETRY_S - 1.0)
+    assert w.published_m == -1.0
+    assert w.take(900.0, 30.0) and not w.due(30.0 + WEATHER_REREAD_S - 1.0)
+    assert w.due(30.0 + WEATHER_REREAD_S)  # the one more reading, as after a first base
+    assert not w.take(950.0, 30.0 + WEATHER_REREAD_S) and not w.due(1e6)
+
+
+def test_zi_follows_the_weather_only_when_it_is_on():
+    st = config.Settings()
+    injector = Injector(st, aircraft.DEFAULT_GEOMETRY)
+    injector.weather.take(1500.0, 0.0)
+    assert injector.zi_m == st.zi_m
+    st.weather_base_enabled = True
+    assert injector.zi_m == pytest.approx(1500.0 / sky_named(st.sky).cloud_base_zzi)
+
+
+def test_the_second_weather_reading_is_over_the_first_ones_ground():
+    from xp_gliding.adapter.core import WEATHER_REREAD_S, WeatherBase
+    w = WeatherBase()
+    w.reset(0.0)
+    heights, temps = [0.0, 1000.0, 2000.0], [20.0, 13.5, 7.0]
+    dews = [10.0, 8.0, 6.0]
+    assert w.read(500.0, heights, temps, dews, 0.0)
+    first = w.base_m
+    # The glider flew over 600 m of rising ground: the weather is the same, so the base is too.
+    assert not w.read(1100.0, heights, temps, dews, WEATHER_REREAD_S)
+    assert w.base_m == first and w.ground_m == 500.0

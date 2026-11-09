@@ -35,3 +35,24 @@ def known_layers(heights_m, values):
 def cloud_base_above_ground_m(temperature_c, dew_point_c):
     """Where a parcel from the ground condenses, m above it. Saturated air gives 0."""
     return max(temperature_c - dew_point_c, 0.0) * M_PER_C_OF_SPREAD
+
+
+# A base from the weather is kept within these heights above the ground (Juan Luis, 2026-11-09).
+# First guesses: X-Plane's calm default, with nothing set, gives 2733 m (notes/phase5.md).
+BASE_MIN_M = 500.0
+BASE_MAX_M = 3500.0
+MIN_LAYERS = 2  # fewer layers with data than this: the weather has not arrived yet
+
+
+def weather_base_m(ground_m, heights_m, temperatures_c, dew_points_c):
+    """The cloud base over the ground (m above it) from X-Plane's layers, within the limits.
+
+    None if the layers do not have data enough: real weather arrives late, and before it does
+    the dew points above the lowest layer read -100.
+    """
+    t_heights, temps = known_layers(heights_m, temperatures_c)
+    d_heights, dews = known_layers(heights_m, dew_points_c)
+    if len(temps) < MIN_LAYERS or len(dews) < MIN_LAYERS:
+        return None
+    base = cloud_base_above_ground_m(at_height(ground_m, t_heights, temps), at_height(ground_m, d_heights, dews))
+    return min(max(base, BASE_MIN_M), BASE_MAX_M)

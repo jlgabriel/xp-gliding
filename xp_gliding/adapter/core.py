@@ -36,6 +36,11 @@ doing, so each thermal is read at a height from a floor of its own (`engine.fiel
 The floor comes from its cloud's base (`clouds.CloudHeights`), set in the slow path when the thermal
 loads. With no `heights`, thermals have no floor and the glider's AGL rules (notes/phase4.md).
 
+The day's depth. `zi` is the pilot's setting, or, with `weather_base_enabled`, the cloud base
+X-Plane's weather gives (`engine.day.weather_base_m`) over the sky's `cloud_base_zzi`, so the clouds
+are where the weather would put them (`Injector.zi_m`). The weather is read when a sky begins and
+once more about 90 s later, for real weather that arrives late, then kept (`WeatherBase`).
+
 No thermal is born with the sun low (`engine/sun.py`, unless `sun_enabled` is off), and none over
 water (`Injector.accept_thermal`). A thermal keeps its place in the air,
 so what counts is the ground under it at its birth, worked out in the present wind: the field and
@@ -57,6 +62,7 @@ import math
 import time
 
 from ..engine import injection as inj
+from ..engine.day import weather_base_m
 from ..engine.field import SKY_NAMES, FieldConfig, ThermalField, sky_index, sky_named
 from ..engine.geo import LocalFrame
 from ..engine.sun import SUN_MIN_DEG, sun_elevation_deg
@@ -66,6 +72,10 @@ from .clouds import JUMP_S
 NEAREST_MAX_M = 5000.0
 JUMP_M = 5000.0  # moved farther than this between slow updates: a new flight, or the map
 KT_TO_MS = 0.514444
+WEATHER_REREAD_S = 90.0  # real weather arrives late: read once more this long after the first base
+WEATHER_RETRY_S = 10.0  # no data yet: ask again this soon (seen with real weather, 2026-11-09)
+WEATHER_READS = 2  # readings with data, then the base is kept
+WEATHER_KEEP_M = 100.0  # a later base closer than this to the one in use is not worth a new sky
 
 
 def wind_layers(altitudes_msl_m, speeds_kt, from_deg, ground_m):
@@ -175,6 +185,57 @@ class NativeThermalGuard:
             self.engaged = False
 
 
+class WeatherBase:
+    """The cloud base from X-Plane's weather, read when a sky begins and once more later.
+
+    `reset` starts over: a new flight, or the setting turned on. Then `due` asks for a reading
+    now. A reading without data enough is asked again `WEATHER_RETRY_S` later; one with data,
+    `WEATHER_REREAD_S` later, and after a second one with data the base is kept. A base is in m
+    above the ground under the aircraft at the first reading with data. The second is worked out
+    over that same ground, so that it changes with the weather and not with the terrain flown
+    over since (seen 2026-11-09 at Santiago: 550 m of rising ground gave 380 m less base).
+    """
+
+    __slots__ = ("base_m", "ground_m", "reads", "with_data", "next_s")
+
+    def __init__(self):
+        self.reset(0.0)
+
+    def reset(self, now):
+        self.base_m = self.ground_m = None
+        self.reads = self.with_data = 0
+        self.next_s = now
+
+    def due(self, now):
+        return now >= self.next_s and self.with_data < WEATHER_READS
+
+    def take(self, base_m, now):
+        """A reading (None: no data enough). True if the base in use changed."""
+        self.reads += 1
+        if base_m is None:
+            self.next_s = now + WEATHER_RETRY_S
+            return False
+        self.with_data += 1
+        self.next_s = now + WEATHER_REREAD_S
+        if self.base_m is not None and abs(base_m - self.base_m) < WEATHER_KEEP_M:
+            return False
+        self.base_m = base_m
+        return True
+
+    def read(self, ground_m, heights_m, temperatures_c, dew_points_c, now):
+        """A reading of X-Plane's layers over the ground under the aircraft (m MSL) now."""
+        ground_m = ground_m if self.ground_m is None else self.ground_m
+        changed = self.take(weather_base_m(ground_m, heights_m, temperatures_c, dew_points_c), now)
+        if self.with_data == 1 and self.ground_m is None:
+            self.ground_m = ground_m
+        return changed
+
+    @property
+    def published_m(self):
+        """The base for a dataref: -1 for none yet."""
+        return -1.0 if self.base_m is None else self.base_m
+
+
 class Injector:
     def __init__(self, settings, geometry):
         self.settings = settings
@@ -199,6 +260,8 @@ class Injector:
         self.water_checked = self.water_rejected = 0  # thermals asked about, and left out
         self.sun_elevation_deg = 0.0  # the engine's sun at the aircraft, to compare with X-Plane's
         self.sun_share = 1.0  # the share of a full day's thermals alive (`ThermalField.sink_share`)
+        self.weather = WeatherBase()
+        self.jumped = False  # the last slow update found a jump: a new flight, the map, the clock
 
     def set_geometry(self, geometry):
         self.geometry = geometry
@@ -213,6 +276,14 @@ class Injector:
     def sky_index(self, index):
         if 0 <= index < len(SKY_NAMES):
             self.settings.sky = SKY_NAMES[index]
+
+    @property
+    def zi_m(self):
+        """The day's depth in use: from the weather's cloud base if that is on and read, if not the setting."""
+        st = self.settings
+        if st.weather_base_enabled and self.weather.base_m is not None:
+            return self.weather.base_m / sky_named(st.sky).cloud_base_zzi
+        return st.zi_m
 
     def reset_field(self):
         """Forget the loaded thermals (they are regenerated identically on demand)."""
@@ -250,7 +321,7 @@ class Injector:
             self.sky_wind = None
             return
         if level_m is None:
-            level_m = msl_m - s.agl_m + sky_named(self.settings.sky).cloud_base_zzi * self.settings.zi_m
+            level_m = msl_m - s.agl_m + sky_named(self.settings.sky).cloud_base_zzi * self.zi_m
         self.sky_wind = layer_wind(level_m, heights, east, north)
 
     def lean_update(self, s, altitudes_msl_m, speeds_kt, from_deg, msl_m):
@@ -261,7 +332,7 @@ class Injector:
             return
         heights, east, north = wind_layers(altitudes_msl_m, speeds_kt, from_deg, msl_m - s.agl_m)
         if heights:
-            self.lean.set_wind(heights, east, north, sky_named(st.sky).cloud_base_zzi * st.zi_m,
+            self.lean.set_wind(heights, east, north, sky_named(st.sky).cloud_base_zzi * self.zi_m,
                                st.wstar_ms, s.sky_t_s)
 
     def sky_position(self, s):
@@ -290,8 +361,8 @@ class Injector:
         """Keep the field loaded around the aircraft. Not for every frame."""
         st = self.settings
         lat, lon = self.drift.to_air(s.lat, s.lon)
-        key = (st.seed, s.day, st.range_m, st.sky, st.zi_m, st.sun_enabled)
-        new_sky = self._jumped(s)
+        key = (st.seed, s.day, st.range_m, st.sky, self.zi_m, st.sun_enabled)
+        new_sky = self.jumped = self._jumped(s)
         if self.field is None or key != self._field_key:
             new_sky = True
             self.frame = LocalFrame(lat, lon)
@@ -317,7 +388,7 @@ class Injector:
             near.distance_m = r
             near.bearing_deg = math.degrees(math.atan2(th.e - e, th.n - n)) % 360.0
             near.core_ms = self.field.lift_at(th.e, th.n, s.agl_m, s.sky_t_s,
-                                              st.wstar_ms, st.zi_m, self._ground(s))
+                                              st.wstar_ms, self.zi_m, self._ground(s))
             near.floor_m = -1.0 if th.floor_m is None else th.floor_m
         near.alive = len(self.field.alive(s.sky_t_s))
         near.loaded = sum(1 for _ in self.field.thermals())
@@ -326,7 +397,7 @@ class Injector:
         """Give each thermal its floor when it loads. A new sky has a new level, from the ground
         under the aircraft now, and every thermal gets its floor again."""
         heights = self.heights
-        zi = self.settings.zi_m
+        zi = self.zi_m
         base_zzi = self.field.config.sky.cloud_base_zzi
         if new_sky:
             heights.reset()
@@ -353,7 +424,7 @@ class Injector:
         elif st.thermals_enabled:
             e, n = self.sky_position(s)
             g.update(e, n, s.agl_m, s.psi_deg, s.phi_deg)
-            f, t, wstar, zi = self.field, s.sky_t_s, st.wstar_ms, st.zi_m
+            f, t, wstar, zi = self.field, s.sky_t_s, st.wstar_ms, self.zi_m
             ground = self._ground(s)
             wc = f.lift_at(g.ce, g.cn, g.cz, t, wstar, zi, ground)
             wl = f.lift_at(g.le, g.ln, g.lz, t, wstar, zi, ground)

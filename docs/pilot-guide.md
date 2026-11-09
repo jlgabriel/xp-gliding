@@ -71,6 +71,7 @@ Everything is in *Plugins → xp-gliding*. What you choose is saved for the next
 | Training markers | A ring at your height over each nearby thermal, and a column up to its cloud | `xp_gliding/markers/toggle` |
 | Cumulus clouds | The plugin's clouds | `xp_gliding/clouds/toggle` |
 | Soaring HUD | The panel above | `xp_gliding/hud/toggle` |
+| Cloud base from X-Plane's weather (experiment) | The clouds' height from the temperature and dew point of the weather you fly, kept between 500 m and 3500 m above the ground, in place of the depth below, which is greyed out. Off by default, not flown yet | `xp_gliding/day/weather/toggle` |
 | Treat this aircraft as a glider | For a motor glider: the plugin acts on the aircraft loaded, with its engine running or not, and remembers it by its file. Ticked and greyed out for a glider | `xp_gliding/aircraft/glider/toggle` |
 | Sky | How wide the thermals are: wide (the default and easiest), medium, or narrow (hardest) | |
 | Strength of the day (w\*) | How strong the thermals are. 3 m/s by default | |
@@ -83,7 +84,7 @@ Choosing another sky, seed or depth in flight replaces the clouds at once, and n
 
 ## Known limits
 
-- **The day is chosen in the menu.** Strength and cloud base do not follow X-Plane's weather yet, so the thermals are the same on a dry day and a humid one.
+- **The day is chosen in the menu.** The strength does not follow X-Plane's weather, so the thermals are as strong on a dry day as on a humid one. The cloud base can follow it, with *Cloud base from X-Plane's weather (experiment)*, off by default.
 - **The sun only switches the thermals on and off.** From sunrise to sunset they are as strong as the day chosen in the menu, at 9 in the morning as at 3 in the afternoon.
 - **A far cloud can appear in front of a near one at times,** mostly between clouds far away. A cloud you have just come near can look denser for a few minutes.
 - **X-Plane's own cumulus mark none of these thermals.** The two can share a sky, but to read it, leave X-Plane's off.

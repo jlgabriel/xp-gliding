@@ -36,7 +36,41 @@ Hour 12 local, day 305 of the tools' date, and the real weather of the moment it
 5. **Strength.** Proposed: leave `w*` a setting for now. Thermals could also be judged from the spread or the lapse rate, but nothing here supports a number.
 6. **Height.** A deeper sky also moves each thermal's strength with height, since the model scales with `zi`. A climb under a 3 km base has not been flown, nor one under 958 m.
 
+**Answered by Juan Luis (2026-11-09):** the first four as proposed. Fixed settings stay the default and a menu item turns the weather's base on; only the rule, not X-Plane's cloud layers; a base between 500 m and 3500 m above the ground; read when a sky begins and once more about 90 s later, then kept. Strength stays a setting (5), and height is a matter for flying once it is wired (6).
+
 **Also to mind.** Two pilots at one instant ([open question](SPEC.md#open-questions-and-verifications)) would differ in the depth of the day if their weather differs, as with real weather read at different times.
+
+## Wired
+
+2026-11-09, on Juan Luis's answers above. Off by default.
+
+- `engine/day.weather_base_m`: the rule over the ground, within 500-3500 m, and None unless both temperature and dew point have at least two layers with data. That turns away the Santiago case read 40 s after loading (one dew point left), so a sky does not begin on it.
+- `adapter/core.WeatherBase`: a reading when a sky begins (a flight loaded, a new flight with the same aircraft, the setting turned on, or a jump of the place or the clock) and one more 90 s after the first with data, then kept. Without data it asks again every 10 s. The second reading is worked out over the ground of the first, so it moves with the weather and not with the terrain flown over since. A later base within 100 m of the one in use is ignored, so the clouds do not start over for nothing.
+- `Injector.zi_m` is the zi in use: the base over the sky's `cloud_base_zzi` (0.75 in both carrier skies, so 1250 m of base is zi 1667 m), or the menu's setting. The field, the clouds' level, the floors, the markers, the lean and the HUD's TOP all take it. A new zi starts the clouds over.
+- Menu: *Cloud base from X-Plane's weather (experiment)*, command `xp_gliding/day/weather/toggle`, setting `weather_base_enabled`. The zi submenu is greyed out while it is on; its value is kept for when it is turned off.
+- Datarefs: `xp_gliding/day/zi_m` (in use), `day/weather_base_m` (-1: none yet), `day/weather_reads`.
+- Checked offline: `tests/test_day.py`, `tests/test_adapter.py`, `tests/test_plugin_smoke.py` (the base, the second reading, no data, off again, a new flight).
+
+### Checked in X-Plane
+
+2026-11-09, X-Plane 12.4.3, by the test pilot (`tools/testpilot/check_weather_base.py`): air starts of the ASK 21, the switch turned on through its dataref (not saved), the wide sky (`cloud_base_zzi` 0.75).
+
+| Case | First reading | Base above the ground | zi | Our clouds | X-Plane's layer |
+| --- | --- | --- | --- | --- | --- |
+| Hobbs, cumulus set at 2500 m MSL | at load | 1418 m | 1890 m | 2530 m MSL | 2500 m MSL |
+| Hobbs, cumulus set at 3500 m MSL | at load | 2004 m | 2673 m | 3116 m MSL | 3500 m MSL |
+| Santiago, real weather | no data at load, data 10 s later | 952 m | 1270 m | 1604 m MSL | none |
+
+**Two days, two skies.** The two Hobbs days put our clouds 586 m apart.
+
+**The rule fits X-Plane's layer at 2500 m, not at 3500 m.** With the layer set at 3500 m MSL, X-Plane's dew point at the ground gives a base about 380 m under it. One case, so how X-Plane fits its dew point to a higher layer is not known. Juan Luis chose only the rule (question 2), so our clouds sit under X-Plane's there. To mind if pilots set a cumulus layer and expect our clouds in it.
+
+**Found on the way, fixed:**
+- A new flight with the same aircraft, at the same place and time, sends `MSG_AIRPORT_LOADED` and no `MSG_PLANE_LOADED`, and was not seen as a jump. The second Hobbs case kept the first day's base. Now `MSG_AIRPORT_LOADED` starts the readings over.
+- Under real weather the first reading at load found no data, and the next came 90 s later. Now it asks again every 10 s until there is data.
+- At Santiago the glider flew east for 90 s, over 550 m of rising ground, before the second reading. Over that ground the rule gave 574 m and not 952 m, and the sky started over for the terrain, not for the weather. Now the second reading is worked out over the first one's ground. Flown again with the three fixes: the real weather was there at load this time, 961 m, and the second reading at 90 s, over 530 m more ground, kept it (one sky, clouds at 1605 m MSL). No traceback in the log.
+
+Left: a hand flight under a low base and a high one (question 6).
 
 ## Moved to stage 2
 

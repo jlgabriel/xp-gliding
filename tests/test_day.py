@@ -36,3 +36,29 @@ def test_saturated_air_condenses_at_the_ground():
 def test_layers_with_no_data_are_left_out():
     assert known_layers([0.0, 540.0, 988.0], [4.8, -100.0, -100.0]) == ([0.0], [4.8])
     assert known_layers([0.0], [-100.0]) == ([], [])
+
+
+from xp_gliding.engine.day import BASE_MAX_M, BASE_MIN_M, weather_base_m  # noqa: E402
+
+LAYERS = [0.0, 1000.0, 2000.0]
+
+
+def test_weather_base_at_the_ground():
+    # 7.8 C over -3.6 C at the ground: Hobbs with a cumulus set at 2500 m MSL (notes/phase5.md).
+    assert weather_base_m(1112.0, [1000.0, 1200.0], [7.8, 7.8], [-3.6, -3.6]) == pytest.approx(1425.0)
+
+
+def test_weather_base_kept_within_limits():
+    assert weather_base_m(0.0, LAYERS, [30.0, 20.0, 10.0], [-10.0, -15.0, -20.0]) == BASE_MAX_M
+    assert weather_base_m(0.0, LAYERS, [10.0, 5.0, 0.0], [9.0, 4.0, -1.0]) == BASE_MIN_M
+
+
+def test_no_weather_base_before_real_weather_arrives():
+    # Seen at Santiago 40 s after loading: dew points -100 above sea level.
+    assert weather_base_m(644.0, LAYERS, [15.0, 8.5, 2.0], [4.8, -100.0, -100.0]) is None
+    assert weather_base_m(644.0, LAYERS, [-100.0, -100.0, -100.0], [4.8, 0.0, -5.0]) is None
+
+
+def test_layers_with_no_data_are_skipped_in_a_weather_base():
+    base = weather_base_m(500.0, [0.0, 1000.0, 2000.0, 3000.0], [15.0, 9.0, 3.0, -3.0], [8.0, -100.0, 2.0, -4.0])
+    assert base == pytest.approx((12.0 - 6.5) * 125.0)

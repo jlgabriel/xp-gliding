@@ -26,6 +26,8 @@ Commands (also in the menu):
   xp_gliding/markers/toggle    training markers on / off (off by default)
   xp_gliding/clouds/toggle     cumulus on / off
   xp_gliding/hud/toggle        soaring HUD on / off
+  xp_gliding/day/weather/toggle  zi from the cloud base in X-Plane's weather, not the menu's
+                               (off by default, not flown yet; greys out the zi submenu)
   xp_gliding/aircraft/glider/toggle  treat this aircraft as a glider, for a motor glider; saved
                                by its .acf name in `also_gliders`
 
@@ -115,7 +117,11 @@ DATAREFS = (
     ("hud/draw_us", "hud", "draw_us", "f", 0),
     ("seed", "settings", "seed", "i", 1),
     ("wstar_ms", "settings", "wstar_ms", "f", 1),
-    ("zi_m", "settings", "zi_m", "f", 1),
+    ("zi_m", "settings", "zi_m", "f", 1),  # the setting; day/zi_m is the one in use
+    ("weather_base_enabled", "settings", "weather_base_enabled", "i", 1),
+    ("day/zi_m", "injector", "zi_m", "f", 0),
+    ("day/weather_base_m", "injector", "weather.published_m", "f", 0),  # m above the ground, -1: none
+    ("day/weather_reads", "injector", "weather.reads", "i", 0),
     # The place of the sky in engine.field.SKY_NAMES. Tools can write it; that is not saved.
     ("sky_index", "injector", "sky_index", "i", 1),
     ("debug/uniform_ms", "injector", "uniform_ms", "f", 1),
@@ -233,6 +239,7 @@ class PythonInterface:
         self.next_markers = 0.0
         self.next_clouds = 0.0
         self.next_lean = 0.0
+        self.sky_zi_m = None  # the zi the clouds were made for: a new one starts them over
 
         self.datarefs = []
         for name, holder, attr, kind, writable in DATAREFS:
@@ -267,6 +274,9 @@ class PythonInterface:
              self.on_toggle, "clouds_enabled", "Cumulus clouds"),
             (xp.createCommand("xp_gliding/hud/toggle", "xp-gliding: soaring HUD on/off"),
              self.on_toggle, "hud_enabled", "Soaring HUD"),
+            (xp.createCommand("xp_gliding/day/weather/toggle",
+                              "xp-gliding: cloud base from X-Plane's weather, not the menu's zi"),
+             self.on_toggle, "weather_base_enabled", "Cloud base from X-Plane's weather (experiment)"),
         )
         self.menu_item = xp.appendMenuItem(xp.findPluginsMenu(), "xp-gliding", 0)
         self.menu = xp.createMenu("xp-gliding", xp.findPluginsMenu(), self.menu_item, None, None)
@@ -284,8 +294,11 @@ class PythonInterface:
         # for the call did not come back intact in X-Plane (2026-11-07), and XPPython3's samples
         # pass plain numbers or functions kept alive elsewhere.
         self.choices = []
+        self.zi_item = None  # greyed out while the weather sets zi
         for title, attr, options in MENU_CHOICES:
             item = xp.appendMenuItem(self.menu, title, None)
+            if attr == "zi_m":
+                self.zi_item = item
             submenu = xp.createMenu(title, self.menu, item, self.on_choice, None)
             for label, value in options:
                 xp.appendMenuItem(submenu, label, len(self.choices))
@@ -327,6 +340,11 @@ class PythonInterface:
     def XPluginReceiveMessage(self, inFromWho, inMessage, inParam):
         if inMessage == xp.MSG_PLANE_LOADED and inParam == 0:
             self.load_aircraft()
+        elif inMessage == xp.MSG_AIRPORT_LOADED:
+            # A new flight with the same aircraft sends this and not MSG_PLANE_LOADED (seen in
+            # X-Plane 12.4.3, 2026-11-09): its weather may be another day's.
+            self.injector.weather.reset(time.monotonic())
+            self.next_slow = 0.0
 
     # --- aircraft -----------------------------------------------------------
 
@@ -341,6 +359,7 @@ class PythonInterface:
         self.injector.reset_field()  # which ground each thermal was born over depends on that
         self.injector.lean.reset()
         self.injector.sky_wind = None
+        self.injector.weather.reset(time.monotonic())  # a new flight, maybe a new day
         self.next_lean = 0.0
         # At the main menu the "aircraft" is X-Plane's own folder: stay inert until
         # a real aircraft is loaded (a plane-loaded message follows).
@@ -369,6 +388,9 @@ class PythonInterface:
     def on_toggle(self, commandRef, phase, attr):
         if phase == xp.CommandBegin:
             setattr(self.settings, attr, not getattr(self.settings, attr))
+            if attr == "weather_base_enabled":
+                self.injector.weather.reset(time.monotonic())
+                self.next_slow = 0.0
             self.refresh_menu()
             print(f"{TAG} {attr} = {getattr(self.settings, attr)}")
             self.save()
@@ -388,14 +410,14 @@ class PythonInterface:
     def on_choice(self, menuRef, itemRef):
         """A value chosen in a submenu. A new sky or seed gives a new field in the slow path,
         and the clouds and markers follow it. The clouds' base comes from zi when each is
-        created, so a new zi starts them over.
+        created, so a new zi starts them over: here at once, and in `step` for any other way.
 
         An exception here would stay pending and surface in the next flight loop, which would
         stop the plugin's effect, so a failed choice is only written to the log."""
         try:
             attr, value = self.choices[itemRef]
             self.settings.update({attr: value})
-            if attr == "zi_m":
+            if attr == "zi_m" and not self.settings.weather_base_enabled:
                 self.clouds.clear()
             self.next_slow = 0.0
             self.refresh_menu()
@@ -421,6 +443,19 @@ class PythonInterface:
         glider = self.native_glider or self.settings.treated_as_glider(self.acf)
         xp.checkMenuItem(self.menu, self.glider_item, xp.Menu_Checked if glider else xp.Menu_Unchecked)
         xp.enableMenuItem(self.menu, self.glider_item, int(bool(self.acf) and not self.native_glider))
+        if self.zi_item is not None:
+            xp.enableMenuItem(self.menu, self.zi_item, int(not self.settings.weather_base_enabled))
+
+    def read_weather(self, s, now):
+        """The cloud base from X-Plane's weather, over the ground under the aircraft. A new base
+        gives a new sky in the slow update that follows."""
+        weather = self.injector.weather
+        if weather.read(s.msl_m - s.agl_m, *self.io.air_layers(), now):
+            print(f"{TAG} cloud base from X-Plane's weather: {weather.base_m:.0f} m above the ground, "
+                  f"zi {self.injector.zi_m:.0f} m (reading {weather.reads})")
+        elif weather.base_m is None:
+            print(f"{TAG} X-Plane's weather has no temperatures and dew points yet; zi stays "
+                  f"{self.settings.zi_m:.0f} m (reading {weather.reads})")
 
     # --- per frame -------------------------------------------------------------
 
@@ -470,17 +505,27 @@ class PythonInterface:
             self.next_slow = now + SLOW_PERIOD_S
             self.next_markers = now + 0.5 * SLOW_PERIOD_S
             self.next_clouds = now + CLOUDS_PERIOD_S
+            if st.weather_base_enabled and self.injector.weather.due(now):
+                self.read_weather(s, now)
             self.injector.slow_update(s)
+            if self.injector.jumped:
+                self.injector.weather.reset(now)  # a new place or time: read its weather
+            zi = self.injector.zi_m
+            if zi != self.sky_zi_m:
+                if self.sky_zi_m is not None:
+                    self.clouds.clear()
+                self.sky_zi_m = zi
+            self.hud.zi_m = zi
             self.hud.set_top(self.clouds.status.nearest_base_m, self.clouds.level_m)
             self.refresh_menu()
         elif clouds and now >= self.next_clouds and self.injector.field is not None:
             self.next_clouds = now + CLOUDS_PERIOD_S
-            self.clouds.update(self.injector.field, self.injector.frame, s, s.msl_m, st.zi_m, now,
+            self.clouds.update(self.injector.field, self.injector.frame, s, s.msl_m, self.sky_zi_m, now,
                                self.injector.drift)
         elif markers and now >= self.next_markers and self.injector.field is not None:
             self.next_markers = now + SLOW_PERIOD_S
             self.markers.update(self.injector.field, self.injector.frame, s, s.msl_m,
-                                self.io.local_position(), st.wstar_ms, st.zi_m, now,
+                                self.io.local_position(), st.wstar_ms, self.sky_zi_m, now,
                                 self.injector.drift, self.injector.lean_e_m, self.injector.lean_n_m)
         self.injector.step(s, self.out)
         self.io.apply(self.out)
