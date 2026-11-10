@@ -1,6 +1,6 @@
 # Pilot guide
 
-How to install xp-gliding, make a first flight and read its sky. This guide is for version 0.4. Its known limits are listed at the end.
+How to install xp-gliding, make a first flight and read its sky. This guide is for version 0.5. Its known limits are listed at the end.
 
 ## What you need
 
@@ -10,7 +10,7 @@ How to install xp-gliding, make a first flight and read its sky. This guide is f
 
 ## Installing
 
-1. Download `xp-gliding-0.4.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
+1. Download `xp-gliding-0.5.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
 2. Close X-Plane.
 3. From the unzipped folder, copy `PI_xp_gliding.py` and the whole `xp_gliding` folder into `X-Plane 12/Resources/plugins/PythonPlugins/`. The two must sit side by side there. `README.txt` and `LICENSE` do not need to be copied.
 4. Start X-Plane. *Plugins → xp-gliding* appears in the menu.

@@ -2,7 +2,7 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
-## Unreleased
+## 0.5 — 2026-11-10
 
 - **The daily cycle.** The thermals follow the sun: weak a little after sunrise, strongest around 1 pm solar time, weaker through the afternoon, with the strength chosen in the menu as the day's best. The morning is blue, and the first cumulus come around solar noon. No thermal is born with the sun under 10° (it was 5°). *Plugins → xp-gliding → Daily cycle* turns it off, for the same strength all day.
 
