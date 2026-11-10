@@ -1,0 +1,22 @@
+# The test suite on every push and pull request, under the Python XPPython3 bundles (3.12).
+# Windows, as the plugin is flown: tests/test_sky.py pins the sky's numbers exactly, and they
+# go through the C library's log and cos, which could differ in the last bit elsewhere.
+# The library versions are the ones the tests run with locally (CLAUDE.local.md's .venv);
+# Pillow is pinned because tests compare the generated cloud and marker images with the
+# committed ones.
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install numpy==2.5.4 pillow==13.0.0 pytest==9.2.0
+      - run: python -m pytest -q

@@ -69,7 +69,7 @@ class AirDrift:
             m, n = radii_of_curvature(lat_deg)
             k = math.degrees(dt)
             self.dlat_deg += k * wind_n_ms / m
-            self.dlon_deg += k * wind_e_ms / (n * math.cos(math.radians(lat_deg)))
+            self.dlon_deg += k * wind_e_ms / (n * max(math.cos(math.radians(lat_deg)), 1e-6))
 
     def hold(self, t_s):
         """The clock runs and the sky stays: no jump if it is carried again later."""

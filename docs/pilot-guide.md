@@ -6,7 +6,7 @@ How to install xp-gliding, make a first flight and read its sky. This guide is f
 
 - **X-Plane 12.** The plugin has been flown in version 12.4.3 under Vulkan, on Windows 11. Other versions and systems have not been tried.
 - **[XPPython3](https://xppython3.readthedocs.io/),** the plugin that runs Python plugins in X-Plane. Install it as its page explains, and start X-Plane once, so that it creates the folder `Resources/plugins/PythonPlugins/`. Version 4.7.1 has been tried. Nothing else is needed.
-- **A glider.** The reference is the Laminar ASK 21 that comes with X-Plane.
+- **A glider.** The reference is the Laminar ASK 21 that comes with X-Plane. The HpH 304S Shark has been tried too, by script: it gets the lift and its HUD shows no netto. A motor glider gets in through the menu (see [The menu](#the-menu)).
 
 ## Installing
 
@@ -64,7 +64,7 @@ Everything is in *Plugins → xp-gliding*. What you choose is saved for the next
 
 | Item | What it does | Command |
 | --- | --- | --- |
-| Enabled | The plugin's whole effect | `xp_gliding/toggle` |
+| Enabled | The plugin's whole effect, the HUD included | `xp_gliding/toggle` |
 | Thermals | The lift, keeping the clouds and the rest | `xp_gliding/thermals/toggle` |
 | Thermals follow the wind | The wind carries thermals, clouds and markers. On by default | `xp_gliding/wind/toggle` |
 | Thermals lean with the wind (experiment) | Lift upwind of the cloud when low. Off by default, best left off | `xp_gliding/lean/toggle` |
@@ -83,6 +83,25 @@ Markers appear for up to 20 thermals within 3 km with at least 1.5 m/s at the co
 
 Choosing another sky, seed or depth in flight replaces the clouds at once, and new ones fill in.
 
+The menu's last line, greyed out, says what the plugin is doing: how many thermals are within reach and the depth of the day in use, or why there are none.
+
+## When there are no thermals
+
+First look at the last line of *Plugins → xp-gliding*.
+
+| It says | What to do |
+| --- | --- |
+| *Off: Enabled is unticked* | Tick *Enabled* |
+| *Waiting for an aircraft* | Load an aircraft and start a flight |
+| *Inactive: this aircraft has engines and is not treated as a glider* | Choose a glider, or, for a motor glider, *Treat this aircraft as a glider* |
+| *No thermals: Thermals is unticked* | Tick *Thermals* |
+| *No thermals: the sun is under 5 degrees* | Fly by day, or move X-Plane's clock. The sky fills in about half an hour after sunrise |
+| *No thermals within reach* | Over a wide stretch of water, or far out at sea, there are none. Fly towards land |
+| *Stopped by an error, see XPPython3Log.txt* | Start a new flight, or untick and tick *Enabled*, and [report it](#reporting-a-problem) |
+| *Active: … thermals within reach* | The plugin is working. If no clouds show, tick *Cumulus clouds*; if the climb feels weak, check that the airbrakes are closed |
+
+If *Plugins → xp-gliding* is not in the menu at all, XPPython3 did not load the plugin: check that `PI_xp_gliding.py` and the `xp_gliding` folder sit side by side in `Resources/plugins/PythonPlugins/`, and read the end of `XPPython3Log.txt` in your X-Plane folder.
+
 ## Known limits
 
 - **The day is chosen in the menu.** The strength does not follow X-Plane's weather, so the thermals are as strong on a dry day as on a humid one. The cloud base can follow it, with *Cloud base from X-Plane's weather (experiment)*, off by default.
@@ -98,7 +117,7 @@ Choosing another sky, seed or depth in flight replaces the clouds at once, and n
 
 Open an [issue on GitHub](https://github.com/jlgabriel/xp-gliding/issues) saying what you did and what you saw, with your X-Plane and XPPython3 versions and the aircraft. Attach `XPPython3Log.txt` from your X-Plane folder: the plugin's lines start with `[xp-gliding]`, and the first one gives its version. If something goes wrong in flight, the plugin stops its effect, writes the error there, and its menu's first item reads *Enabled: stopped by an error*. A new flight or aircraft starts it again, and so does unticking and ticking *Enabled*.
 
-What pilots report decides what comes next, so a note on how the thermals feel is welcome too.
+A note on how the thermals feel is welcome too. The plugin has been tried on Windows only; a report from macOS or Linux, working or not, helps.
 
 ## More
 

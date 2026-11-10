@@ -6,7 +6,8 @@ simulator; `xpio.py` reads the datarefs into an `AircraftState` and writes an
 
 Per frame (`Injector.step`): place the sample points (centre, wing tips, tail)
 at their real 3D positions, ask the engine for the vertical air velocity at
-each, and turn it into
+each (the tail only once a slow update: nothing but the flight logger reads
+it), and turn it into
 - the energy force F = m g w / V_TAS along the air-relative velocity, with w
   the span average of the wing samples, split into X-Plane's body axes;
 - the gust roll moment from the spanwise gradient of w, plus the gradient
@@ -266,6 +267,10 @@ class Injector:
         self.sun_share = 1.0  # the share of a full day's thermals alive (`ThermalField.sink_share`)
         self.weather = WeatherBase()
         self.jumped = False  # the last slow update found a jump: a new flight, the map, the clock
+        # The tail's sample feeds only a dataref the flight logger reads (pitch is not modelled),
+        # so it is taken once a slow update, not every frame.
+        self._tail_due = True
+        self.w_tail = 0.0
 
     def set_geometry(self, geometry):
         self.geometry = geometry
@@ -395,7 +400,8 @@ class Injector:
                                               st.wstar_ms, self.zi_m, self._ground(s))
             near.floor_m = -1.0 if th.floor_m is None else th.floor_m
         near.alive = len(self.field.alive(s.sky_t_s))
-        near.loaded = sum(1 for _ in self.field.thermals())
+        near.loaded = self.field.loaded_count()
+        self._tail_due = True
 
     def _set_floors(self, s, new_sky, changed):
         """Give each thermal its floor when it loads. A new sky has a new level, from the ground
@@ -433,7 +439,10 @@ class Injector:
             wc = f.lift_at(g.ce, g.cn, g.cz, t, wstar, zi, ground)
             wl = f.lift_at(g.le, g.ln, g.lz, t, wstar, zi, ground)
             wr = f.lift_at(g.re, g.rn, g.rz, t, wstar, zi, ground)
-            wt = f.lift_at(g.te, g.tn, g.tz, t, wstar, zi, ground)
+            if self._tail_due:
+                self._tail_due = False
+                self.w_tail = f.lift_at(g.te, g.tn, g.tz, t, wstar, zi, ground)
+            wt = self.w_tail
         else:
             wl = wc = wr = wt = 0.0
         w = inj.span_average(wl, wc, wr)

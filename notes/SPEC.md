@@ -85,7 +85,7 @@ The plugin works in XP12: Juan Luis tested it and it produces usable thermals. M
 
 | # | Topic | Relevance |
 | --- | --- | --- |
-| 34 | Error on load (May 2025) | No details in the issue. Likely cause: `world.py` crashes at import when `init_values.json` is not at `Resources/plugins/PythonPlugins/` (e.g. installed into a subfolder); *verify* in the baseline |
+| 34 | Error on load (May 2025) | No details in the issue. Likely cause: `world.py` crashes at import when `init_values.json` is not at `Resources/plugins/PythonPlugins/` (e.g. installed into a subfolder); *verify* in the baseline. Will not be done (2026-11-10): not needed for this project |
 | 32 | Terrain and environment considerations | Terrain triggers |
 | 31 | Thermal visibility ON/OFF does not work | UI bug |
 | 30 | Menu to enable only the effect, not the plugin | UX |
@@ -113,12 +113,12 @@ The plugin is slow and depends on calibration by design, not because it is writt
 **2. Framerate dependence**
 
 - The flight loop runs every fixed 0.01 s (`CALLBACKTIME = .01`), not every frame. The author's comment says it works fine on his fast machine.
-- If the `_plug_acf` datarefs are applied per flight-model cycle, the effective force changes with FPS. *Verify* whether X-Plane resets them every frame.
+- If the `_plug_acf` datarefs are applied per flight-model cycle, the effective force changes with FPS. *Verify* whether X-Plane resets them every frame. **Resolved** (test B, 2026-11-03): they are cleared every frame, see [Injection physics](#injection-physics).
 
 **3. Geometry errors**
 
 - Wing tips are placed at `heading` and `heading + 180`, i.e. along the flight axis instead of perpendicular to it. The tail is at `heading + 90`. Everything looks rotated by 90°, consistent with issue #24 (x/y swap).
-  - *Verify* (second reading, 2026-11-02): with X-Plane's local frame (x east, z **south**) and the offsets `(cos h, sin h)` applied to (x, z), the "left" point lands on the aircraft's right side and the "right" point on its left, and the tail lands behind. That would mean the wing labels are swapped (and the roll sign swaps them back), not rotated. Test F in [baseline.md](baseline.md) decides.
+  - *Verify* (second reading, 2026-11-02): with X-Plane's local frame (x east, z **south**) and the offsets `(cos h, sin h)` applied to (x, z), the "left" point lands on the aircraft's right side and the "right" point on its left, and the tail lands behind. That would mean the wing labels are swapped (and the roll sign swaps them back), not rotated. Test F in [baseline.md](baseline.md) decides. **Will not be done** (2026-11-10): the baseline's tests E, F and G were never needed for this project, and this plugin's sign is measured on its own ([phase1.md](phase1.md#roll-sign)).
 - `roll_factor` and `pitch_factor` are each applied twice (in `calc_thermalx` and again in the flight loop), so the moments scale with their square.
 - Pitch uses `(_lift_r - _lift_l)`: the difference between wings, not between wings and tail. The tail is computed but not used for pitch.
 - Total lift averages 4 samples by dividing by 3: a hidden 33% gain.
@@ -308,7 +308,7 @@ flowchart TB
 - **New repository**, not a fork: the scope changes the architecture too much. Ideas are taken from Alex Ferrer's plugin.
 - **License: GPL-3.0-or-later.** The repository is public.
 - **No code is copied from xplane_thermals**; it is used only as a reference for ideas and behavior (cloned locally into `reference/`, git-ignored). Its `LICENSE` file is GPL-2.0 while its source headers say only "GPL" without a version, so copying would need a licensing check first. A clean rewrite also avoids inheriting the problems listed in the diagnosis.
-- **Contacting Alex Ferrer:** only once there is something that works (at least phase 1), and before the first release is announced (2026-11-07). He is a real pilot with 25 years of thermal experience; as a collaborator or tester he would be very valuable. Alternative on record: small PRs upstream for the clear bugs.
+- **Contacting Alex Ferrer:** only once there is something that works (at least phase 1), and before the first release is announced (2026-11-07); superseded on 2026-11-08: no notice, an independent project ([stage 1](#stage-1-first-release)). He is a real pilot with 25 years of thermal experience; as a collaborator or tester he would be very valuable. Alternative on record: small PRs upstream for the clear bugs.
 
 ## Language and performance
 
@@ -316,7 +316,7 @@ Decision: **Python on XPPython3.** Python does not limit this project: most of t
 
 **Per-frame budget**
 
-At 60 FPS each frame lasts ~16.7 ms; the plugin should use less than 0.5 ms. Measured: 118–132 µs median with the field sampled at 4 points ([phase1.md](phase1.md)), and 265 µs for the HUD as built ([hud.md](hud.md)), mostly one TrueType number.
+At 60 FPS each frame lasts ~16.7 ms; the plugin should use less than 0.5 ms. Measured: 118–132 µs median with the field sampled at 4 points ([phase1.md](phase1.md)), and 265 µs for the HUD as built ([hud.md](hud.md)), mostly one TrueType number. Later, with clouds, wind and floors (2026-11-08): flight loop 140–195 µs plus the HUD 304–333 µs; the tail's sample is taken once a second since 2026-11-10.
 
 **Performance rules**
 
@@ -343,7 +343,7 @@ F = \frac{m \, g \, w}{V_{TAS}}
 - V_TAS = true airspeed.
 - w = model lift at that point (m/s).
 - Removes the `METERS_PER_SECOND_TO_NEWTON` constant and the need for a per-glider `lift_factor`. A global multiplier may remain only as a fine-tuning of feel.
-- *Verify* in the simulator whether it is better applied as a force along the flight path, as a vertical component, or split; compare against the expected climb rate.
+- *Verify* in the simulator whether it is better applied as a force along the flight path, as a vertical component, or split; compare against the expected climb rate. **Resolved** (2026-11-03): along the air-relative velocity, split into body axes ([open questions](#open-questions-and-verifications)).
 
 **Per-frame execution**
 
@@ -366,7 +366,7 @@ F = \frac{m \, g \, w}{V_{TAS}}
 
 **Neutralize double effects**
 
-- Never stack our lift on top of a native effect of the same kind. With thermal strategy A, set X-Plane's native thermals to zero (`thermal_climb` in the weather API) while the plugin is active. Native ridge is left alone, so any ridge correction of ours must be designed as a difference from it, not a second ridge.
+- Never stack our lift on top of a native effect of the same kind. With thermal strategy A, set X-Plane's native thermals to zero while the plugin is active: done with the dataref `sim/weather/region/thermal_rate_ms`, saved and put back (`core.NativeThermalGuard`), not `thermal_climb` in the weather API. Native ridge is left alone, so any ridge correction of ours must be designed as a difference from it, not a second ridge.
 - Option to enable or disable only the thermal effect without disabling the plugin (issue #30).
 
 **Known limitation**
@@ -395,7 +395,7 @@ The engine's thermal model lives in `xp_gliding/engine/` and is tested outside t
 - **Two deviations from the paper,** both to avoid lift jumps the pilot would feel, each switchable to reproduce the paper exactly: the shape table is blended between rows instead of picking the nearest row (the paper's rule jumps ~0.2 m/s at about 60 m AGL on a mean day as r2 grows with height), and the stretch toward the environment sink is applied at every radius instead of only outside the core.
 - **Sky profiles, offline, not flown** (2026-11-04, [phase2.md](phase2.md#a-wider-sky-under-the-clouds)): `SkyProfile` shapes the sky the draw gives, moving nothing, and `"sky"` in `config.json` chooses one by name. The default changes nothing. The candidate `wide_carriers` adds two deviations from the paper: thermals that carry a cloud are stretched x2, shape and all, rather than following Eq. 13 (which flattens the top and lowers the peak), and only 15% of the others remain, at 0.6 of the strength and 0.75 of the width, far below the density of Eq. 20. The environment sink stays what conservation of mass gives.
 - **Field** (`field.py`): thermals are generated per tile of a global 0.02° lat/lon grid and per time slot, each with its own random stream keyed by (seed, day, tile, slot), using a portable splitmix64 generator (`rng.py`). The same inputs give the same sky whatever the player's path or the local origin. Births are a Poisson process with Allen's density (Eq. 20 at z/zi = 0.4: 4.5 thermals/km² for zi = 1400 m) and lifetimes of 5–30 min (Allen). That density is fixed, a deviation from Allen not noted until the audit of 2026-11-09 ([audit](audit-2026-11-09.md), C1): his falls as 1/zi² while each thermal widens with zi, so the share of sky the thermals cover, and with it the sink between them, does not change with zi. Here it grows with zi², and at the default zi of 2000 m the density is already twice his. Offline, at z/zi = 0.4 with w* = 3, the sink between thermals in the wide sky is -0.03 m/s at zi 1000, -0.14 at 2000, -0.36 at 3000 and -1.47 at 4667; and with zi 667 no cloud thermal of the wide sky gives +0.5 m/s in a centred 30° circle at 95 km/h. For 0.3.1 zi is kept in the menu's range instead ([stage 1](#stage-1-first-release)); making the density follow zi is in [stage 2](#stage-2-after-the-release). **It follows zi since 2026-11-09** (`field.thermal_density_per_km2`): Allen's 1/zi², anchored to 4.5/km² at zi = 2000 m, so the default sky is unchanged. A life-cycle envelope grows each thermal from narrow and weak to full size and fades it out, so nothing appears or vanishes abruptly. Lift is the environment sink plus the sum of nearby thermals' perturbations (Allen uses only the nearest updraft, which jumps where two overlap).
-- **Cost in XPPython3's Python 3.12:** 5–10 µs per sample point, so ~40 µs per frame for 4 points; first load of a 10 km radius (~9000 thermals over two slots) 42 ms; crossing into a new row of tiles ~3 ms.
+- **Cost in XPPython3's Python 3.12** (phase 1, before the clouds, the wind and the floors; the whole plugin since is under [stage 1](#stage-1-first-release)'s checks: flight loop 140–195 µs, HUD 304–333 µs): 5–10 µs per sample point, so ~40 µs per frame for 4 points; first load of a 10 km radius (~9000 thermals over two slots) 42 ms; crossing into a new row of tiles ~3 ms.
 
 **Vertical profile**
 
@@ -494,7 +494,7 @@ Thermals should be born where they would be in reality, computing their probabil
 
 What you see in the sky must be a consequence of the model, so the pilot learns to read the sky instead of looking for rings.
 
-- **Cumulus with a life cycle:** they form, mature and dissolve in sync with their thermal. A cumulus that frays warns that the thermal died, just like in real life. Done (2026-11-04, [phase2.md](phase2.md#cumulus)): an instanced object with a particle emitter of our own, the technique of Alex's plugin v0.4, driven per instance. *Verify* next to XP12's volumetric clouds: they have not been flown together yet.
+- **Cumulus with a life cycle:** they form, mature and dissolve in sync with their thermal. A cumulus that frays warns that the thermal died, just like in real life. Done (2026-11-04, [phase2.md](phase2.md#cumulus)): an instanced object with a particle emitter of our own, the technique of Alex's plugin v0.4, driven per instance. *Verify* next to XP12's volumetric clouds: they have not been flown together yet. **Flown** (2026-11-07 and 2026-11-09): they share a sky, and XP12's mark none of our thermals ([phase4.md](phase4.md#next-to-xp12s-clouds-and-at-dusk)).
 - **Cloud base marker** (issue #15).
 - **Optional thermal rings** for beginners, off by default in realistic mode; fix the toggle (issue #31). Done as the training markers (2026-11-03, [phase2.md](phase2.md)): a ring at the glider's height sized to the core, a thin column up to the thermal's cloud (up to the top of the lift until [2026-11-06](phase4.md#the-lift-ends-with-its-cloud)), colour by core lift, for up to 20 thermals within 3 km. Menu, command, setting and dataref.
 
@@ -533,13 +533,13 @@ Decided by Juan Luis on 2026-11-05: the project is good thermals, and these idea
 
 ## Stages
 
-Reorganized at Juan Luis's request on 2026-11-07, around an early release: ship what already flies, improve it with what pilots report, and let the response decide how far to go beyond that. This replaces the earlier order, in which the whole model came first and publishing waited until the end. The phases that built the project are kept with their findings [below](#phases-as-built), and their names stay in the notes. Each step ends with a criterion checked by flying.
+Reorganized at Juan Luis's request on 2026-11-07, around an early release: ship what already flies, improve it with what pilots report, and let the response decide how far to go beyond that. **Changed 2026-11-10** (Juan Luis): no step, stage or release waits on other people. There is no one to test with, and the project cannot depend on someone who is not there: Juan Luis's hand flights and the test pilot's checks are the criteria. A pilot's report, if one comes, is welcome as an input, never a gate. This replaces the earlier order, in which the whole model came first and publishing waited until the end. The phases that built the project are kept with their findings [below](#phases-as-built), and their names stay in the notes. Each step ends with a criterion checked by flying.
 
 | Stage | What it is | Commitment |
 | --- | --- | --- |
-| [1. First release](#stage-1-first-release) | A public alpha of what flies today, with its limits stated | The current work |
-| [2. After the release](#stage-2-after-the-release) | The day from XP12's weather, a sky tuned with what pilots report, a better HUD and clouds | Planned, in an order the response can change |
-| [3. Potential](#stage-3-potential) | XCSoar, other gliders, and the most sophisticated pieces | Not promised: only if the response is good, or shaped to Juan Luis's own needs |
+| [1. First release](#stage-1-first-release) | A first release of what flies today, with its limits stated | Done (2026-11-10): released as 0.1–0.3 |
+| [2. After the release](#stage-2-after-the-release) | The day from XP12's weather, a sky tuned by flying it, a better HUD and clouds | The current work, in an order we can change |
+| [3. Potential](#stage-3-potential) | XCSoar, other gliders, and the most sophisticated pieces | Not promised: as far as Juan Luis wants them |
 
 ### Stage 1: first release
 
@@ -581,11 +581,21 @@ A public alpha (decided by Juan Luis, 2026-11-07): a prerelease on GitHub and a 
 - [x] In X-Plane 12.4.3 by the test pilot (2026-11-09): an air start in the ASK 21 at Hobbs, calm and clear, with the weather's base on. The plugin loaded with no traceback, active, 529 thermals alive, flight loop 194 µs; 1 m/s of uniform lift gave 98.8 N against m·g·w/V = 98.4 N. The calm default's base, 2733 m before, was kept at 2250 m, so zi 3000 m. The new menu text and the restarts are covered offline only.
 - [ ] Publish 0.3.1, or keep it for the next release (Juan Luis).
 
+**More from the audit** (2026-11-10, worked alone for an hour at Juan Luis's request; built and tested offline, 408 tests pass, nothing flown):
+
+- [x] The menu's last line, greyed out, says what the plugin is doing (`plugin.status_line`): "Active: N thermals within reach, zi Z m", or why there are none: Enabled or Thermals unticked, no aircraft, an aircraft with engines, the sun under 5°, nothing within reach, or stopped by an error. ASCII only, since a menu may not draw "°". The pilot guide has a table, *When there are no thermals*, built on it ([audit](audit-2026-11-09.md) S1, 2.3).
+- [x] Per frame: the tail's sample is taken once a slow update, not every frame, since only the flight logger reads it (`xp_gliding/lift_tail_ms` now changes once a second); the menu's ticks are set only when what they show changes (about 30 SDK calls a second before); the loaded thermals are counted without visiting each (audit C4, C8).
+- [x] The HUD follows *Enabled*, which the guide calls the plugin's whole effect (audit C8). The HUD's vario starts over on a jump (stage 2, *Instruments and looks*).
+- [x] Small fixes (audit C8): the sky's drift guards cos(lat) at the pole as `to_ground_at` did; the plugin says so plainly if its assets are on another drive than X-Plane, where Windows has no relative path; `pyproject.toml` takes its version from the package.
+- [x] Releases (audit 2.2): [release-checklist.md](release-checklist.md); `CHANGELOG.md`; `tools/make_release.py` refuses to build while what it packages differs from the last commit (`--allow-dirty` for a try); `tests/test_release.py` fails when the public text names another version than the package; a GitHub Actions workflow runs the tests on Windows under Python 3.12 with the local library versions (`.github/workflows/tests.yml`, not yet run on GitHub). The local clone now has the `v0.3` tag.
+- [x] In X-Plane 12.4.3 by the test pilot (2026-11-10): an air start in the ASK 21 at Hobbs, calm default weather, the weather's base on (zi 3645 m). Loaded with no traceback, active, the tail's sample changing once a second beside the centre's; the menu's status line was not looked at by eye.
+- Not done, and why: the polar recognised by the `.acf`'s name too (C8), since another ASK 21 may share the name and would get the Laminar's netto; the grid that would make `lift_at` look at one cell (C5), as the density that follows zi already took away its growth with zi; the per-thermal offset for a converging sky (S5), stage 3; translating the audit.
+
 **To package and publish:**
 
 - [x] A version and a zip with `PI_xp_gliding.py` and `xp_gliding/` only, without the tools or the flight logger. Juan Luis chose plain `0.1` (2026-11-08). `tools/make_release.py` writes `dist/xp-gliding-0.1.zip`: one folder holding the two items, a `README.txt` for pilots (`tools/release/README.txt`) and the `LICENSE`. **0.2** (2026-11-08, at Juan Luis's word): the sun cutoff and motor gliders, after the test pilot's checks; the public text and the zip's `README.txt` say so. **0.3** (2026-11-09, at Juan Luis's word): the cloud base from X-Plane's weather, a switch off by default, after his hand flights under a low and a high base.
 - [x] An install from that zip, with XPPython3 as its only requirement. 0.1 by Juan Luis in his X-Plane (2026-11-08): loaded, defaults written, active on the ASK 21. 0.2 the same day by the test pilot, the old `xp_gliding` folder deleted and the zip's two items copied by hand: `0.2 starting` in the log, active on the ASK 21 with 529 thermals alive at noon, no traceback.
-- [ ] The pilot guide in `docs/`, under the [writing guide](../docs/writing-guide.md): installing, a first flight, reading the sky, the menu, the HUD, how to report a problem (what to send from `XPPython3Log.txt`), and the known limits below. Drafted 2026-11-07 ([pilot-guide.md](../docs/pilot-guide.md)), rewritten for pilots for 0.1 (2026-11-08), with the sun not read stated as a known limit; since the cutoff, the limit is that the sun only switches thermals on and off.
+- [x] The pilot guide in `docs/`, under the [writing guide](../docs/writing-guide.md): installing, a first flight, reading the sky, the menu, the HUD, how to report a problem (what to send from `XPPython3Log.txt`), and the known limits below. Drafted 2026-11-07 ([pilot-guide.md](../docs/pilot-guide.md)), rewritten for pilots for 0.1 (2026-11-08), with the sun not read stated as a known limit; since the cutoff, the limit is that the sun only switches thermals on and off.
 - [x] README and documentation index brought up to date, and all the public text read once more for neutrality. Brought up to date for 0.1 (2026-11-08). Read for neutrality the same day, after 0.2: README, the documentation index, the pilot guide, both findings and the zip's `README.txt`. They describe X-Plane by measurement, without judging it, and present the plugin as another option. Changed: the README's list of what the plugin does now names the sun and motor gliders, and the guide no longer says that X-Plane has no way to move air at a point, since it moves its own for the ridge: a plugin has no way to move X-Plane's air. The README's line that Condor's soaring is the inspiration, not the target, was left at first, as naming the inspiration without ranking, and then taken out at Juan Luis's word the same day: the public text names no other soaring simulator.
 - [x] Publish (Juan Luis): the prerelease, the forum post. [v0.1](https://github.com/jlgabriel/xp-gliding/releases/tag/v0.1) is out (2026-11-08), from `6ac4119`, first as a prerelease and the same day, at Juan Luis's word, as a full release: not a draft and not called an alpha, so the public text no longer says alpha. [v0.2](https://github.com/jlgabriel/xp-gliding/releases/tag/v0.2) followed the same day (2026-11-08), from `8ee81ee`, a full release and the latest, with the sun cutoff and motor gliders. The forum post was published by Juan Luis for 0.1 (2026-11-08, [XP12 Gliding](https://forums.x-plane.org/forums/topic/353728-xp-gliding-xppython3-plugin-for-x-plane-12/)), and stays the one thread: each version edits its first post and adds a short reply.
 
@@ -598,11 +608,11 @@ A public alpha (decided by Juan Luis, 2026-11-07): a prerelease on GitHub and a 
 - Lift is a force, not moving air: a climbing turn overbanks a little even with the correction, and a glider's own netto instrument may read wrong.
 - Two pilots at one instant do not see the same sky ([open question](#open-questions-and-verifications)).
 
-*Done when:* someone else installs it and climbs under a cloud.
+*Done when:* someone else installs it and climbs under a cloud. **Changed 2026-11-10** (Juan Luis, see [Stages](#stages)): done when it is installed from the released zip as a pilot would and climbed by hand under a cloud. Both hold: 0.1 installed from its zip by Juan Luis and 0.2 by the test pilot (above), and his hand flights of 0.1–0.3. **Stage 1 is done.** What it left open moves to [stage 2](#stage-2-after-the-release) (2026-11-10, Juan Luis to confirm): the rest of *From the seat* and of *Shear* to *The sky*, and his eye on the far clouds to *Instruments and looks*. The pilot guide's box is ticked: the guide exists and is kept current with each version.
 
 ### Stage 2: after the release
 
-The order is a starting point, and what pilots report can change it. Advanced but important: this improves the thermals that exist, and adds nothing the first release cannot do without.
+The order is a starting point, and our flights can change it, as can a pilot's report if one comes. Advanced but important: this improves the thermals that exist, and adds nothing the first release cannot do without.
 
 **The day**
 
@@ -621,7 +631,10 @@ The order is a starting point, and what pilots report can change it. Advanced bu
 - [ ] Cloud shadow: less lift under cloudy areas. The visible shadow on the ground is set aside ([shadows.md](shadows.md)).
 - *Done when:* two different days in XP12 give two different skies, and a pilot can tell from the air.
 
-**The sky, from what pilots report and the [open questions](#open-questions-and-verifications)**
+**The sky, from our flights and the [open questions](#open-questions-and-verifications)**
+
+- [ ] From stage 1's *From the seat* (moved 2026-11-10): where a climb ends by itself under its cloud; whether TOP helps when it jumps between clouds at different heights; a thermal with no cloud over high ground; cloud size against climb.
+- [ ] From stage 1's *Shear* (moved 2026-11-10): the same flight over the valley with the markers off.
 
 - [ ] How much sink belongs between clouds, whether a cloud should have several thermals and sink beside them, and whether a wide, flat core gives enough cues for centring.
 - [ ] The lean by hand: does it read from the seat, is f = 0.1 right? Then on by default, tuned, or removed.
@@ -632,7 +645,8 @@ The order is a starting point, and what pilots report can change it. Advanced bu
 
 - [ ] Refine the HUD ([hud.md](hud.md#still-open)).
 - [ ] Units on the HUD, chosen in the menu (Juan Luis, 2026-11-07): metric or aviation, so feet for `TOP` and, to decide when it is built, knots or feet per minute for the vario. Metric is what it shows today.
-- [ ] Reset the 30 s average when the glider jumps (seen 2026-11-07): after a placement with the map, `AVG` showed an impossible -7.7 m/s, the jump counted as a descent.
+- [x] Reset the 30 s average when the glider jumps (seen 2026-11-07): after a placement with the map, `AVG` showed an impossible -7.7 m/s, the jump counted as a descent. **Built** (2026-11-10): the HUD's vario and centring aid start over when the slow path sees a jump (over 5 km, or the clock) and on a new flight (`Hud.reset_instruments`). Offline only; a placement on the map closer than 5 km is not seen as a jump.
+- [ ] From stage 1 (moved 2026-11-10): Juan Luis's eye, in a hand flight, on far clouds drawn over near ones as the ring fix leaves them.
 - [ ] Cloud looks, once the thermals and all that goes with them are done (Juan Luis, 2026-11-06): same-light captures, one change at a time, his eye decides. The model to follow is X-Plane's own cumulus (Juan Luis, 2026-11-07, flying with a layer of them behind ours): "ese sería el mejor patrón a seguir". Side by side, by eye: X-Plane's have soft, uneven edges, density that varies through the cloud, flatter and greyer bases, and wisps; ours are made of small round puffs of one size, evenly bright, with a firm outline.
 
 **Documentation**
@@ -642,7 +656,7 @@ The order is a starting point, and what pilots report can change it. Advanced bu
 
 ### Stage 3: potential
 
-Not promised, with no date. It is decided after the response to the first two stages: if the response is good, these become plans, and if not, they are built only as far as Juan Luis wants them for his own flying. [Set aside](#set-aside) stays apart: those are not candidates unless he brings them back.
+Not promised, with no date. They were to be decided after the response to the first two stages; since 2026-11-10 they are built as far as Juan Luis wants them, with no wait on a response ([Stages](#stages)). [Set aside](#set-aside) stays apart: those are not candidates unless he brings them back.
 
 - [ ] XCSoar through NMEA. The polar of the Laminar ASK 21 is ready for it, not yet loaded: [`ask21-laminar-541kg.plr`](../tools/xcsoar/ask21-laminar-541kg.plr), see [baseline.md](baseline.md#a-still-air-polar).
 - [ ] Other gliders: a measured polar for netto, and wings outside the usual parts. The HpH 304S Shark and the NHAdrian ASK 21 are at hand.
@@ -731,7 +745,7 @@ These questions do not have an answer yet; they are resolved in the phase indica
 - [x] Reference glider: **the Laminar Schleicher ASK 21 that ships with XP12**. All tuning and measurements are done with it. A second aircraft (for example the NHAdrian ASK 21) was planned as a check that nothing depends on per-aircraft calibration; **deferred** on 2026-11-03 until the project is complete with the ASK 21.
 - [x] Repository and project name: **xp-gliding**.
 - [x] License and visibility: **GPL-3.0-or-later, public repository**.
-- [x] When to contact Alex Ferrer: **once something works**, not before. Now: **before the first release is announced** (2026-11-07).
+- [x] When to contact Alex Ferrer: **once something works**, not before. Now: **before the first release is announced** (2026-11-07). Superseded (2026-11-08): no notice, an independent project.
 - [x] Does a change of sky inside a thermal need a fade? **No** (Juan Luis, 2026-11-07, [phase4.md](phase4.md#flights-by-hand-for-the-first-release)): no jolt felt. The force steps once, by up to 458 N, with normal acceleration unchanged ([phase4.md](phase4.md#changing-the-sky-in-flight)).
 
 **Technical verifications**

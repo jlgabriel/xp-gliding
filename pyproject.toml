@@ -5,6 +5,9 @@ license = "GPL-3.0-or-later"
 requires-python = ">=3.12"
 dynamic = ["version"]
 
+[tool.setuptools.dynamic]
+version = {attr = "xp_gliding.__version__"}
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests", "tools"]

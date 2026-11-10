@@ -1,7 +1,7 @@
 """Build the release zip that pilots install from.
 
 Usage:
-    python tools/make_release.py [--out dist]
+    python tools/make_release.py [--out dist] [--allow-dirty]
 
 Writes `dist/xp-gliding-<version>.zip` with one folder inside, `xp-gliding-<version>/`,
 holding what a pilot copies into `Resources/plugins/PythonPlugins/`
@@ -9,11 +9,16 @@ holding what a pilot copies into `Resources/plugins/PythonPlugins/`
 `README.txt` (how to install it) and `LICENSE`. The tools, tests, notes and the
 flight logger stay out. The version is `xp_gliding.__version__`.
 
+The zip is built from the working tree, so it refuses to build while anything that goes into it
+differs from the last commit or is not tracked by git (`--allow-dirty` builds anyway, for a try).
+The steps around it are in notes/release-checklist.md.
+
 License: GPL-3.0-or-later.
 """
 
 import argparse
 import os
+import subprocess
 import sys
 import zipfile
 
@@ -47,6 +52,15 @@ def package_files():
             yield path, os.path.relpath(path, REPO).replace(os.sep, "/")
 
 
+def uncommitted():
+    """What goes into the zip and differs from the last commit, or is not tracked: git's lines."""
+    paths = [ENTRY, PACKAGE, "LICENSE", os.path.relpath(README, REPO)]
+    result = subprocess.run(["git", "status", "--porcelain", "--untracked-files=all", "--", *paths],
+                            cwd=REPO, capture_output=True, text=True, check=True)
+    return [line for line in result.stdout.splitlines()
+            if "__pycache__" not in line and not line.endswith(SKIP_EXT)]
+
+
 def build(out_dir):
     ver = version()
     top = f"xp-gliding-{ver}"
@@ -69,7 +83,13 @@ def build(out_dir):
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Build the xp-gliding release zip")
     parser.add_argument("--out", default=os.path.join(REPO, "dist"), help="output folder (default: dist)")
+    parser.add_argument("--allow-dirty", action="store_true",
+                        help="build even with uncommitted or untracked files in what is packaged")
     args = parser.parse_args(argv)
+    dirty = uncommitted()
+    if dirty and not args.allow_dirty:
+        raise SystemExit("not building: these differ from the last commit or are untracked:\n  "
+                         + "\n  ".join(dirty))
     build(args.out)
 
 

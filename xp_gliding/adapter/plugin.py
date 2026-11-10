@@ -19,7 +19,8 @@ and the loop starts again from a clean state with a new flight or aircraft, or w
 unticks and ticks Enabled, up to MAX_RESTARTS times; after that only re-enabling the plugin does.
 
 The Plugins > xp-gliding menu has the switches below, and submenus to choose the sky and
-the day (`config.MENU_CHOICES`). What is chosen there is saved to `config.json`.
+the day (`config.MENU_CHOICES`). What is chosen there is saved to `config.json`. Its last item,
+greyed out, says what the plugin is doing and, when there are no thermals, why (`status_line`).
 
 Commands (also in the menu):
   xp_gliding/toggle            plugin effect on / off
@@ -54,6 +55,7 @@ from .. import __version__
 from .aircraft import DEFAULT_GEOMETRY, read_acf_geometry
 from .config import MENU_CHOICES, load_settings, save_settings
 from .core import AircraftState, Injection, Injector, NativeThermalGuard
+from ..engine.sun import SUN_MIN_DEG
 from .clouds import CumulusClouds
 from .hud import Hud
 from .markers import TrainingMarkers
@@ -249,6 +251,9 @@ class PythonInterface:
         self.next_clouds = 0.0
         self.next_lean = 0.0
         self.sky_zi_m = None  # the zi the clouds were made for: a new one starts them over
+        self.status_item = None  # the menu's last line, greyed out: what the plugin is doing
+        self.status_text = None
+        self._menu_state = None  # what the menu's ticks show, so they are set only when it changes
 
         self.datarefs = []
         for name, holder, attr, kind, writable in DATAREFS:
@@ -313,6 +318,9 @@ class PythonInterface:
                 xp.appendMenuItem(submenu, label, len(self.choices))
                 self.choices.append((attr, value))
             self.submenus.append((submenu, attr, tuple(value for _, value in options)))
+        xp.appendMenuSeparator(self.menu)
+        self.status_item = xp.appendMenuItem(self.menu, "Starting", None)
+        xp.enableMenuItem(self.menu, self.status_item, 0)
         self.refresh_menu()
 
         self.loop = xp.createFlightLoop(self.flight_loop, xp.FlightLoop_Phase_BeforeFlightModel, None)
@@ -361,6 +369,7 @@ class PythonInterface:
             # A new flight with the same aircraft sends this and not MSG_PLANE_LOADED (seen in
             # X-Plane 12.4.3, 2026-11-09): its weather may be another day's.
             self.injector.weather.reset(time.monotonic())
+            self.hud.reset_instruments()
             self.next_slow = 0.0
 
     # --- aircraft -----------------------------------------------------------
@@ -460,7 +469,50 @@ class PythonInterface:
         if failed:
             print(f"{TAG} {failed}")
 
+    def status_line(self):
+        """The menu's last line: what the plugin is doing, and why there are no thermals when
+        there are none. Plain ASCII: a menu may not draw other characters."""
+        st = self.settings
+        if self.failed:
+            return "Stopped by an error, see XPPython3Log.txt"
+        if not st.enabled:
+            return "Off: Enabled is unticked"
+        if not self.acf:
+            return "Waiting for an aircraft"
+        if not self.eligible:
+            return "Inactive: this aircraft has engines and is not treated as a glider"
+        if not st.thermals_enabled:
+            return "No thermals: Thermals is unticked"
+        injector = self.injector
+        if injector.field is None:
+            return "Starting"
+        zi = injector.zi_m
+        alive = injector.nearest.alive
+        if alive == 0:
+            if st.sun_enabled and injector.sun_elevation_deg < SUN_MIN_DEG:
+                return f"No thermals: the sun is under {SUN_MIN_DEG:.0f} degrees"
+            return "No thermals within reach"
+        return f"Active: {alive} thermals within reach, zi {zi:.0f} m"
+
+    def update_status(self):
+        if self.status_item is None:
+            return
+        text = self.status_line()
+        if text != self.status_text:
+            self.status_text = text
+            xp.setMenuItemName(self.menu, self.status_item, text)
+
     def refresh_menu(self):
+        """The menu's ticks and greyed-out items. Called once a second too, since a dataref can
+        change a setting, so the SDK is only called when what the menu shows has changed."""
+        self.update_status()
+        st = self.settings
+        state = (tuple(getattr(st, attr) for _, _, attr, _ in self.commands),
+                 tuple(getattr(st, attr) for _, attr, _ in self.submenus),
+                 self.acf, self.native_glider, st.treated_as_glider(self.acf))
+        if state == self._menu_state:
+            return
+        self._menu_state = state
         for index, (_, _, attr, _) in enumerate(self.commands):
             check = xp.Menu_Checked if getattr(self.settings, attr) else xp.Menu_Unchecked
             xp.checkMenuItem(self.menu, index, check)
@@ -500,6 +552,7 @@ class PythonInterface:
             print(f"{TAG} error in the flight loop; plugin effect stopped, {again}:\n"
                   + traceback.format_exc())
             xp.setMenuItemName(self.menu, 0, FAILED_LABEL)
+            self.update_status()
             self.status.active = 0
             self.out.clear()
             self.guard.release()
@@ -543,6 +596,7 @@ class PythonInterface:
             self.injector.slow_update(s)
             if self.injector.jumped:
                 self.injector.weather.reset(now)  # a new place or time: read its weather
+                self.hud.reset_instruments()  # and the vario's average starts over
             zi = self.injector.zi_m
             if zi != self.sky_zi_m:
                 if self.sky_zi_m is not None:

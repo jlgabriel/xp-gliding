@@ -125,8 +125,13 @@ class SkyObjects:
     def __init__(self, folder="markers"):
         assets = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                               "assets", folder)
-        # XPLMLoadObject wants a path relative to X-Plane's folder.
-        self.folder = os.path.relpath(assets, xp.getSystemPath()).replace(os.sep, "/")
+        # XPLMLoadObject wants a path relative to X-Plane's folder, which Windows cannot give
+        # across drives (a development link to the package on another drive, say).
+        try:
+            self.folder = os.path.relpath(assets, xp.getSystemPath()).replace(os.sep, "/")
+        except ValueError:
+            raise RuntimeError(f"xp_gliding's assets ({assets}) are on another drive than X-Plane "
+                               f"({xp.getSystemPath()}): install the plugin inside X-Plane's folder") from None
         self._probe = None
 
     def ground_m(self, lat, lon):

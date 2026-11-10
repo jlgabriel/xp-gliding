@@ -442,6 +442,77 @@ def test_inert_at_the_main_menu(plugin):
     assert data["sim/weather/region/thermal_rate_ms"] == pytest.approx(0.62)
 
 
+def status_line(xp):
+    """The menu's last line, greyed out."""
+    menu = xp.menus["xp-gliding"]
+    index = len(menu["items"]) - 1
+    assert index in menu["disabled"]
+    return menu["items"][index][0]
+
+
+def test_the_menu_says_why_there_are_no_thermals(plugin):
+    pi, xp, data = plugin
+    frame(pi, data)
+    assert status_line(xp).startswith("Active: ") and "thermals within reach, zi 2000 m" in status_line(xp)
+    pi.on_toggle("xp_gliding/thermals/toggle", xp.CommandBegin, "thermals_enabled")
+    assert status_line(xp) == "No thermals: Thermals is unticked"
+    pi.on_toggle("xp_gliding/thermals/toggle", xp.CommandBegin, "thermals_enabled")
+    pi.on_toggle("xp_gliding/toggle", xp.CommandBegin, "enabled")
+    assert status_line(xp) == "Off: Enabled is unticked"
+    pi.on_toggle("xp_gliding/toggle", xp.CommandBegin, "enabled")
+    # Night: no thermal alive and the sun under the cutoff.
+    pi.injector.nearest.alive = 0
+    pi.injector.sun_elevation_deg = 2.0
+    pi.update_status()
+    assert status_line(xp) == "No thermals: the sun is under 5 degrees"
+    pi.injector.sun_elevation_deg = 40.0
+    pi.update_status()
+    assert status_line(xp) == "No thermals within reach"
+    # An aircraft with engines, then none at all.
+    data["sim/aircraft/engine/acf_num_engines"] = 1
+    data["sim/aircraft2/metadata/is_glider"] = 0
+    data["acf_path"] = "Aircraft/Laminar Research/Cessna 172/Cessna_172SP.acf"
+    pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0)
+    assert status_line(xp).startswith("Inactive: this aircraft has engines")
+    data["acf_path"] = str(xp.getSystemPath())
+    pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0)
+    assert status_line(xp) == "Waiting for an aircraft"
+
+
+def test_an_error_shows_in_the_status_line(plugin):
+    pi, xp, data = plugin
+    frame(pi, data)
+    del data["sim/flightmodel/position/y_agl"]
+    assert pi.flight_loop(0.016, 0.016, 0, None) == 0
+    assert status_line(xp) == "Stopped by an error, see XPPython3Log.txt"
+
+
+def test_the_menu_is_set_again_only_when_it_changes(plugin):
+    # Once a second the slow path asks for the menu: with nothing changed, no SDK calls.
+    pi, xp, data = plugin
+    frame(pi, data)
+    calls = []
+    xp.checkMenuItem = lambda *a: calls.append(a)
+    pi.refresh_menu()
+    assert calls == []
+    pi.settings.markers_enabled = not pi.settings.markers_enabled  # as a dataref write would
+    pi.refresh_menu()
+    assert calls
+
+
+def test_a_jump_starts_the_vario_over(plugin):
+    pi, xp, data = plugin
+    frame(pi, data)
+    pi.hud.vario.average_ms = -7.7
+    data["sim/flightmodel/position/latitude"] += 0.2  # 22 km: the map
+    pi.next_slow = 0.0
+    frame(pi, data)
+    assert pi.hud.vario.average_ms == 0.0 and not pi.hud.vario.valid
+    pi.hud.vario.average_ms = -7.7
+    pi.XPluginReceiveMessage(0, xp.MSG_AIRPORT_LOADED, 0)
+    assert pi.hud.vario.average_ms == 0.0
+
+
 # --- training markers -----------------------------------------------------------
 
 def markers_tick(pi, data):
@@ -645,6 +716,12 @@ def test_hud_reads_the_energy_and_only_when_wanted(plugin):
     assert hud._te_text == "-1.0"
     assert hud._top_text.startswith("TOP ")
     assert hud.window == "window"
+    # Enabled unticked hides it too: it is the plugin's whole effect.
+    shown = []
+    xp.setWindowIsVisible = lambda window, visible: shown.append(visible)
+    pi.settings.enabled = False
+    hud.tick()
+    assert shown == [0]
 
 
 def test_a_failing_draw_stops_the_hud_and_nothing_else(plugin):
@@ -1400,8 +1477,9 @@ MENU_SUBMENUS = (
 def test_the_menu_is_in_the_order_of_the_pilot_guide(plugin):
     pi, xp, data = plugin
     labels = [name for name, _ in xp.menus["xp-gliding"]["items"]]
-    assert labels == ([label for label, _, _ in MENU_SWITCHES] + ["Treat this aircraft as a glider"]
-                      + [title for title, _, _ in MENU_SUBMENUS])
+    assert labels[:-1] == ([label for label, _, _ in MENU_SWITCHES] + ["Treat this aircraft as a glider"]
+                           + [title for title, _, _ in MENU_SUBMENUS])
+    assert labels[-1] == status_line(xp)  # the status line closes it
 
 
 def test_every_switch_changes_its_own_setting_and_ticks_its_own_item(plugin):

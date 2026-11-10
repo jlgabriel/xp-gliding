@@ -138,6 +138,12 @@ class Hud:
         self.aid.reset()
         self.top_msl_m = None
 
+    def reset_instruments(self):
+        """The glider jumped (a new flight, the map, the clock): what it did before says nothing
+        about now. Seen 2026-11-07: a placement on the map left AVG at an impossible -7.7 m/s."""
+        self.vario.reset()
+        self.aid.reset()
+
     def _load_drawing(self):
         # Only in the simulator: tests have no OpenGL, and fonts need X-Plane.
         from OpenGL import GL
@@ -174,7 +180,9 @@ class Hud:
         return SAMPLE_PERIOD_S
 
     def tick(self):
-        wanted = self.settings.hud_enabled and self.eligible and not self.failed
+        st = self.settings
+        # Enabled is the plugin's whole effect, the HUD included (docs/pilot-guide.md).
+        wanted = st.enabled and st.hud_enabled and self.eligible and not self.failed
         if wanted and self.window is None:
             self._load_drawing()
         self._show(wanted)

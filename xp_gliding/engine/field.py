@@ -457,6 +457,10 @@ class ThermalField:
         for thermals in self._tiles.values():
             yield from thermals
 
+    def loaded_count(self):
+        """How many thermals are loaded, without visiting each."""
+        return sum(len(thermals) for thermals in self._tiles.values())
+
     def alive(self, t):
         return [th for th in self.thermals() if th.birth <= t < th.death]
 
