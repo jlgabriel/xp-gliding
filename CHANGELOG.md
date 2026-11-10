@@ -2,7 +2,7 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
-## Unreleased
+## 0.4 — 2026-11-10
 
 - **The thermals' density follows the depth of the day.** A deeper day has fewer, wider thermals and a shallower one more, narrower ones, as in the model the thermals come from, so the sink between thermals is the same at every depth. Under the default depth (2000 m) the sky is the same as before. Where each thermal is now depends on the depth too.
 - **Cloud base from X-Plane's weather** is kept between 1000 m and 3500 m above the ground (it was 500–3500 m): under a lower base the thermals are too narrow to climb in.

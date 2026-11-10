@@ -6,7 +6,7 @@ It is an independent take on thermals, offered as another option for soaring in 
 
 ![A Laminar ASK 21 banking in a thermal under cumulus, beside a yellow training marker: a ring at its height and a column up to the cloud. The soaring HUD is on the left](docs/images/ask21-circling-at-a-marker.jpg)
 
-> **Version 0.3.** Its limits are stated in the guide. Download it from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and follow the [pilot guide](docs/pilot-guide.md) to install it: it needs only X-Plane 12 and [XPPython3](https://xppython3.readthedocs.io/).
+> **Version 0.4.** Its limits are stated in the guide. Download it from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and follow the [pilot guide](docs/pilot-guide.md) to install it: it needs only X-Plane 12 and [XPPython3](https://xppython3.readthedocs.io/).
 
 ## What it does today
 

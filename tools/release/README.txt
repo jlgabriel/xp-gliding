@@ -90,9 +90,14 @@ Your choices are saved for the next session.
 SOMETHING WRONG?
 ----------------
 
-Open an issue at https://github.com/jlgabriel/xp-gliding/issues saying what
-you did and what you saw, your X-Plane and XPPython3 versions and the
-aircraft, and attach XPPython3Log.txt from your X-Plane 12 folder.
+First look at the last line of Plugins > xp-gliding: it says what the
+plugin is doing, or why there are no thermals. The pilot guide has what to
+do for each case.
+
+If that does not help, open an issue at
+https://github.com/jlgabriel/xp-gliding/issues saying what you did and what
+you saw, your X-Plane and XPPython3 versions and the aircraft, and attach
+XPPython3Log.txt from your X-Plane 12 folder.
 
 
 License: GPL-3.0-or-later (see LICENSE).

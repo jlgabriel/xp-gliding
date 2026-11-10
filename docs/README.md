@@ -1,6 +1,6 @@
 # xp-gliding documentation
 
-xp-gliding's current version is 0.3. This documentation is growing with it, and describes what is true today.
+xp-gliding's current version is 0.4. This documentation is growing with it, and describes what is true today.
 
 ## Flying it
 
