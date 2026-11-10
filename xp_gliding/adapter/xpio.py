@@ -1,4 +1,4 @@
-"""X-Plane datarefs and objects of the adapter. With `plugin`, the only modules with `xp`.
+"""X-Plane datarefs and objects of the adapter. With `plugin` and `hud`, the only modules with `xp`.
 
 Every dataref is looked up once, when the plugin starts. Per frame the adapter
 makes 17 reads of the aircraft state and the wind and reads and writes the four force

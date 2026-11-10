@@ -76,6 +76,9 @@ WEATHER_REREAD_S = 90.0  # real weather arrives late: read once more this long a
 WEATHER_RETRY_S = 10.0  # no data yet: ask again this soon (seen with real weather, 2026-11-09)
 WEATHER_READS = 2  # readings with data, then the base is kept
 WEATHER_KEEP_M = 100.0  # a later base closer than this to the one in use is not worth a new sky
+# No lift of this model comes near this (30 m/s at the strongest core offline, w* 8 in the narrow
+# sky): more, or a value that is not a number, is a fault, and no force is better than a wrong one.
+MAX_LIFT_MS = 50.0
 
 
 def wind_layers(altitudes_msl_m, speeds_kt, from_deg, ground_m):
@@ -445,6 +448,9 @@ class Injector:
         if st.roll_enabled:
             roll = inj.gust_roll_moment(s.rho, s.tas_ms, self.geometry.area_m2, span,
                                         dw_dy, self.clp)
+        if not (abs(w) <= MAX_LIFT_MS and math.isfinite(roll)):
+            out.clear()
+            return out
         out.faxil_n = -fwd
         out.fside_n = right
         out.fnrml_n = up

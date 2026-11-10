@@ -119,6 +119,12 @@ def make_fake_xp(tmp_path, data):
     xp.appendMenuSeparator = lambda menu: None
     xp.checkMenuItem = check_item
 
+    def rename_item(menu, index, name):
+        _, refcon = xp.menus[menu]["items"][index]
+        xp.menus[menu]["items"][index] = (name, refcon)
+
+    xp.setMenuItemName = rename_item
+
     def enable_item(menu, index, enabled):
         (xp.menus[menu]["disabled"].discard if enabled else xp.menus[menu]["disabled"].add)(index)
 
@@ -383,6 +389,47 @@ def test_an_error_stops_the_effect_without_raising(plugin, capsys):
     assert pi.flight_loop(0.016, 0.016, 0, None) == 0
     assert "error in the flight loop" in capsys.readouterr().out
     assert data["sim/weather/region/thermal_rate_ms"] == pytest.approx(0.62)
+
+
+def enabled_label(xp):
+    return xp.menus["xp-gliding"]["items"][0][0]
+
+
+def test_an_error_shows_in_the_menu_and_the_loop_starts_again(plugin, capsys):
+    pi, xp, data = plugin
+    plugin_mod = sys.modules["xp_gliding.adapter.plugin"]
+    scheduled = []
+    xp.scheduleFlightLoop = lambda loop, interval, relative: scheduled.append(interval)
+    frame(pi, data)
+    assert enabled_label(xp) == "Enabled"
+    y_agl = data.pop("sim/flightmodel/position/y_agl")
+    assert pi.flight_loop(0.016, 0.016, 0, None) == 0
+    assert enabled_label(xp) == plugin_mod.FAILED_LABEL
+    data["sim/flightmodel/position/y_agl"] = y_agl
+    # A new flight with the same aircraft starts it again, from a clean state.
+    pi.XPluginReceiveMessage(0, xp.MSG_AIRPORT_LOADED, 0)
+    assert scheduled == [-1] and enabled_label(xp) == "Enabled" and not pi.failed
+    frame(pi, data)
+    assert dataref(xp, "active") == 1
+    # So does a new aircraft, and unticking and ticking Enabled.
+    for start_again in (lambda: pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0),
+                        lambda: [pi.on_toggle("xp_gliding/toggle", xp.CommandBegin, "enabled") for _ in "ab"]):
+        del data["sim/flightmodel/position/y_agl"]
+        assert pi.flight_loop(0.016, 0.016, 0, None) == 0
+        data["sim/flightmodel/position/y_agl"] = y_agl
+        start_again()
+        assert not pi.failed and pi.settings.enabled
+    assert scheduled == [-1, -1, -1] and pi.failures == 3
+    # After one error more than MAX_RESTARTS, only enabling the plugin again starts it.
+    del data["sim/flightmodel/position/y_agl"]
+    assert pi.flight_loop(0.016, 0.016, 0, None) == 0
+    assert "only when the plugin is re-enabled" in capsys.readouterr().out
+    data["sim/flightmodel/position/y_agl"] = y_agl
+    pi.XPluginReceiveMessage(0, xp.MSG_PLANE_LOADED, 0)
+    assert pi.failed and scheduled == [-1, -1, -1] and enabled_label(xp) == plugin_mod.FAILED_LABEL
+    pi.XPluginDisable()
+    pi.XPluginEnable()
+    assert not pi.failed and pi.failures == 0 and enabled_label(xp) == "Enabled"
 
 
 def test_inert_at_the_main_menu(plugin):

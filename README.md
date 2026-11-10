@@ -10,7 +10,7 @@ It is an independent take on thermals, offered as another option for soaring in 
 
 ## What it does today
 
-- **Thermals** with a life cycle: they grow, peak and fade, and never vanish abruptly. The same seed, date and place give the same sky.
+- **Thermals** with a life cycle: they grow, peak and fade, and never vanish abruptly. In calm air, the same seed, date, place and time give the same sky.
 - **Thermals by day.** A thermal is born only while the sun is up, so the sky empties around sunset and fills again after sunrise.
 - **Cumulus** drawn by the plugin over the thermals that carry one. Each forms and fades with its thermal, so a cloud means something. Clouds keep to a level for the area, and stand higher where the ground under them and along their drift would reach them.
 - **Lift that ends with its cloud,** over any ground, rather than following the ground under the glider. No thermal is born over water.

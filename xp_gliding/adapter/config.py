@@ -7,14 +7,21 @@ the `xp_gliding/...` datarefs, as the test pilot does, are not written by themse
 
 Day parameters. The convective velocity scale w* and the mixed-layer depth zi (m above
 ground) are fixed numbers. Allen's thermals stop about 10% below zi. With `weather_base_enabled`
-(off by default, not flown yet) zi comes from the cloud base in X-Plane's weather instead, and
-the setting is kept for when it is turned off (`core.Injector.zi_m`).
+(off by default, flown by hand 2026-11-09) zi comes from the cloud base in X-Plane's weather
+instead, and the setting is kept for when it is turned off (`core.Injector.zi_m`).
+
+The file is edited by hand too, so what it holds is checked (`Settings.update`): a value that is
+not of its setting's kind, or not a finite number, is left out, and a number outside its LIMITS
+is taken to the nearest end. Either way the log says so. A NaN in w* would reach the forces.
 
 Pure Python: no `xp`.
 """
 
 import json
+import math
 import os
+
+from ..engine.field import SKIES
 
 DEFAULTS = {
     "enabled": True,  # plugin effect on at start
@@ -36,9 +43,21 @@ DEFAULTS = {
     "zi_m": 2000.0,  # convective layer depth zi (m AGL)
     "weather_base_enabled": False,  # zi from the cloud base in X-Plane's weather (notes/phase5.md)
     "seed": 1,  # field seed; with the date and place it fixes the sky
-    "sky": "wide_carriers",  # a name in engine.field.SKIES; an unknown name is the narrow "default" sky
+    "sky": "wide_carriers",  # a name in engine.field.SKIES; another name is left out
     "range_m": 10000.0,  # thermals are loaded this far around the aircraft
     "recentre_m": 20000.0,  # move the local origin when this far from it
+}
+
+# The lowest and highest value config.json may give a number. w*: the menu goes to 5 m/s, and at 8
+# the strongest core of the narrow sky reached 30 m/s offline. zi: the menu's range, which the sky
+# was tuned in; the thermals' density does not follow zi, so out of it the sink between them grows
+# fast with a deep layer, and a shallow one leaves thermals too narrow to climb in (notes/SPEC.md).
+LIMITS = {
+    "wstar_ms": (0.0, 6.0),
+    "zi_m": (1000.0, 3000.0),
+    "range_m": (2000.0, 30000.0),
+    "recentre_m": (5000.0, 50000.0),
+    "seed": (-2**31, 2**31 - 1),  # an int dataref
 }
 
 # The menu's submenus: (title, setting, ((label, value), ...)). The values of the sky are
@@ -71,19 +90,24 @@ class Settings:
             self.update(values)
 
     def update(self, values):
-        """Apply known keys from a dict, coerced to the default's type; ignore the rest."""
+        """Apply known keys from a dict, coerced to the default's kind and kept within LIMITS.
+
+        Unknown keys are ignored. Returns what was left out or changed, one note per setting,
+        for the log.
+        """
+        notes = []
         for key, value in values.items():
             if key not in DEFAULTS:
                 continue
-            kind = type(DEFAULTS[key])
-            if kind is list:
-                if isinstance(value, list) and all(isinstance(v, str) for v in value):
-                    setattr(self, key, list(value))
+            checked = _checked(key, value)
+            if checked is None:
+                notes.append(f"{key} {value!r} left out")
                 continue
-            try:
-                setattr(self, key, bool(value) if kind is bool else kind(value))
-            except (TypeError, ValueError):
-                pass
+            kept, moved = checked
+            if moved:
+                notes.append(f"{key} {value!r} taken to {kept!r}")
+            setattr(self, key, kept)
+        return notes
 
     def as_dict(self):
         return {key: getattr(self, key) for key in DEFAULTS}
@@ -96,6 +120,31 @@ class Settings:
         """Add or remove the aircraft file `acf` (its name) in the list of aircraft treated as gliders."""
         others = [name for name in self.also_gliders if name.lower() != acf.lower()]
         self.also_gliders = others + [acf] if wanted else others
+
+
+def _checked(key, value):
+    """(value, moved) for a setting, moved if it had to be taken within LIMITS; None if the value
+    cannot be one. Switches take true and false, or 1 and 0."""
+    default = DEFAULTS[key]
+    if isinstance(default, list):
+        if isinstance(value, list) and all(isinstance(v, str) for v in value):
+            return list(value), False
+        return None
+    if isinstance(default, bool):
+        if isinstance(value, (bool, int)) and value in (0, 1):
+            return bool(value), False
+        return None
+    if key == "sky":
+        return (value, False) if isinstance(value, str) and value in SKIES else None
+    try:
+        number = type(default)(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not math.isfinite(number):
+        return None
+    low, high = LIMITS.get(key, (number, number))
+    kept = min(max(number, low), high)
+    return kept, kept != number
 
 
 def save_settings(settings, path):
@@ -132,4 +181,6 @@ def load_settings(path):
         return Settings(), f"defaults ({path} unreadable: {exc})"
     if not isinstance(values, dict):
         return Settings(), f"defaults ({path} is not a JSON object)"
-    return Settings(values), f"read from {path}"
+    settings = Settings()
+    notes = settings.update(values)
+    return settings, f"read from {path}" + "".join(f"; {note}" for note in notes)

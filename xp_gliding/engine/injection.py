@@ -29,12 +29,13 @@ the aircraft's own roll damping applied to p = g:
 with Clp < 0 the roll-damping derivative per unit p b / 2V. Clp comes from
 the wing's geometry (lifting-line lift slope and a taper correction), never
 from a tuned constant. Note it grows with V: at a given spatial gradient a
-faster glider is rolled harder, as in reality. *Verify* by flying (test F).
+faster glider is rolled harder, as in reality. Flown in test F (2026-11-07, notes/SPEC.md):
+the wing lifts enough to notice and no more.
 
 Not covered yet: the pitch moment from the tail sample (needs tail area and
 arm), and the transient load factor from the angle-of-attack change when
 entering lift ("the seat kick"); the energy force alone gives the right climb
-but a softer entry. Both are phase 1 items to measure in the simulator.
+but a softer entry. Neither is modeled yet (notes/SPEC.md).
 """
 
 import math
@@ -55,8 +56,8 @@ def path_force_body(force_n, alpha_deg, beta_deg):
 
     Returns (forward, right, up) in newtons. alpha is positive nose above the
     velocity vector; beta is positive with the velocity vector to the right of
-    the nose. *Verify* X-Plane's sign of beta (`sim/flightmodel/position/beta`)
-    and of each `*_plug_acf` axis in the adapter.
+    the nose. X-Plane's beta has the opposite sign, and the adapter turns it round
+    (measured, `adapter/core.py`).
     """
     a = math.radians(alpha_deg)
     b = math.radians(beta_deg)

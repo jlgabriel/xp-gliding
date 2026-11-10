@@ -13,6 +13,11 @@ re-checks the native thermal setting, and, in frames apart so that they never sh
 one, updates the cumulus (`clouds`) and the training markers if they are on (`markers`).
 The soaring HUD runs apart from all this, with its own flight loop (`hud`).
 
+An error in the flight loop stops the plugin's effect: no force, the native thermals back, no
+clouds or markers, and the traceback in XPPython3Log.txt. The menu's first item then says so,
+and the loop starts again from a clean state with a new flight or aircraft, or when the pilot
+unticks and ticks Enabled, up to MAX_RESTARTS times; after that only re-enabling the plugin does.
+
 The Plugins > xp-gliding menu has the switches below, and submenus to choose the sky and
 the day (`config.MENU_CHOICES`). What is chosen there is saved to `config.json`.
 
@@ -27,7 +32,7 @@ Commands (also in the menu):
   xp_gliding/clouds/toggle     cumulus on / off
   xp_gliding/hud/toggle        soaring HUD on / off
   xp_gliding/day/weather/toggle  zi from the cloud base in X-Plane's weather, not the menu's
-                               (off by default, not flown yet; greys out the zi submenu)
+                               (off by default; greys out the zi submenu)
   xp_gliding/aircraft/glider/toggle  treat this aircraft as a glider, for a motor glider; saved
                                by its .acf name in `also_gliders`
 
@@ -58,6 +63,9 @@ SLOW_PERIOD_S = 1.0
 LEAN_PERIOD_S = 5.0  # X-Plane's layers of wind are read this often
 CLOUDS_PERIOD_S = 0.25  # cloud tiles load in small bites
 TAG = "[xp-gliding]"
+MAX_RESTARTS = 3  # errors in the flight loop after which it is not started again
+ENABLED_LABEL = "Enabled"
+FAILED_LABEL = "Enabled: stopped by an error, see XPPython3Log.txt"
 
 # (name under xp_gliding/, holder, attribute, type, writable). holder names an
 # attribute of the plugin object; the attribute may be dotted.
@@ -234,7 +242,8 @@ class PythonInterface:
         self.acf_path = ""
         self.acf = ""  # the user's aircraft file name, "" when none is loaded
         self.native_glider = False  # a glider without the pilot saying so: filed as one, or no engines
-        self.failed = False
+        self.failed = False  # the flight loop stopped on an error
+        self.failures = 0  # errors in the flight loop since the plugin was enabled
         self.next_slow = 0.0
         self.next_markers = 0.0
         self.next_clouds = 0.0
@@ -258,7 +267,7 @@ class PythonInterface:
 
         self.commands = (
             (xp.createCommand("xp_gliding/toggle", "xp-gliding: plugin effect on/off"),
-             self.on_toggle, "enabled", "Enabled"),
+             self.on_toggle, "enabled", ENABLED_LABEL),
             (xp.createCommand("xp_gliding/thermals/toggle", "xp-gliding: thermals on/off"),
              self.on_toggle, "thermals_enabled", "Thermals"),
             (xp.createCommand("xp_gliding/wind/toggle", "xp-gliding: thermals follow the wind on/off"),
@@ -323,6 +332,9 @@ class PythonInterface:
             xp.unregisterDataAccessor(ref)
 
     def XPluginEnable(self):
+        self.failed = False
+        self.failures = 0
+        xp.setMenuItemName(self.menu, 0, ENABLED_LABEL)
         self.load_aircraft()
         xp.scheduleFlightLoop(self.loop, -1, 1)
         self.hud.enable()
@@ -339,7 +351,12 @@ class PythonInterface:
 
     def XPluginReceiveMessage(self, inFromWho, inMessage, inParam):
         if inMessage == xp.MSG_PLANE_LOADED and inParam == 0:
-            self.load_aircraft()
+            if self.failed:
+                self.restart("a new aircraft")
+            else:
+                self.load_aircraft()
+        elif inMessage == xp.MSG_AIRPORT_LOADED and self.failed:
+            self.restart("a new flight")
         elif inMessage == xp.MSG_AIRPORT_LOADED:
             # A new flight with the same aircraft sends this and not MSG_PLANE_LOADED (seen in
             # X-Plane 12.4.3, 2026-11-09): its weather may be another day's.
@@ -373,6 +390,16 @@ class PythonInterface:
               f"{'eligible' if self.eligible else 'not a glider, inactive'}; "
               f"{self.injector.geometry}")
 
+    def restart(self, why):
+        """Start the flight loop again after an error, from a clean state, while restarts are left."""
+        if not self.failed or self.failures > MAX_RESTARTS:
+            return
+        self.failed = False
+        xp.setMenuItemName(self.menu, 0, ENABLED_LABEL)
+        self.load_aircraft()
+        xp.scheduleFlightLoop(self.loop, -1, 1)
+        print(f"{TAG} flight loop started again after an error ({why})")
+
     def update_eligibility(self):
         """A glider is an aircraft filed as one, one with no engines, or one the pilot treats as a
         glider from the menu: a motor glider, which its author files as something else, since
@@ -388,6 +415,8 @@ class PythonInterface:
     def on_toggle(self, commandRef, phase, attr):
         if phase == xp.CommandBegin:
             setattr(self.settings, attr, not getattr(self.settings, attr))
+            if attr == "enabled" and self.settings.enabled:
+                self.restart("Enabled ticked again")
             if attr == "weather_base_enabled":
                 self.injector.weather.reset(time.monotonic())
                 self.next_slow = 0.0
@@ -464,9 +493,13 @@ class PythonInterface:
             return self.step()
         except Exception:
             # Never leave a half-working force behind, and never log every frame.
-            print(f"{TAG} error in the flight loop; plugin effect stopped:\n"
-                  + traceback.format_exc())
             self.failed = True
+            self.failures += 1
+            again = ("it starts again with a new flight or aircraft, or by unticking and ticking Enabled"
+                     if self.failures <= MAX_RESTARTS else "it starts again only when the plugin is re-enabled")
+            print(f"{TAG} error in the flight loop; plugin effect stopped, {again}:\n"
+                  + traceback.format_exc())
+            xp.setMenuItemName(self.menu, 0, FAILED_LABEL)
             self.status.active = 0
             self.out.clear()
             self.guard.release()

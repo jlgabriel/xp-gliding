@@ -37,10 +37,14 @@ def cloud_base_above_ground_m(temperature_c, dew_point_c):
     return max(temperature_c - dew_point_c, 0.0) * M_PER_C_OF_SPREAD
 
 
-# A base from the weather is kept within these heights above the ground (Juan Luis, 2026-11-09).
-# First guesses: X-Plane's calm default, with nothing set, gives 2733 m (notes/phase5.md).
-BASE_MIN_M = 500.0
-BASE_MAX_M = 3500.0
+# A base from the weather is kept within these heights above the ground. First 500-3500 m (Juan
+# Luis, 2026-11-09; X-Plane's calm default, with nothing set, gives 2733 m, notes/phase5.md). Narrowed
+# for 0.3.1 to keep zi in the range the sky was tuned in: the thermals' density does not follow zi,
+# so under a 3500 m base the sink between thermals reached -1.5 m/s in the wide sky, and under a
+# 500 m one the thermals were too narrow to climb in (offline, notes/SPEC.md). With the wide sky's
+# base at 0.75 zi these give zi 1333-3000 m; the menu's goes 1000-3000 m.
+BASE_MIN_M = 1000.0
+BASE_MAX_M = 2250.0
 MIN_LAYERS = 2  # fewer layers with data than this: the weather has not arrived yet
 
 

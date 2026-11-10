@@ -74,6 +74,35 @@ def test_settings_coerce_types_and_ignore_unknown_keys():
     assert s.zi_m == config.DEFAULTS["zi_m"]
 
 
+def test_settings_leave_out_what_is_not_a_finite_value_of_their_kind():
+    s = config.Settings()
+    notes = s.update({"zi_m": math.nan, "wstar_ms": math.inf, "seed": math.inf, "range_m": "nan",
+                      "enabled": "false", "clouds_enabled": 2, "sky": "wide"})
+    assert s.as_dict() == config.DEFAULTS
+    assert len(notes) == 7 and all("left out" in note for note in notes)
+    assert s.update({"markers_enabled": 1, "hud_enabled": False}) == []
+    assert s.markers_enabled is True and s.hud_enabled is False
+
+
+def test_settings_take_numbers_out_of_range_to_the_nearest_end():
+    s = config.Settings()
+    notes = s.update({"wstar_ms": -3, "zi_m": 6000, "range_m": 1e9, "recentre_m": 10, "seed": 2**40})
+    assert (s.wstar_ms, s.zi_m, s.range_m, s.recentre_m, s.seed) == (0.0, 3000.0, 30000.0, 5000.0, 2**31 - 1)
+    assert len(notes) == 5 and all("taken to" in note for note in notes)
+    # What the menu offers is all within the limits.
+    for _, attr, options in config.MENU_CHOICES:
+        for _, value in options:
+            assert config.Settings().update({attr: value}) == []
+
+
+def test_a_hand_edited_settings_file_says_what_it_left_out(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text('{"wstar_ms": NaN, "zi_m": 9000, "sky": "default"}')
+    s, how = config.load_settings(str(path))
+    assert s.wstar_ms == config.DEFAULTS["wstar_ms"] and s.zi_m == 3000.0 and s.sky == "default"
+    assert "wstar_ms nan left out" in how and "zi_m 9000 taken to 3000.0" in how
+
+
 def test_aircraft_treated_as_gliders_are_kept_by_file_name_in_any_case():
     s = config.Settings({"also_gliders": "VSL SF-25C.acf"})  # not a list: ignored
     assert s.also_gliders == [] and config.DEFAULTS["also_gliders"] == []
@@ -192,6 +221,17 @@ def test_no_force_on_the_ground_or_with_thermals_off():
     assert out.force_n == 0.0 and out.roll_nm == 0.0
 
 
+def test_a_lift_that_is_not_a_number_or_far_too_strong_gives_no_force():
+    for w in (math.nan, math.inf, -math.inf, 60.0):
+        inj_ = injector()
+        inj_.uniform_ms = w
+        out = run(inj_, state())
+        assert out.force_n == 0.0 and out.faxil_n == 0.0 and out.roll_nm == 0.0
+    inj_ = injector()
+    inj_.uniform_ms = 30.0  # the strongest core offline: still applied
+    assert run(inj_, state()).force_n > 0.0
+
+
 def test_more_lift_under_the_right_wing_rolls_left():
     inj_ = injector()
     inj_.debug_dwdy = 0.02
@@ -239,14 +279,18 @@ def test_the_sky_comes_from_the_settings_by_name():
     assert wide.field.config.sky is sky_named("default")
     assert wide.sky_index == SKY_NAMES.index("default")
     assert injector(sky="medium_carriers").sky_index == SKY_NAMES.index("medium_carriers")
-    # A name it does not know is the default sky, not a failure.
+    # config.json cannot give a name it does not know; set any other way, it is the default sky,
+    # not a failure.
     other = injector(sky="nope")
+    assert other.settings.sky == "wide_carriers"
+    other.settings.sky = "nope"
     other.slow_update(state())
     assert other.field.config.sky is sky_named("default")
 
 
 def test_lift_does_not_change_when_the_origin_moves():
-    inj_ = injector(recentre_m=1000.0)
+    inj_ = injector()
+    inj_.settings.recentre_m = 1000.0  # below what config.json may give, as a tool's dataref can
     s0 = state()
     inj_.slow_update(s0)
     origin = (inj_.frame.lat0, inj_.frame.lon0)

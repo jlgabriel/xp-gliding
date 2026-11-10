@@ -60,5 +60,5 @@ def test_no_weather_base_before_real_weather_arrives():
 
 
 def test_layers_with_no_data_are_skipped_in_a_weather_base():
-    base = weather_base_m(500.0, [0.0, 1000.0, 2000.0, 3000.0], [15.0, 9.0, 3.0, -3.0], [8.0, -100.0, 2.0, -4.0])
-    assert base == pytest.approx((12.0 - 6.5) * 125.0)
+    base = weather_base_m(500.0, [0.0, 1000.0, 2000.0, 3000.0], [15.0, 9.0, 3.0, -3.0], [4.0, -100.0, 2.0, -4.0])
+    assert base == pytest.approx((12.0 - 3.5) * 125.0)
