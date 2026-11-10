@@ -383,7 +383,11 @@ def main(argv=None):
         print("The lean was on.")
     if len(log["xpg_wind_at_clouds"]) == n_rows and log["xpg_wind_at_clouds"].max() > 0.0:
         print("The sky moved with the wind at the clouds.")
-    climbs = [read_climb(log, sky_t, air[:, 0], air[:, 1], frame, keep[a], keep[b], seed, day, SKIES[sky_name], wstar, zi)
+    # Since logger 0.9.0 the log's w* is the one in use, which the daily cycle moves: each climb
+    # takes its own.
+    per_row = args.wstar is None and len(log["xpg_wstar_ms"]) == n_rows
+    climbs = [read_climb(log, sky_t, air[:, 0], air[:, 1], frame, keep[a], keep[b], seed, day, SKIES[sky_name],
+                         float(np.median(log["xpg_wstar_ms"][keep[a]:keep[b] + 1])) if per_row else wstar, zi)
               for a, b in circlings]
     print(f"{len(climbs)} circling(s) of at least one turn.")
     report_climbs(climbs)

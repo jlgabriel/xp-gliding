@@ -21,7 +21,8 @@ Pure Python: no `xp`.
 
 import math
 
-SUN_MIN_DEG = 5.0  # a thermal is born only with the sun this high or higher (first guess)
+SUN_MIN_DEG = 10.0  # a thermal is born only with the sun this high or higher, where the
+# surface heat flux turns positive (engine/daycycle.py; 5 in 0.2-0.4, a first guess)
 SHARE_STEP_S = 60.0  # step in birth time for the share of thermals alive
 
 
@@ -32,10 +33,8 @@ def sun_elevation_deg(lat, lon, day, utc_s):
     utc_s: seconds since 00:00 UTC of that day; it may run past a day or start below 0,
     as the field's t does (`field.sky_time`).
     """
-    days = day + utc_s / 86400.0
-    g = 2.0 * math.pi / 365.0 * (days - 0.5)  # NOAA's fractional year (radians)
-    eqtime_min = 229.18 * (0.000075 + 0.001868 * math.cos(g) - 0.032077 * math.sin(g)
-                           - 0.014615 * math.cos(2 * g) - 0.040849 * math.sin(2 * g))
+    g = _fractional_year(day, utc_s)
+    eqtime_min = _eqtime_min(g)
     decl = (0.006918 - 0.399912 * math.cos(g) + 0.070257 * math.sin(g)
             - 0.006758 * math.cos(2 * g) + 0.000907 * math.sin(2 * g)
             - 0.002697 * math.cos(3 * g) + 0.00148 * math.sin(3 * g))
@@ -45,6 +44,43 @@ def sun_elevation_deg(lat, lon, day, utc_s):
     cos_zenith = (math.sin(phi) * math.sin(decl)
                   + math.cos(phi) * math.cos(decl) * math.cos(hour_angle))
     return 90.0 - math.degrees(math.acos(min(max(cos_zenith, -1.0), 1.0)))
+
+
+def _fractional_year(day, utc_s):
+    """NOAA's fractional year (radians)."""
+    return 2.0 * math.pi / 365.0 * (day + utc_s / 86400.0 - 0.5)
+
+
+def _eqtime_min(g):
+    """NOAA's equation of time (minutes) at the fractional year g."""
+    return 229.18 * (0.000075 + 0.001868 * math.cos(g) - 0.032077 * math.sin(g)
+                     - 0.014615 * math.cos(2 * g) - 0.040849 * math.sin(2 * g))
+
+
+def solar_time_s(lon, day, utc_s):
+    """Local apparent solar time at longitude lon (seconds since solar midnight, in [0, 86400)).
+
+    12:00 is when the sun is highest. Same day and utc_s as `sun_elevation_deg`.
+    """
+    solar_min = (utc_s / 60.0 + _eqtime_min(_fractional_year(day, utc_s)) + 4.0 * lon) % 1440.0
+    return solar_min * 60.0
+
+
+def utc_for_solar(lon, day, solar_s):
+    """The utc_s (seconds since 00:00 UTC of `day`) at which the solar time at lon is solar_s.
+
+    The one nearest the middle of `day`, UTC. For tests and tools.
+    """
+    utc_s = solar_s - 240.0 * lon  # 4 minutes of time per degree, without the equation of time
+    for _ in range(3):
+        diff = solar_s - solar_time_s(lon, day, utc_s)
+        diff = (diff + 43200.0) % 86400.0 - 43200.0
+        utc_s += diff
+    if utc_s - 43200.0 > 43200.0:
+        utc_s -= 86400.0
+    elif utc_s - 43200.0 < -43200.0:
+        utc_s += 86400.0
+    return utc_s
 
 
 def sunlit(lat, lon, day, utc_s, min_deg=SUN_MIN_DEG):

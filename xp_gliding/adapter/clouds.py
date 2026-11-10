@@ -94,6 +94,9 @@ class CloudHeights:
         self.resets = 0  # how many skies, so that the clouds can tell a new one
         self.misses = 0  # ground readings that found no ground
         self.base_us = self.base_us_max = 0.0  # working out one cloud's height
+        # blue(thermal): born too early in the day for a cloud (daily cycle); None: never.
+        # Set with each sky by whoever starts it, as the level.
+        self.blue = None
         self._bases = {}
 
     def reset(self):
@@ -104,7 +107,7 @@ class CloudHeights:
 
     def base_m(self, thermal, t, drift):
         """Its cloud's base (m MSL), or the level for a thermal with no cloud."""
-        if not carries_cloud(thermal, self.params):
+        if not carries_cloud(thermal, self.params) or (self.blue is not None and self.blue(thermal)):
             return self.level_m
         key = (thermal.lat, thermal.lon, thermal.birth)
         base_m = self._bases.get(key)

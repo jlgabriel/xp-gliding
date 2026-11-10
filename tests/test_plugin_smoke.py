@@ -34,9 +34,10 @@ DATA = {
     "sim/flightmodel/position/true_airspeed": 28.0,
     "sim/flightmodel/weight/m_total": 541.0,
     "sim/weather/rho": 1.0,
-    # Early afternoon at Hobbs, with the sun up and thermals born (engine/sun.py).
-    "sim/time/zulu_time_sec": 72000.0,
-    "sim/time/local_time_sec": 46800.0,
+    # Early afternoon at Hobbs, with the sun up and thermals born (engine/sun.py), late enough
+    # for clouds in every sky: the daily cycle leaves the morning blue (engine/daycycle.py).
+    "sim/time/zulu_time_sec": 75600.0,
+    "sim/time/local_time_sec": 50400.0,
     "sim/time/local_date_days": 305,
     "sim/time/paused": 0,
     "sim/time/is_in_replay": 0,
@@ -464,7 +465,7 @@ def test_the_menu_says_why_there_are_no_thermals(plugin):
     pi.injector.nearest.alive = 0
     pi.injector.sun_elevation_deg = 2.0
     pi.update_status()
-    assert status_line(xp) == "No thermals: the sun is under 5 degrees"
+    assert status_line(xp) == "No thermals: the sun is under 10 degrees"
     pi.injector.sun_elevation_deg = 40.0
     pi.update_status()
     assert status_line(xp) == "No thermals within reach"
@@ -970,6 +971,8 @@ def distances(pi, data):
 def test_a_nearer_ring_is_always_drawn_over_a_farther_one(plugin):
     from xp_gliding.engine.cloud_order import FAR, RING_SIZES, ring_of
     pi, xp, data = plugin
+    # The hour these were written for: its sky has a cloud in every ring.
+    data["sim/time/zulu_time_sec"], data["sim/time/local_time_sec"] = 72000.0, 46800.0
     fill_sky(pi, data)
     clouds = pi.clouds
     assert len(clouds.instances) > 100
@@ -995,6 +998,8 @@ def test_a_nearer_ring_is_always_drawn_over_a_farther_one(plugin):
 def test_a_cloud_the_glider_moves_into_another_ring_is_handed_over(plugin):
     from xp_gliding.engine.cloud_order import ring_of
     pi, xp, data = plugin
+    # The hour these were written for: its sky has a cloud in every ring.
+    data["sim/time/zulu_time_sec"], data["sim/time/local_time_sec"] = 72000.0, 46800.0
     settled_sky(pi, data)
     clouds = pi.clouds
     old = {th: inst for th, (inst, _, _) in clouds.instances.items()}
@@ -1454,6 +1459,7 @@ def test_the_menu_shows_the_current_choices(plugin):
 MENU_SWITCHES = (
     ("Enabled", "xp_gliding/toggle", "enabled"),
     ("Thermals", "xp_gliding/thermals/toggle", "thermals_enabled"),
+    ("Daily cycle", "xp_gliding/day/cycle/toggle", "sun_enabled"),
     ("Thermals follow the wind", "xp_gliding/wind/toggle", "wind_enabled"),
     ("Thermals lean with the wind (experiment)", "xp_gliding/lean/toggle", "lean_enabled"),
     ("Sky moves with the wind at the clouds (experiment)", "xp_gliding/wind/clouds/toggle", "wind_at_clouds"),
@@ -1986,3 +1992,38 @@ def test_a_new_flight_with_the_same_aircraft_reads_the_weather_again(plugin):
     frame(pi, data)
     assert dataref(xp, "day/weather_reads") == 1
     assert dataref(xp, "day/weather_base_m") == pytest.approx(2000.0)
+
+
+def test_the_daily_cycle_sets_the_wstar_in_use(plugin):
+    # 14:00 local at Hobbs on 2 November is about 14:23 solar: near the day's peak.
+    pi, xp, data = plugin
+    pi.settings.wstar_ms = 3.0
+    fill_sky(pi, data)
+    assert dataref(xp, "day/strength_share") == pytest.approx(pi.injector.day_share)
+    assert 0.9 < pi.injector.day_share <= 1.0
+    assert dataref(xp, "day/wstar_ms") == pytest.approx(3.0 * pi.injector.day_share)
+    # 09:00 local, about 09:23 solar: a weaker morning.
+    data["sim/time/zulu_time_sec"], data["sim/time/local_time_sec"] = 57600.0, 32400.0
+    clouds_tick(pi, data)
+    assert 0.5 < pi.injector.day_share < 0.8
+    # Off: the menu's w* all day.
+    handler, refcon = xp.handlers["xp_gliding/day/cycle/toggle"]
+    handler("xp_gliding/day/cycle/toggle", xp.CommandBegin, refcon)
+    assert not pi.settings.sun_enabled
+    clouds_tick(pi, data)
+    assert pi.injector.day_share == 1.0
+    assert dataref(xp, "day/wstar_ms") == pytest.approx(3.0)
+
+
+def test_a_thermal_born_in_the_blue_morning_goes_by_the_level(plugin):
+    # 10:00 local at Hobbs: zi has not grown to the cloud base yet, so no thermal has a cloud.
+    pi, xp, data = plugin
+    data["sim/time/zulu_time_sec"], data["sim/time/local_time_sec"] = 61200.0, 36000.0
+    fill_sky(pi, data)
+    heights = pi.injector.heights
+    assert heights.blue is not None
+    born_early = [th for th in pi.injector.field.thermals() if heights.blue(th)]
+    assert born_early
+    assert not pi.clouds.instances
+    for th in born_early[:5]:
+        assert heights.base_m(th, pi.state.sky_t_s, pi.injector.drift) == heights.level_m

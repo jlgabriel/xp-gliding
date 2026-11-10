@@ -23,7 +23,7 @@ The plugin comes ready to fly: no file to edit, and nothing to set in X-Plane's 
 
 ## A first flight
 
-1. **Set the weather.** Fly by day: a thermal is born only while the sun is at least 5° above the horizon, so the sky empties over about half an hour around sunset and fills again after sunrise. Leave out X-Plane's own cumulus clouds: the plugin draws its own over its thermals, and X-Plane's clouds mark none of them, so flying towards one finds nothing. Wind is fine, steady or not.
+1. **Set the weather.** Fly by day, best from late morning to mid-afternoon: the thermals follow the day (see *Daily cycle* in [The menu](#the-menu)), weak in the morning, strongest around 1 pm solar time, gone soon after the sun drops under 10°. Leave out X-Plane's own cumulus clouds: the plugin draws its own over its thermals, and X-Plane's clouds mark none of them, so flying towards one finds nothing. Wind is fine, steady or not.
 2. **Choose the glider.** The Laminar ASK 21. The plugin acts only on gliders, and does nothing on the rest. A motor glider counts once you choose *Treat this aircraft as a glider* in the menu (see [The menu](#the-menu)).
 3. **Turn on the markers for the first climb.** *Plugins → xp-gliding → Training markers* puts a ring at your height over each nearby thermal, and a thin column up to its cloud. It helps while learning how a climb feels. Turn them off later and fly by the clouds.
 4. **Get airborne,** by tow, winch or an air start, and fly towards a cloud.
@@ -66,6 +66,7 @@ Everything is in *Plugins → xp-gliding*. What you choose is saved for the next
 | --- | --- | --- |
 | Enabled | The plugin's whole effect, the HUD included | `xp_gliding/toggle` |
 | Thermals | The lift, keeping the clouds and the rest | `xp_gliding/thermals/toggle` |
+| Daily cycle | The thermals follow the sun. None is born with the sun under 10°. They start weak a little after sunrise and grow stronger through the morning; the strength of the day below is reached around 1 pm solar time, and they weaken through the afternoon. The morning is blue: the first cumulus come around solar noon, when the thermals reach the cloud base. Off: the same strength all day and night, as in 0.1. On by default | `xp_gliding/day/cycle/toggle` |
 | Thermals follow the wind | The wind carries thermals, clouds and markers. On by default | `xp_gliding/wind/toggle` |
 | Thermals lean with the wind (experiment) | Lift upwind of the cloud when low. Off by default, best left off | `xp_gliding/lean/toggle` |
 | Sky moves with the wind at the clouds (experiment) | Makes a climb much harder in changing wind. Off by default, best left off | `xp_gliding/wind/clouds/toggle` |
@@ -75,7 +76,7 @@ Everything is in *Plugins → xp-gliding*. What you choose is saved for the next
 | Cloud base from X-Plane's weather (experiment) | The clouds' height from the temperature and dew point of the weather you fly, kept between 1000 m and 3500 m above the ground, in place of the depth below, which is greyed out. A cumulus layer set in X-Plane's weather moves it too, though our clouds can sit a few hundred metres off that layer. Off by default | `xp_gliding/day/weather/toggle` |
 | Treat this aircraft as a glider | For a motor glider: the plugin acts on the aircraft loaded, with its engine running or not, and remembers it by its file. Ticked and greyed out for a glider | `xp_gliding/aircraft/glider/toggle` |
 | Sky | How wide the thermals are: wide (the default and easiest), medium, or narrow (hardest) | |
-| Strength of the day (w\*) | How strong the thermals are. 3 m/s by default | |
+| Strength of the day (w\*) | How strong the thermals are at the best time of the day, with *Daily cycle* on, or all day with it off. 3 m/s by default | |
 | Depth of the thermal layer (zi) | How high they go, and so the height of the clouds. 2000 m by default | |
 | Seed of the sky | Another arrangement of thermals | |
 
@@ -95,7 +96,7 @@ First look at the last line of *Plugins → xp-gliding*.
 | *Waiting for an aircraft* | Load an aircraft and start a flight |
 | *Inactive: this aircraft has engines and is not treated as a glider* | Choose a glider, or, for a motor glider, *Treat this aircraft as a glider* |
 | *No thermals: Thermals is unticked* | Tick *Thermals* |
-| *No thermals: the sun is under 5 degrees* | Fly by day, or move X-Plane's clock. The sky fills in about half an hour after sunrise |
+| *No thermals: the sun is under 10 degrees* | Fly by day, or move X-Plane's clock. The first thermals come about an hour after sunrise, and the first clouds around solar noon |
 | *No thermals within reach* | Over a wide stretch of water, or far out at sea, there are none. Fly towards land |
 | *Stopped by an error, see XPPython3Log.txt* | Start a new flight, or untick and tick *Enabled*, and [report it](#reporting-a-problem) |
 | *Active: … thermals within reach* | The plugin is working. If no clouds show, tick *Cumulus clouds*; if the climb feels weak, check that the airbrakes are closed |
@@ -105,7 +106,7 @@ If *Plugins → xp-gliding* is not in the menu at all, XPPython3 did not load th
 ## Known limits
 
 - **The day is chosen in the menu.** The strength does not follow X-Plane's weather, so the thermals are as strong on a dry day as on a humid one. The cloud base can follow it, with *Cloud base from X-Plane's weather (experiment)*, off by default.
-- **The sun only switches the thermals on and off.** From sunrise to sunset they are as strong as the day chosen in the menu, at 9 in the morning as at 3 in the afternoon.
+- **The day changes the thermals' strength, not their height.** A morning thermal is weaker but reaches as high as an afternoon one, and the cloud base stays at one height all day. Real morning thermals are lower and narrower.
 - **A far cloud can appear in front of a near one at times,** mostly between clouds far away. A cloud you have just come near can look denser for a few minutes.
 - **X-Plane's own cumulus mark none of these thermals.** The two can share a sky, but to read it, leave X-Plane's off.
 - **The Laminar ASK 21 is the reference.** Other gliders get the lift, and no netto on the HUD. A glider whose wings are not in the usual parts of its file is treated as an ASK 21 for the roll. An aircraft with engines gets nothing unless you treat it as a glider from the menu, which is how a motor glider gets the lift, with its engine running or not, since the air rises for it either way.

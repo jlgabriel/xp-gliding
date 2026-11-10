@@ -79,6 +79,8 @@ DATAREFS = (
     ("sun_enabled", "settings", "sun_enabled", "i", 1),
     ("sun/elevation_deg", "injector", "sun_elevation_deg", "f", 0),  # ours, against sun_pitch_degrees
     ("sun/share", "injector", "sun_share", "f", 0),  # of a full day's thermals, alive now
+    ("day/wstar_ms", "injector", "wstar_ms", "f", 0),  # in use: the menu's times the daily cycle
+    ("day/strength_share", "injector", "day_share", "f", 0),  # the daily cycle's share of the peak
     ("wind/e_ms", "injector", "drift.wind_e_ms", "f", 0),  # the wind that carries the sky
     ("wind/n_ms", "injector", "drift.wind_n_ms", "f", 0),
     ("wind/dlat_deg", "injector", "drift.dlat_deg", "f", 0),  # the sky's offset from the ground
@@ -275,6 +277,9 @@ class PythonInterface:
              self.on_toggle, "enabled", ENABLED_LABEL),
             (xp.createCommand("xp_gliding/thermals/toggle", "xp-gliding: thermals on/off"),
              self.on_toggle, "thermals_enabled", "Thermals"),
+            (xp.createCommand("xp_gliding/day/cycle/toggle",
+                              "xp-gliding: daily cycle on/off (off: the same strength all day, sun or not)"),
+             self.on_toggle, "sun_enabled", "Daily cycle"),
             (xp.createCommand("xp_gliding/wind/toggle", "xp-gliding: thermals follow the wind on/off"),
              self.on_toggle, "wind_enabled", "Thermals follow the wind"),
             (xp.createCommand("xp_gliding/lean/toggle", "xp-gliding: thermals lean with the wind on/off"),
@@ -612,7 +617,7 @@ class PythonInterface:
         elif markers and now >= self.next_markers and self.injector.field is not None:
             self.next_markers = now + SLOW_PERIOD_S
             self.markers.update(self.injector.field, self.injector.frame, s, s.msl_m,
-                                self.io.local_position(), st.wstar_ms, self.sky_zi_m, now,
+                                self.io.local_position(), self.injector.wstar_ms, self.sky_zi_m, now,
                                 self.injector.drift, self.injector.lean_e_m, self.injector.lean_n_m)
         self.injector.step(s, self.out)
         self.io.apply(self.out)

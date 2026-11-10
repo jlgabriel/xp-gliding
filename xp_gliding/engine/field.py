@@ -60,6 +60,7 @@ predicate, which never shifts the random stream; nor does the sun.
 import math
 
 from . import sun, updraft
+from .daycycle import DayCycle
 from .geo import radii_of_curvature
 from .rng import SplitMix64, hash_key
 
@@ -389,6 +390,8 @@ class ThermalField:
         if config.sun_min_deg is not None:
             self._share = sun.ThermalShare(config.lifetime_min_s, config.lifetime_max_s, envelope_flux,
                                            min_deg=config.sun_min_deg)
+        # The daily cycle: the strength of the moment as a share of the day's peak (daycycle.py).
+        self.cycle = None if config.sun_min_deg is None else DayCycle(config.day, onset_deg=config.sun_min_deg)
 
     # --- loading -----------------------------------------------------------
 

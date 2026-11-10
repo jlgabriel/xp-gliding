@@ -35,6 +35,7 @@ Pure Python: no `xp`. `CloudPlanner.step` returns what to do, the adapter does i
 
 import math
 
+from .daycycle import DayCycle
 from .field import CARRIER_MIN_FLUX, CARRIER_MIN_LIFE_S, FieldConfig, generate_tile
 from .geo import radii_of_curvature
 
@@ -161,6 +162,10 @@ class CloudCatalog:
                                   sky=config.sky, sun_min_deg=config.sun_min_deg)
         self.frame = frame
         self.accept = accept
+        # With the sun on, a thermal born before zi has grown to the cloud base has no cloud:
+        # the morning is blue (daycycle.py). Its lift is the field's, unchanged.
+        self.cycle = (None if self.config.sun_min_deg is None
+                      else DayCycle(self.config.day, onset_deg=self.config.sun_min_deg))
         self._tiles = {}  # (i, j, slot) -> list of Thermal with a cloud
         self._where = None  # the (i, j, slot) the missing tiles were worked out for
         self._missing = []  # keys to load, the farthest first
@@ -205,11 +210,16 @@ class CloudCatalog:
         for _ in range(min(self.params.tiles_per_update, len(self._missing))):
             key = self._missing.pop()
             kept = [th for th in generate_tile(self.config, *key, accept=self.accept)
-                    if carries_cloud(th, self.params)]
+                    if carries_cloud(th, self.params) and not self._blue(th)]
             for th in kept:
                 th.e, th.n = self.frame.to_enu(th.lat, th.lon)
             self._tiles[key] = kept
         return bool(self._missing)
+
+    def _blue(self, thermal):
+        """Born too early in the day for a cloud?"""
+        return self.cycle is not None and self.cycle.blue(thermal.lat, thermal.lon, thermal.birth,
+                                                          self.config.sky.cloud_base_zzi)
 
     def loaded_within_m(self, lat, lon):
         """How far from (lat, lon) every tile has loaded (m): no new thermal can turn up nearer."""

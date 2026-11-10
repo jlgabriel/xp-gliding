@@ -43,7 +43,9 @@ are where the weather would put them (`Injector.zi_m`). The field is made for th
 many thermals it holds (`engine.field.thermal_density_per_km2`), and made again when it changes. The weather is read when a sky begins and
 once more about 90 s later, for real weather that arrives late, then kept (`WeatherBase`).
 
-No thermal is born with the sun low (`engine/sun.py`, unless `sun_enabled` is off), and none over
+The daily cycle (`engine/daycycle.py`, unless `sun_enabled` is off): no thermal is born with the sun
+low, and the w* in use is the menu's times the share of the day's peak at this hour (`Injector.wstar_ms`)
+for the lift, the markers and the lean. None is born over
 water (`Injector.accept_thermal`). A thermal keeps its place in the air,
 so what counts is the ground under it at its birth, worked out in the present wind: the field and
 the clouds load the same thermal at different times, and in a steady wind must agree about it.
@@ -265,6 +267,7 @@ class Injector:
         self.water_checked = self.water_rejected = 0  # thermals asked about, and left out
         self.sun_elevation_deg = 0.0  # the engine's sun at the aircraft, to compare with X-Plane's
         self.sun_share = 1.0  # the share of a full day's thermals alive (`ThermalField.sink_share`)
+        self.day_share = 1.0  # w* of the moment over the menu's, the day's peak (daily cycle)
         self.weather = WeatherBase()
         self.jumped = False  # the last slow update found a jump: a new flight, the map, the clock
         # The tail's sample feeds only a dataref the flight logger reads (pitch is not modelled),
@@ -293,6 +296,11 @@ class Injector:
         if st.weather_base_enabled and self.weather.base_m is not None:
             return self.weather.base_m / sky_named(st.sky).cloud_base_zzi
         return st.zi_m
+
+    @property
+    def wstar_ms(self):
+        """The w* of the moment: the menu's, the day's peak, times the daily cycle's share."""
+        return self.settings.wstar_ms * self.day_share
 
     def reset_field(self):
         """Forget the loaded thermals (they are regenerated identically on demand)."""
@@ -342,7 +350,7 @@ class Injector:
         heights, east, north = wind_layers(altitudes_msl_m, speeds_kt, from_deg, msl_m - s.agl_m)
         if heights:
             self.lean.set_wind(heights, east, north, sky_named(st.sky).cloud_base_zzi * self.zi_m,
-                               st.wstar_ms, s.sky_t_s)
+                               self.wstar_ms, s.sky_t_s)
 
     def sky_position(self, s):
         """Where the aircraft is in the field's sky (m in the local frame), whatever it feels."""
@@ -385,6 +393,8 @@ class Injector:
         changed = self.field.update(s.sky_t_s, lat, lon)
         self.sun_elevation_deg = sun_elevation_deg(s.lat, s.lon, s.day, s.sky_t_s)
         self.sun_share = self.field.sink_share
+        cycle = self.field.cycle
+        self.day_share = 1.0 if cycle is None else cycle.strength_share(lat, lon, s.sky_t_s)
         if self.heights is not None:
             self._set_floors(s, new_sky, changed)
 
@@ -397,7 +407,7 @@ class Injector:
             near.distance_m = r
             near.bearing_deg = math.degrees(math.atan2(th.e - e, th.n - n)) % 360.0
             near.core_ms = self.field.lift_at(th.e, th.n, s.agl_m, s.sky_t_s,
-                                              st.wstar_ms, self.zi_m, self._ground(s))
+                                              self.wstar_ms, self.zi_m, self._ground(s))
             near.floor_m = -1.0 if th.floor_m is None else th.floor_m
         near.alive = len(self.field.alive(s.sky_t_s))
         near.loaded = self.field.loaded_count()
@@ -412,6 +422,9 @@ class Injector:
         if new_sky:
             heights.reset()
             heights.level_m = s.msl_m - s.agl_m + base_zzi * zi
+            cycle = self.field.cycle
+            heights.blue = (None if cycle is None
+                            else lambda th: cycle.blue(th.lat, th.lon, th.birth, base_zzi))
         if new_sky or changed:
             t0 = time.perf_counter()
             for th in self.field.thermals():
@@ -434,7 +447,7 @@ class Injector:
         elif st.thermals_enabled:
             e, n = self.sky_position(s)
             g.update(e, n, s.agl_m, s.psi_deg, s.phi_deg)
-            f, t, wstar, zi = self.field, s.sky_t_s, st.wstar_ms, self.zi_m
+            f, t, wstar, zi = self.field, s.sky_t_s, self.wstar_ms, self.zi_m
             ground = self._ground(s)
             wc = f.lift_at(g.ce, g.cn, g.cz, t, wstar, zi, ground)
             wl = f.lift_at(g.le, g.ln, g.lz, t, wstar, zi, ground)

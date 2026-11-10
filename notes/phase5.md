@@ -92,3 +92,87 @@ Left: a hand flight under a low base and a high one (question 6).
 ## Moved to stage 2
 
 2026-11-07, later the same day. With the project's [stages](SPEC.md#stages), the day comes after the first release, which ships with the day chosen in the menu and a simple cutoff when there is no sun. The six questions above wait until then.
+
+## The daily cycle
+
+2026-11-10, designed while Juan Luis rests, after his 0.4 flights. Offline only: nothing here is built or wired yet. It takes the place of stage 1's sun cutoff ([SPEC](SPEC.md), *Daily cycle*: thermals start mid-morning, peak mid-afternoon and fade at sunset; the cloud base rises during the day; tied to radiation and season).
+
+### What the physics says
+
+w* = (g / θ · H · zi)^(1/3): the convective velocity scale goes with the cube root of the surface heat flux H times the depth of the mixed layer zi. Through a day:
+
+- **H follows the sun.** It turns positive a while after sunrise and negative a while before sunset, when the sun is roughly 10° up, and is near its peak around solar noon. Taken here as H ∝ sin(elevation) − sin(10°), at least 0.
+- **zi grows through the morning.** The night's stable layer is eaten from below; with a uniform stability above, zi² grows with the heat put in since H turned positive (encroachment). Taken here as zi(t) / zi_peak = √(heat since onset / heat by 15:00 solar), at most 1, so zi stops growing in mid-afternoon, as soundings usually show.
+- **So w* peaks after noon.** H is highest at noon and zi later, and their product peaks around 13:00 solar time.
+
+No dataref gives H (phase 5, *No strength here*), so the sun stands in for it, worked out in the engine as stage 1 does (`engine/sun.py`): the sky stays the same for the same seed, date, place and time.
+
+### The numbers
+
+`w*(t) / w*_peak` = (H/H_peak · zi/zi_peak)^(1/3), divided by its own maximum that day, offline (prototype in the session's scratchpad, the sun from `engine/sun.py`). Solar time; X-Plane's clock is about 1.4 h ahead of it at Santiago in November (UTC-3) and about 0.4 h behind it at Hobbs (MST).
+
+| Solar time | Hobbs, 2 Nov (noon sun 43°) | Santiago, 9 Nov (73°) | Hobbs, 22 Jun (81°) | zi / zi_peak, Hobbs Nov |
+| --- | --- | --- | --- | --- |
+| 07:00 | 0 | 0.34 | 0.39 | 0 |
+| 08:00 | 0.29 | 0.54 | 0.57 | 0.10 |
+| 09:00 | 0.57 | 0.70 | 0.72 | 0.28 |
+| 10:00 | 0.76 | 0.82 | 0.83 | 0.45 |
+| 11:00 | 0.89 | 0.91 | 0.92 | 0.60 |
+| 12:00 | 0.97 | 0.97 | 0.97 | 0.73 |
+| 13:00 | 1.00 | 1.00 | 1.00 | 0.85 |
+| 14:00 | 0.97 | 0.99 | 0.99 | 0.94 |
+| 15:00 | 0.87 | 0.95 | 0.95 | 1.00 |
+| 16:00 | 0.63 | 0.84 | 0.86 | 1.00 |
+| 17:00 | 0 | 0.67 | 0.71 | 1.00 |
+| 18:00 | 0 | 0 | 0.40 | 1.00 |
+
+The cube root makes a broad plateau: from 10:00 to 15:00 solar, w* stays within a quarter of its peak. The thermals' morning difficulty in real life comes less from w* than from zi: they are low and narrow.
+
+zi reaches 0.75 of its peak, where the wide sky puts the cloud base, at about 12:00 solar in all three cases.
+
+### Proposal, in two steps
+
+**Step A: strength and the first cumulus.** The sky keeps today's geometry, made for the afternoon's zi (the menu's or the weather's).
+
+1. The w* of the moment is the menu's w* times the factor above, worked out at the glider once a second. The menu's w* becomes *the day's peak*. Lift, the sink between thermals (Allen's sink goes with w*), the markers and the lean all take the w* of the moment: today they all read `Settings.wstar_ms`, so one property of the injector feeds them.
+2. Thermals are born from the sun at 10° (where H turns positive) instead of 5°, and `ThermalShare` keeps fading the sink with them, as now.
+3. A thermal whose birth comes before zi has grown to the cloud base (zi(t) < `cloud_base_zzi` · zi_peak) is blue: no cloud. The morning is blue and the first cumulus appear around solar noon, as on a real day. This touches only the cloud catalog's choice (`clouds.carries_cloud`), which is deterministic from the birth time: the thermal keeps its strength and shape in the field, and only its cloud is left out.
+
+**Step B, later: the depth of the moment.** Morning thermals low and narrow, and the cloud base rising through the day. `lift_at` already takes the zi of the moment, but the field's density, the clouds' level and each thermal's floor are made for one zi per sky, and a new zi starts the clouds over. Rising bases need each cloud to keep the level of its birth. Larger work, and better judged after flying step A.
+
+**Built offline, not wired** (2026-11-10, the same evening): `engine/daycycle.py`, `DayCycle(day)` with `strength_share`, `depth_share` and `blue`, and `sun.solar_time_s` / `sun.utc_for_solar` (the sun's elevation is unchanged, bit for bit). A solar day is worked out once per place, rounded to 0.1°, on a table every 5 minutes: 0.4 ms to build, 1 µs a call after. `tests/test_daycycle.py` pins the table above at Hobbs within 0.03, the peak between 12:30 and 14:00 solar in three cases, the night at 0, the morning blue until zi reaches 0.75, no thermals where the sun stays under 10°, and the same answer for the same inputs. 438 tests pass. Nothing in the plugin calls it until the questions below are answered.
+
+### Questions for Juan Luis
+
+1. **What the menu's w* means.** Proposed: the peak of the day flown, so the season changes only the length of the day. The other choice is the peak of a midsummer day, so that a winter day is also weaker (Hobbs in November would peak at about 0.87 of June's, since sin 43° against sin 81° gives 0.65 of the flux, and w* goes with its cube root).
+2. **The morning blue until about noon** (step A.3). Proposed: yes.
+3. **Thermals from the sun at 10° instead of 5°.** Proposed: yes; at Hobbs in November the last births come about half an hour earlier than with 0.4.
+4. **Step B after flying step A.** Proposed: yes.
+5. **The switch.** Proposed: the menu's sun item becomes *Daily cycle*: on, the cycle; off, w* the same all day and no sun at all, as 0.1.
+
+**Answered by Juan Luis (2026-11-10, the same night):** "Sí, las cinco". The menu's w* is the peak of the day flown; the morning is blue; thermals from the sun at 10°; step B after flying step A; a switch called *Daily cycle*. There was no menu item for the sun before (only `config.json` and a dataref), so the switch is a new item, second after *Thermals*, bound to the same setting `sun_enabled`.
+
+### Wired
+
+2026-11-10, the same night. On by default, as the sun cutoff it takes the place of.
+
+- `sun.SUN_MIN_DEG` is 10 (was 5): births and `ThermalShare` follow it, and `daycycle.ONSET_DEG` is the same number.
+- `ThermalField.cycle`: a `DayCycle` when the sun is on. `Injector.wstar_ms` is the menu's w* times `cycle.strength_share` at the glider, worked out once a second; the lift, the nearest thermal's core, the markers and the lean take it.
+- `CloudCatalog` leaves out the cloud of a thermal born while `depth_share` < the sky's `cloud_base_zzi`, and `CloudHeights.blue` gives such a thermal the level, as any thermal with no cloud, for its floor.
+- Menu *Daily cycle*, command `xp_gliding/day/cycle/toggle`. Datarefs `xp_gliding/day/wstar_ms` (in use) and `day/strength_share`.
+- Flight logger 0.9.0: `xpg_wstar_ms` is the w* in use, and `xpg_wstar_setting_ms` the menu's. `read_flight.py` takes each climb's own w* from it.
+- The smoke tests' clock moved from 13:00 to 14:00 local at Hobbs, since the narrow sky's base (zi / 1.1) is reached only near 13:45 solar; two cloud-ring tests keep 13:00, the sky they were written for. 442 tests pass.
+- Pilot guide, release README, README and CHANGELOG (*Unreleased*) say what it does.
+
+### Checked in X-Plane
+
+2026-11-10, X-Plane 12.4.3, by the test pilot: air starts of the ASK 21 at Hobbs, 2 November, calm and clear, the weather's base on (zi 3645 m), w* 3, read 40 s after each. Local time is about 0.4 h behind solar time there.
+
+| Local time | Sun (ours / X-Plane) | Share | w* in use | Our clouds | Frame |
+| --- | --- | --- | --- | --- | --- |
+| 09:00 | 29.9° / 29.9° | 0.65 | 1.96 m/s | 0 | 146 µs |
+| 11:00 | 42.0° / 42.0° | 0.93 | 2.79 m/s | 0 (blue) | 134 µs |
+| 14:00 | 31.5° / 31.4° | 0.94 | 2.82 m/s | 13, filling | 153 µs |
+| 16:30 | 5.4° / 5.2° | 0 | 0 | 0 | 94 µs |
+
+As offline. No traceback in the log. Left: Juan Luis's hand flights, one in the morning and one in the afternoon.

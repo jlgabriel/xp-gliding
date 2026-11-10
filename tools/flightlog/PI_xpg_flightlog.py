@@ -46,7 +46,7 @@ import time
 
 import xp
 
-LOGGER_VERSION = "0.8.0"
+LOGGER_VERSION = "0.9.0"
 FLUSH_EVERY_ROWS = 300
 
 # (column, dataref, type) read after the flight model
@@ -145,7 +145,8 @@ XPG_DATAREFS = (
     ("xpg_dlon_deg", "xp_gliding/wind/dlon_deg", "f"),
     ("xpg_lean_e_m", "xp_gliding/lean/e_m", "f"),
     ("xpg_lean_n_m", "xp_gliding/lean/n_m", "f"),
-    ("xpg_wstar_ms", "xp_gliding/wstar_ms", "f"),
+    ("xpg_wstar_ms", "xp_gliding/day/wstar_ms", "f"),  # in use: the daily cycle's, since 0.9.0
+    ("xpg_wstar_setting_ms", "xp_gliding/wstar_ms", "f"),  # the menu's, the day's peak
     ("xpg_zi_m", "xp_gliding/day/zi_m", "f"),  # in use: the weather's, if on
     ("xpg_wind_at_clouds", "xp_gliding/wind_at_clouds", "i"),
     # The clouds, which rebuilding the sky cannot give: their height reads the ground
