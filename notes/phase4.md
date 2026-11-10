@@ -216,6 +216,8 @@ Size against climb: still only this one climb.
 
 **XP12's cumulus.** `--native-cover 0.5`, a layer with its base 318 m above ours, since the mission placed it at zi / 1.1 then (it now goes at our base). Both drew together, ours in front, with no fault of order seen. XP12's look flat and blurred far off, with some horizontal streaks, which Juan Luis puts down to XP12 and not to the plugin. Side by side the two styles are easy to tell apart. Juan Luis: it does not look bad. Not tried: flying in or close to an XP12 cloud, or XP12's layer at the height of ours.
 
+**Where they meet** (2026-11-10, Juan Luis by hand at Hobbs on 0.4, X-Plane 12.4.3, XP12's cumulus layer at 3500-4500 m MSL, ours based at 3116 m). In a few places, where our clouds rise into XP12's or stand right against them, some of our puffs switch on and off or jump in front of and behind XP12's cloud as the view moves. His screenshots show our puffs half inside XP12's soft mass. A likely cause, not shown: XP12 draws its volumetric clouds and particles in separate passes, and where the two share space the choice of which is in front is not stable. He also sees, with XP12's clouds alone and no plugin, thin lines or streaks near the horizon that flicker, as on 2026-11-07, and puts both down to XP12. Nothing changed; to look at again on 12.4.4, and with the cloud looks.
+
 **Reading the sky with both.** The drawing is not the problem. An XP12 cloud marks none of our thermals, so a pilot reading the sky can go to one and find nothing. A first install should say so: they can share a sky, and to read it, leave XP12's cumulus off. Whether to do more is for later.
 
 **Dusk.** Air start at local 17:00 and 18:00, with the sun read at the end of each flight.
