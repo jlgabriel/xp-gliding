@@ -4,6 +4,9 @@
 # The library versions are the ones the tests run with locally (CLAUDE.local.md's .venv);
 # Pillow is pinned because tests compare the generated cloud and marker images with the
 # committed ones.
+# pytest's temporary folders stand in for X-Plane's folder, and the plugin loads its assets by
+# a path relative to it, which Windows cannot give across drives: the runner checks out on D:
+# and keeps its temporary folder on C:, so they go under the runner's own temp, on D:.
 name: tests
 
 on:
@@ -14,9 +17,9 @@ jobs:
   pytest:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: python -m pip install numpy==2.5.4 pillow==13.0.0 pytest==9.2.0
-      - run: python -m pytest -q
+      - run: python -m pytest -q --basetemp="${{ runner.temp }}\pytest"
