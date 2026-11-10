@@ -176,3 +176,23 @@ zi reaches 0.75 of its peak, where the wide sky puts the cloud base, at about 12
 | 16:30 | 5.4° / 5.2° | 0 | 0 | 0 | 94 µs |
 
 As offline. No traceback in the log. Left: Juan Luis's hand flights, one in the morning and one in the afternoon.
+
+### By hand, morning and afternoon
+
+2026-11-10 evening, Juan Luis, Hobbs, 2 November, calm and clear, the weather's base on (zi 3645 m, our clouds at 3845 m MSL), the wide sky, w* 3 in the menu, markers on (off later in the second flight). Air starts of the ASK 21, paused until he took over.
+
+| | Morning | Afternoon |
+| --- | --- | --- |
+| Local time (solar about 0.4 h later) | 09:30 | 14:00 |
+| Share of the day's peak, w* in use | 0.74, 2.2 m/s | 0.94, 2.8 m/s |
+| Our clouds | none (170 in the pool, none shown) | filling, then many, of all sizes |
+| Start | 2300 m MSL | 3100 m MSL, 745 m under the base |
+| Log | `flightlog_20261110_194856.csv` | `flightlog_20261110_195719.csv` |
+| Climb | 150 s, +266 m at +1.77 (TE +1.54) | 63 s, +43 m at +0.68 (TE +0.71) |
+| Circles from the centre | 146 m, core offered 2.99 | 118 m, core offered 2.14 |
+| Left at | 2408 m, still +1.62 | 2960 m, still +0.65 |
+
+- **The morning.** Blue, as designed: no cloud of ours in the whole flight. His word: it felt weaker. One climb at +1.77 against +1.88 with w* 3 under the high base the day before.
+- **The afternoon.** A 15:00 start was tried first and dropped: the share is 0.79 there, about the morning's, and he saw it look much the same. At 14:00 he found few thermals at first ("no hay muchas térmicas"): with zi at 3645 m the density that follows zi spreads them out, and step A leaves their number alone. He searched for about three and a half minutes, then took a yellow-ring thermal, a mature one with a weaker core than the morning's, and climbed little. So the afternoon's climb says more about which thermal he took than about the hour: one climb each, no number about the cycle can be drawn from them.
+- **Then a good one.** He flew on (same log, t_run 609-709): 100 s under a larger cloud (size 1.40), +231 m at +2.31 (TE +2.27), 92 m from the centre of a core offered at 3.66 m/s, left at 3134 m, 711 m under the base, still at +2.30; that thermal could have held him to 3954 m. "Ahí alcancé una bien buena". The afternoon has strong thermals; they are fewer and have to be found.
+- **His word:** he likes that it costs: "me gusta que cueste". A day that changes with the hour, the place and the weather, more clouds or fewer, different strength, is "más interesante", and a day like this one is a harder flight, "como niveles de dificultad". Step A reads right to him.
