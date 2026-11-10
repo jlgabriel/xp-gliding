@@ -209,7 +209,7 @@ def read_climb(log, sky_t, e, n, frame, a, b, seed, day, sky, wstar, zi):
 
     lat, lon = frame.to_latlon(e[rows].mean(), n[rows].mean())
     mid = 0.5 * (sky_t[a] + sky_t[b])
-    field = ThermalField(FieldConfig(seed=seed, day=day, range_m=SEARCH_M + 2000.0, sky=sky), frame)
+    field = ThermalField(FieldConfig(seed=seed, day=day, range_m=SEARCH_M + 2000.0, zi_m=zi, sky=sky), frame)
     field.update(mid, lat, lon)
     floors = log.get("xpg_nearest_floor_m")
     has_floors = floors is not None and len(floors) == len(t)

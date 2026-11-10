@@ -146,7 +146,7 @@ XPG_DATAREFS = (
     ("xpg_lean_e_m", "xp_gliding/lean/e_m", "f"),
     ("xpg_lean_n_m", "xp_gliding/lean/n_m", "f"),
     ("xpg_wstar_ms", "xp_gliding/wstar_ms", "f"),
-    ("xpg_zi_m", "xp_gliding/zi_m", "f"),
+    ("xpg_zi_m", "xp_gliding/day/zi_m", "f"),  # in use: the weather's, if on
     ("xpg_wind_at_clouds", "xp_gliding/wind_at_clouds", "i"),
     # The clouds, which rebuilding the sky cannot give: their height reads the ground
     # (tools/flightlog/read_flight.py). Updated every few seconds, not per frame.

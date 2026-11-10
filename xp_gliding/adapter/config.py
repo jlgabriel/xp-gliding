@@ -49,12 +49,11 @@ DEFAULTS = {
 }
 
 # The lowest and highest value config.json may give a number. w*: the menu goes to 5 m/s, and at 8
-# the strongest core of the narrow sky reached 30 m/s offline. zi: the menu's range, which the sky
-# was tuned in; the thermals' density does not follow zi, so out of it the sink between them grows
-# fast with a deep layer, and a shallow one leaves thermals too narrow to climb in (notes/SPEC.md).
+# the strongest core of the narrow sky reached 30 m/s offline. zi: below 1000 m the thermals are too
+# narrow to climb in and too many to load; the top reaches past the weather's deepest (4667 m).
 LIMITS = {
     "wstar_ms": (0.0, 6.0),
-    "zi_m": (1000.0, 3000.0),
+    "zi_m": (1000.0, 5000.0),
     "range_m": (2000.0, 30000.0),
     "recentre_m": (5000.0, 50000.0),
     "seed": (-2**31, 2**31 - 1),  # an int dataref

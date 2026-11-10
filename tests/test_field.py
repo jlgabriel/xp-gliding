@@ -63,7 +63,29 @@ def test_alive_density_matches_config():
 
 def test_default_density_is_allen_at_zi_ref():
     cfg = f.FieldConfig()
+    assert cfg.zi_m == f.ZI_TUNED_M == 2000.0
     assert cfg.density_per_km2 == pytest.approx(4.5, abs=0.1)
+
+
+def test_density_follows_zi_as_allens_does_through_the_tuned_sky():
+    tuned = f.FieldConfig().density_per_km2
+    for zi in (1000.0, 1333.0, 3000.0, 4667.0):
+        density = f.FieldConfig(zi_m=zi).density_per_km2
+        assert density == pytest.approx(tuned * (2000.0 / zi) ** 2)
+        allen = updraft.allen_density_per_m2(zi) / updraft.allen_density_per_m2(2000.0)
+        assert density / tuned == pytest.approx(allen)
+    assert f.FieldConfig(zi_m=3000.0, density_per_km2=1.0).density_per_km2 == 1.0
+
+
+@pytest.mark.parametrize("sky", sorted(f.SKIES))
+def test_the_sink_between_thermals_does_not_change_with_zi(sky):
+    def sink(zi):
+        field = f.ThermalField(f.FieldConfig(seed=1, zi_m=zi, sky=f.SKIES[sky]), LocalFrame(LAT, LON))
+        return [field.environment_sink(k * zi, 3.0, zi) for k in (0.2, 0.4, 0.6)]
+    tuned = sink(2000.0)
+    assert all(-0.5 < w < 0.0 for w in tuned)
+    for zi in (1000.0, 1333.0, 3000.0, 4667.0, 8000.0):
+        assert sink(zi) == pytest.approx(tuned)
 
 
 def test_accept_predicate_removes_without_shifting_the_rest():

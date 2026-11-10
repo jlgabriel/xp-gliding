@@ -209,7 +209,7 @@ def raised_place(terrain, site, sky, below, seconds, wstar, zi, seed, day, t, wi
     """
     lat0, lon0, _ = SITES[site]
     frame = LocalFrame(lat0 - dlat, lon0 - dlon)
-    field = ThermalField(FieldConfig(seed=seed, day=day, range_m=2.0 * SEARCH_M, sky=sky), frame)
+    field = ThermalField(FieldConfig(seed=seed, day=day, range_m=2.0 * SEARCH_M, zi_m=zi, sky=sky), frame)
     field.update(t, lat0 - dlat, lon0 - dlon)
     to = math.radians(from_deg + 180.0)
     wind_e, wind_n = wind_ms * math.sin(to), wind_ms * math.cos(to)
@@ -261,7 +261,7 @@ def best_place(api, sky, agl, seconds, wstar, zi, seed, day, radius):
     lat, lon, _ = KHOB
     dlat, dlon = api.get("xp_gliding/wind/dlat_deg"), api.get("xp_gliding/wind/dlon_deg")
     frame = LocalFrame(lat - dlat, lon - dlon)
-    field = ThermalField(FieldConfig(seed=seed, day=day, range_m=SEARCH_M, sky=sky), frame)
+    field = ThermalField(FieldConfig(seed=seed, day=day, range_m=SEARCH_M, zi_m=zi, sky=sky), frame)
     t = api.get(ZULU)
     field.update(t, lat - dlat, lon - dlon)
     params = CloudParams()
@@ -289,7 +289,7 @@ def run_top_raised(api, site, sky_name, below, seconds, bank, kmh, radius, wind_
     start(api, elev + 2500.0, kmh, 90.0, site=site, wind_kt=wind_kt, from_deg=from_deg)
     api.set(SKY_INDEX, SKY_NAMES.index(sky_name))
     time.sleep(1.0)
-    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/zi_m")
+    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/day/zi_m")
     seed, day = int(api.get("xp_gliding/seed")), int(api.get("sim/time/local_date_days"))
     sky = plugin_sky(api)
     place = raised_place(terrain, site, sky, below, seconds, wstar, zi, seed, day, api.get(ZULU), wind_kt * 0.514444,
@@ -328,7 +328,7 @@ def run_top(api, sky_name, agl, seconds, bank, kmh, radius):
     api.set(LEAN_ON, 0)
     api.set(SKY_INDEX, SKY_NAMES.index(sky_name))
     time.sleep(1.0)
-    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/zi_m")
+    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/day/zi_m")
     seed, day = int(api.get("xp_gliding/seed")), int(api.get("sim/time/local_date_days"))
     lat, lon = best_place(api, plugin_sky(api), agl, seconds, wstar, zi, seed, day, radius)
     air_start(api, elev + agl, kmh, 90.0, lat, lon, wx=weather(KHOB[0], KHOB[1], elev))
@@ -375,7 +375,7 @@ def run_change_in_lift(api):
     """Change the sky in the middle of a thermal: what does the glider feel?"""
     _, _, elev = KHOB
     start(api, elev + 1000.0, 95.0, 90.0)
-    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/zi_m")
+    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/day/zi_m")
     seed, day = int(api.get("xp_gliding/seed")), int(api.get("sim/time/local_date_days"))
     lat, lon = best_place(api, plugin_sky(api), 1000.0, 60.0, wstar, zi, seed, day, 105.0)
     air_start(api, elev + 1000.0, 95.0, 90.0, lat, lon, wx=weather(KHOB[0], KHOB[1], elev))
@@ -407,7 +407,7 @@ def run_change_in_lift(api):
 def run_change(api, seconds):
     _, _, elev = KHOB
     start(api, elev + 1000.0, 95.0, 90.0)
-    zi, wstar, seed = api.get("xp_gliding/zi_m"), api.get("xp_gliding/wstar_ms"), int(api.get("xp_gliding/seed"))
+    zi, wstar, seed = api.get("xp_gliding/day/zi_m"), api.get("xp_gliding/wstar_ms"), int(api.get("xp_gliding/seed"))
     day = int(api.get("sim/time/local_date_days"))
     zulu0, sim0 = api.get(ZULU), api.get(SIM_TIME)
     first = int(api.get(SKY_INDEX))
@@ -443,7 +443,7 @@ def run_change(api, seconds):
     errors = {}
     for index, lat, lon, z, t, lift in state["rows"][::40]:
         frame = LocalFrame(lat, lon)
-        field = ThermalField(FieldConfig(seed=seed, day=day, range_m=3000.0, sky=sky_named(SKY_NAMES[int(index)])), frame)
+        field = ThermalField(FieldConfig(seed=seed, day=day, range_m=3000.0, zi_m=zi, sky=sky_named(SKY_NAMES[int(index)])), frame)
         field.update(t, lat, lon)
         errors.setdefault(int(index), []).append(field.lift_at(0.0, 0.0, z, t, wstar, zi) - lift)
     for index, values in errors.items():

@@ -159,7 +159,7 @@ def run_layers(api, wind_kt, from_deg, shear, real=False, heights=(150.0, 500.0,
         heights_agl, east, north = wind_layers(alts, speeds, froms, ground)
         e_now, n_now = values[WIND_X], -values[WIND_Z]
         e_layer, n_layer = _interpolate(here, heights_agl, east), _interpolate(here, heights_agl, north)
-        wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/zi_m")
+        wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/day/zi_m")
         base = plugin_sky(api).cloud_base_zzi * zi
         lean = Lean(smooth_s=0.0)
         lean.set_wind(heights_agl, east, north, base, wstar, 0.0)
@@ -186,7 +186,7 @@ def run_look(api, wind_kt, from_deg, agl, kmh=90.0):
     api.set(LEAN_ON, 0)
     api.set("xp_gliding/markers_enabled", 1)
     api.set("xp_gliding/thermals_enabled", 1)
-    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/zi_m")
+    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/day/zi_m")
     seed, day = int(api.get("xp_gliding/seed")), int(api.get("sim/time/local_date_days"))
     zulu0, sim0 = api.get("sim/time/zulu_time_sec"), api.get(SIM_TIME)
     sky = plugin_sky(api)
@@ -200,7 +200,7 @@ def run_look(api, wind_kt, from_deg, agl, kmh=90.0):
     def choose(v, t):
         air = offset.to_air(v[LAT], v[LON])
         frame = frame_box["frame"] = LocalFrame(*air)
-        field = ThermalField(FieldConfig(seed=seed, day=day, sky=sky), frame)
+        field = ThermalField(FieldConfig(seed=seed, day=day, zi_m=zi, sky=sky), frame)
         field.update(t, *air)
         params = cl.CloudParams()
         best, best_score = None, -math.inf
@@ -357,7 +357,8 @@ class CircleMission:
 
     def choose(self, lat, lon, z, t):
         self.frame = LocalFrame(*self.offset.to_air(lat, lon))
-        self.field = ThermalField(FieldConfig(seed=self.seed, day=self.day, sky=self.sky), self.frame)
+        self.field = ThermalField(FieldConfig(seed=self.seed, day=self.day, zi_m=self.zi, sky=self.sky),
+                                  self.frame)
         self.field.update(t, *self.offset.to_air(lat, lon))
         if self.floors:
             self.floors(self.field)
@@ -559,7 +560,7 @@ def run_shear(api, profile, at_clouds, correct, from_deg, turns, bank, kmh, agl,
     api.set("xp_gliding/thermals_enabled", 1)
     api.set(LEAN_ON, 0)
     api.set(AT_CLOUDS, 1 if at_clouds else 0)
-    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/zi_m")
+    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/day/zi_m")
     seed, day = int(api.get("xp_gliding/seed")), int(api.get("sim/time/local_date_days"))
     zulu0, sim0 = api.get("sim/time/zulu_time_sec"), api.get(SIM_TIME)
     stream = XPlaneStream(api, EXTRA + (SKY_E, SKY_N))
@@ -596,6 +597,7 @@ def run_stretch(api, profile, at_clouds, from_deg, agl, seconds, kmh=90.0):
     api.set("xp_gliding/markers_enabled", 0)
     api.set("xp_gliding/thermals_enabled", 1)
     seed, day = int(api.get("xp_gliding/seed")), int(api.get("sim/time/local_date_days"))
+    zi = api.get("xp_gliding/day/zi_m")
     zulu0, sim0 = api.get("sim/time/zulu_time_sec"), api.get(SIM_TIME)
     sky = plugin_sky(api)
     stream = XPlaneStream(api, EXTRA + (SKY_E, SKY_N))
@@ -616,7 +618,7 @@ def run_stretch(api, profile, at_clouds, from_deg, agl, seconds, kmh=90.0):
             t = zulu0 + v[SIM_TIME] - sim0
             air = values[DLAT], values[DLON]
             at_air = v[LAT] - air[0], wrap_lon_deg(v[LON] - air[1])
-            field = ThermalField(FieldConfig(seed=seed, day=day, sky=sky), LocalFrame(*at_air))
+            field = ThermalField(FieldConfig(seed=seed, day=day, zi_m=zi, sky=sky), LocalFrame(*at_air))
             field.update(t, *at_air)
             params = cl.CloudParams()
             # For drawing on the screenshot where each cloud's emitter is: one line per screenshot.
@@ -650,7 +652,7 @@ def run_circle(api, wind_kt, from_deg, turns, bank, kmh, agl, radius, lean=False
     windy_start(api, elev + agl, kmh, 90.0, wind_kt, from_deg)
     api.set("xp_gliding/thermals_enabled", 1)
     api.set(LEAN_ON, 1 if lean else 0)
-    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/zi_m")
+    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/day/zi_m")
     seed, day = int(api.get("xp_gliding/seed")), int(api.get("sim/time/local_date_days"))
     zulu0, sim0 = api.get("sim/time/zulu_time_sec"), api.get(SIM_TIME)
     stream = XPlaneStream(api, EXTRA)

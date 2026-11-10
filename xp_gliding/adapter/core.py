@@ -38,7 +38,8 @@ loads. With no `heights`, thermals have no floor and the glider's AGL rules (not
 
 The day's depth. `zi` is the pilot's setting, or, with `weather_base_enabled`, the cloud base
 X-Plane's weather gives (`engine.day.weather_base_m`) over the sky's `cloud_base_zzi`, so the clouds
-are where the weather would put them (`Injector.zi_m`). The weather is read when a sky begins and
+are where the weather would put them (`Injector.zi_m`). The field is made for that zi, which sets how
+many thermals it holds (`engine.field.thermal_density_per_km2`), and made again when it changes. The weather is read when a sky begins and
 once more about 90 s later, for real weather that arrives late, then kept (`WeatherBase`).
 
 No thermal is born with the sun low (`engine/sun.py`, unless `sun_enabled` is off), and none over
@@ -369,8 +370,8 @@ class Injector:
         if self.field is None or key != self._field_key:
             new_sky = True
             self.frame = LocalFrame(lat, lon)
-            config = FieldConfig(seed=st.seed, day=s.day, range_m=st.range_m, sky=sky_named(st.sky),
-                                 sun_min_deg=SUN_MIN_DEG if st.sun_enabled else None)
+            config = FieldConfig(seed=st.seed, day=s.day, range_m=st.range_m, zi_m=self.zi_m,
+                                 sky=sky_named(st.sky), sun_min_deg=SUN_MIN_DEG if st.sun_enabled else None)
             self.field = ThermalField(config, self.frame, self.accept_thermal if self.is_wet else None)
             self._field_key = key
         elif self.frame.distance_to_origin(lat, lon) > st.recentre_m:

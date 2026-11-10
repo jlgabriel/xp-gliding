@@ -77,6 +77,13 @@ def test_catalog_has_the_same_thermals_as_the_field():
     assert len(near) > 10 and all(key(th) in in_field for th in near)
 
 
+def test_catalog_is_for_the_fields_zi():
+    config = FieldConfig(seed=1, day=306, zi_m=3500.0)
+    catalog = cl.CloudCatalog(config, LocalFrame(*KHOB))
+    assert catalog.config.zi_m == 3500.0
+    assert catalog.config.density_per_km2 == config.density_per_km2 < FieldConfig().density_per_km2
+
+
 def numbers(thermals):
     return {(th.lat, th.lon, th.birth, th.death, th.wgain, th.rgain) for th in thermals}
 

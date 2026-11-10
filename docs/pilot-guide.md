@@ -41,6 +41,7 @@ In calm air the sky is the same every time for the same place, date, time and se
 - **Everything moves with the wind.** Thermals and clouds drift with X-Plane's wind, as the glider does, so a circle needs no correction for it, even while the ground passes underneath. In strong wind a thermal can carry you towards high ground.
 - **A climb ends near its cloud.** The lift fades towards the cloud's base, and usually stops some way under it.
 - **Clouds keep to a level for the area,** and stand higher where the ground under them, or along their drift, would reach them.
+- **A deeper day spaces the thermals out.** With the cloud base from X-Plane's weather, a high base gives wider thermals and clouds farther apart, and a low base narrower thermals and clouds closer together. The sink between them stays the same.
 - **No thermal starts over water.** One born over land can drift out over the sea.
 - **X-Plane's ridge lift stays on,** and adds to the thermals where the wind meets a slope.
 
@@ -71,7 +72,7 @@ Everything is in *Plugins → xp-gliding*. What you choose is saved for the next
 | Training markers | A ring at your height over each nearby thermal, and a column up to its cloud | `xp_gliding/markers/toggle` |
 | Cumulus clouds | The plugin's clouds | `xp_gliding/clouds/toggle` |
 | Soaring HUD | The panel above | `xp_gliding/hud/toggle` |
-| Cloud base from X-Plane's weather (experiment) | The clouds' height from the temperature and dew point of the weather you fly, kept between 1000 m and 2250 m above the ground, in place of the depth below, which is greyed out. A cumulus layer set in X-Plane's weather moves it too, though our clouds can sit a few hundred metres off that layer. Off by default | `xp_gliding/day/weather/toggle` |
+| Cloud base from X-Plane's weather (experiment) | The clouds' height from the temperature and dew point of the weather you fly, kept between 1000 m and 3500 m above the ground, in place of the depth below, which is greyed out. A cumulus layer set in X-Plane's weather moves it too, though our clouds can sit a few hundred metres off that layer. Off by default | `xp_gliding/day/weather/toggle` |
 | Treat this aircraft as a glider | For a motor glider: the plugin acts on the aircraft loaded, with its engine running or not, and remembers it by its file. Ticked and greyed out for a glider | `xp_gliding/aircraft/glider/toggle` |
 | Sky | How wide the thermals are: wide (the default and easiest), medium, or narrow (hardest) | |
 | Strength of the day (w\*) | How strong the thermals are. 3 m/s by default | |

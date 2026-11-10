@@ -153,7 +153,7 @@ class CloudCatalog:
     def __init__(self, config, frame, params=None, accept=None):
         self.params = params or CloudParams()
         self.config = FieldConfig(seed=config.seed, day=config.day, tile_deg=config.tile_deg,
-                                  density_per_km2=config.density_per_km2,
+                                  zi_m=config.zi_m, density_per_km2=config.density_per_km2,
                                   lifetime_min_s=config.lifetime_min_s,
                                   lifetime_max_s=config.lifetime_max_s,
                                   wgain_sigma=config.wgain_sigma, rgain_sigma=config.rgain_sigma,

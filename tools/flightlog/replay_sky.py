@@ -106,7 +106,7 @@ def core_error(thermal, field, log, rows, wstar, zi):
 
 def find_thermal(frame, seed, day, sky, log, rows, lat, lon, centre, wstar, zi):
     """Candidates for one day: (core error, day, thermal), thermals alive all along near `centre`."""
-    field = ThermalField(FieldConfig(seed=seed, day=day, range_m=SEARCH_M + 2000.0, sky=sky), frame)
+    field = ThermalField(FieldConfig(seed=seed, day=day, range_m=SEARCH_M + 2000.0, zi_m=zi, sky=sky), frame)
     field.update(log["t_zulu_s"][rows[0]], lat, lon)
     found = []
     for th in field.thermals():

@@ -385,12 +385,12 @@ def run_orbit(api, minutes, msl, course, seed, kmh, bank):
     if seed is not None:
         api.set(PREFIX + "seed", seed)
     api.set(PREFIX + "thermals_enabled", 0)  # for the reference circle
-    wstar, zi = api.get(PREFIX + "wstar_ms"), api.get(PREFIX + "zi_m")
+    wstar, zi = api.get(PREFIX + "wstar_ms"), api.get(PREFIX + "day/zi_m")
     seed = int(api.get(PREFIX + "seed"))
     day = int(api.get("sim/time/local_date_days"))
     zulu0, sim0 = api.get("sim/time/zulu_time_sec"), api.get(SIM_TIME)
     frame = LocalFrame(lat, lon)
-    field = ThermalField(FieldConfig(seed=seed, day=day, sky=plugin_sky(api)), frame)
+    field = ThermalField(FieldConfig(seed=seed, day=day, zi_m=zi, sky=plugin_sky(api)), frame)
     print(f"engine thermals: w* {wstar:.1f} m/s, zi {zi:.0f} m AGL, seed {seed}, day {day}; "
           f"orbits at {bank:.0f} deg and {kmh:.0f} km/h", flush=True)
     oracle = OracleOrbits(api, field, zulu0, sim0, kmh, bank, wstar, zi)

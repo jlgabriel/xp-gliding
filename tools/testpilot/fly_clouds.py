@@ -260,7 +260,8 @@ def run_under(api, msl, count, kmh, heading):
     zulu0 = api.get("sim/time/zulu_time_sec")
     sim0 = api.get(SIM_TIME)
     frame = LocalFrame(lat, lon)
-    catalog = cl.CloudCatalog(FieldConfig(seed=seed, day=day, sky=plugin_sky(api)), frame)
+    catalog = cl.CloudCatalog(FieldConfig(seed=seed, day=day, zi_m=api.get("xp_gliding/day/zi_m"),
+                                      sky=plugin_sky(api)), frame)
     while catalog.update(zulu0, lat, lon):
         pass
 
@@ -340,12 +341,12 @@ def run_climb(api, msl, minutes, kmh, bank, heading):
     lat, lon, _ = KHOB
     air_start(api, msl, kmh, heading, lat, lon)
     api.set(ENABLED, 1)
-    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/zi_m")
+    wstar, zi = api.get("xp_gliding/wstar_ms"), api.get("xp_gliding/day/zi_m")
     seed = int(api.get("xp_gliding/seed"))
     day = int(api.get("sim/time/local_date_days"))
     zulu0, sim0 = api.get("sim/time/zulu_time_sec"), api.get(SIM_TIME)
     frame = LocalFrame(lat, lon)
-    config = FieldConfig(seed=seed, day=day, sky=plugin_sky(api))
+    config = FieldConfig(seed=seed, day=day, zi_m=zi, sky=plugin_sky(api))
     catalog = cl.CloudCatalog(config, frame)
     while catalog.update(zulu0, lat, lon):
         pass

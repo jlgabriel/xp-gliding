@@ -87,7 +87,7 @@ def test_settings_leave_out_what_is_not_a_finite_value_of_their_kind():
 def test_settings_take_numbers_out_of_range_to_the_nearest_end():
     s = config.Settings()
     notes = s.update({"wstar_ms": -3, "zi_m": 6000, "range_m": 1e9, "recentre_m": 10, "seed": 2**40})
-    assert (s.wstar_ms, s.zi_m, s.range_m, s.recentre_m, s.seed) == (0.0, 3000.0, 30000.0, 5000.0, 2**31 - 1)
+    assert (s.wstar_ms, s.zi_m, s.range_m, s.recentre_m, s.seed) == (0.0, 5000.0, 30000.0, 5000.0, 2**31 - 1)
     assert len(notes) == 5 and all("taken to" in note for note in notes)
     # What the menu offers is all within the limits.
     for _, attr, options in config.MENU_CHOICES:
@@ -99,8 +99,8 @@ def test_a_hand_edited_settings_file_says_what_it_left_out(tmp_path):
     path = tmp_path / "config.json"
     path.write_text('{"wstar_ms": NaN, "zi_m": 9000, "sky": "default"}')
     s, how = config.load_settings(str(path))
-    assert s.wstar_ms == config.DEFAULTS["wstar_ms"] and s.zi_m == 3000.0 and s.sky == "default"
-    assert "wstar_ms nan left out" in how and "zi_m 9000 taken to 3000.0" in how
+    assert s.wstar_ms == config.DEFAULTS["wstar_ms"] and s.zi_m == 5000.0 and s.sky == "default"
+    assert "wstar_ms nan left out" in how and "zi_m 9000 taken to 5000.0" in how
 
 
 def test_aircraft_treated_as_gliders_are_kept_by_file_name_in_any_case():
@@ -459,6 +459,17 @@ def test_zi_follows_the_weather_only_when_it_is_on():
     assert injector.zi_m == st.zi_m
     st.weather_base_enabled = True
     assert injector.zi_m == pytest.approx(1500.0 / sky_named(st.sky).cloud_base_zzi)
+
+
+def test_the_field_is_made_for_the_zi_in_use_and_made_again_when_it_changes():
+    st = config.Settings({"weather_base_enabled": True})
+    inj_ = Injector(st, aircraft.DEFAULT_GEOMETRY)
+    inj_.slow_update(state())
+    assert inj_.field.config.zi_m == st.zi_m == 2000.0
+    inj_.weather.take(3000.0, 0.0)
+    inj_.slow_update(state())
+    assert inj_.field.config.zi_m == pytest.approx(inj_.zi_m) == pytest.approx(4000.0)
+    assert inj_.field.config.density_per_km2 == pytest.approx(4.5 / 4.0, rel=0.03)
 
 
 def test_the_second_weather_reading_is_over_the_first_ones_ground():

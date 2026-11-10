@@ -20,6 +20,13 @@ between `lifetime_min_s` and `lifetime_max_s` (Allen 2006: updrafts last 5 to
 the one before, and on average `density` thermals per unit area are alive at
 any time.
 
+The density follows the day's depth as Allen's does (Eq. 20: N = 0.6 / (zi r2), with r2 in
+proportion to zi, so N goes as 1 / zi^2): a deeper day has wider thermals farther apart, and
+the share of the sky they cover, and with it the sink between them, stays the same. It is
+anchored to the sky as tuned and flown, 4.5 per km2 at zi = 2000 m, which is Allen's for
+zi = 1400 m (`thermal_density_per_km2`). So the number of thermals, and where each is, depend
+on zi: the same seed and date give another sky at another depth (Juan Luis, 2026-11-09).
+
 Life cycle (the original plugin author's TODO, SPEC "Thermal model"): a thermal
 starts narrow and weak, grows to full width and strength, and fades out. The
 envelope scales the thermal's radius and its whole perturbation of the
@@ -200,24 +207,39 @@ def sky_index(name):
     return SKY_NAMES.index(name) if name in SKIES else SKY_NAMES.index("default")
 
 
-class FieldConfig:
-    """Parameters of a thermal field. All defaults are first guesses to tune."""
+# The depth the sky was tuned and flown at, and its density there: Allen's Eq. 20 at z/zi = 0.4
+# for zi = 1400 m, the first choice, kept at 2000 m when that became the default.
+ZI_TUNED_M = 2000.0
+DENSITY_TUNED_PER_KM2 = updraft.allen_density_per_m2(1400.0) * 1e6
 
-    __slots__ = ("seed", "day", "tile_deg", "density_per_km2", "lifetime_min_s",
+
+def thermal_density_per_km2(zi_m):
+    """Thermals alive per km2 for a day zi_m deep (m): Allen's 1 / zi^2, through the tuned sky."""
+    return DENSITY_TUNED_PER_KM2 * (ZI_TUNED_M / zi_m) ** 2
+
+
+class FieldConfig:
+    """Parameters of a thermal field. All defaults are first guesses to tune.
+
+    zi_m is the day's depth the field is for, which sets its density; ask `lift_at` with the
+    same zi. density_per_km2, if given, replaces that.
+    """
+
+    __slots__ = ("seed", "day", "tile_deg", "zi_m", "density_per_km2", "lifetime_min_s",
                  "lifetime_max_s", "wgain_sigma", "rgain_sigma", "range_m", "cell_m", "sky",
                  "sun_min_deg")
 
     def __init__(self, seed=0, day=0, tile_deg=0.02, density_per_km2=None,
                  lifetime_min_s=300.0, lifetime_max_s=1800.0, wgain_sigma=0.3,
-                 rgain_sigma=0.2, range_m=10000.0, cell_m=400.0, zi_ref_m=1400.0, sky=None,
+                 rgain_sigma=0.2, range_m=10000.0, cell_m=400.0, zi_m=ZI_TUNED_M, sky=None,
                  sun_min_deg=None):
         self.seed = int(seed)
         # Days since 1 January (X-Plane's local date). With sun_min_deg it places the sun.
         self.day = int(day)
         self.tile_deg = float(tile_deg)
+        self.zi_m = float(zi_m)
         if density_per_km2 is None:
-            # Allen Eq. 20 at z/zi = 0.4 for a typical day (4.5 per km2 at zi = 1400 m).
-            density_per_km2 = updraft.allen_density_per_m2(zi_ref_m) * 1e6
+            density_per_km2 = thermal_density_per_km2(self.zi_m)
         self.density_per_km2 = float(density_per_km2)
         self.lifetime_min_s = float(lifetime_min_s)
         self.lifetime_max_s = float(lifetime_max_s)
