@@ -1,4 +1,4 @@
-# xp-gliding
+# XP-Gliding
 
 A thermal soaring plugin for X-Plane 12: thermals you can find by reading the clouds and climb in by hand.
 
@@ -17,7 +17,8 @@ It is an independent take on thermals, offered as another option for soaring in 
 - **Lift with no per-aircraft calibration.** It is applied as the energy rising air would give the glider, and measured within 0.01 m/s of the intended climb at different speeds, banks and frame rates. The reference glider is the Laminar ASK 21. Other gliders get the lift, and no netto on the HUD. A motor glider gets it once treated as a glider from the menu.
 - **Thermals and clouds that follow the wind.** The wind is X-Plane's, real or set by hand: the plugin reads it and has no wind of its own.
 - **A soaring HUD:** total energy, netto, average climb, height up to the clouds, the wind and a centring aid.
-- **A menu** in *Plugins → xp-gliding* to choose the sky and the day, saved between sessions. As an experiment, the cloud base can come from X-Plane's weather instead.
+- **A menu** in *Plugins → XP-Gliding* to choose the day, by name (easy, typical, demanding, weak and low, or blue, with no clouds to read) or one setting at a time, saved between sessions. As an experiment, the cloud base can come from X-Plane's weather instead.
+- **Put me near a cloud:** from the menu, the glider starts flying towards a cloud, with no tow.
 - **Optional training markers** showing where the thermals are.
 
 ## Where it is going

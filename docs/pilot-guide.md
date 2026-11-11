@@ -1,6 +1,6 @@
 # Pilot guide
 
-How to install xp-gliding, make a first flight and read its sky. This guide is for version 0.6. Its known limits are listed at the end.
+How to install XP-Gliding, make a first flight and read its sky. This guide is for version 0.6. Its known limits are listed at the end.
 
 ## What you need
 
@@ -13,7 +13,7 @@ How to install xp-gliding, make a first flight and read its sky. This guide is f
 1. Download `xp-gliding-0.6.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
 2. Close X-Plane.
 3. From the unzipped folder, copy `PI_xp_gliding.py` and the whole `xp_gliding` folder into `X-Plane 12/Resources/plugins/PythonPlugins/`. The two must sit side by side there. `README.txt` and `LICENSE` do not need to be copied.
-4. Start X-Plane. *Plugins → xp-gliding* appears in the menu.
+4. Start X-Plane. *Plugins → XP-Gliding* appears in the menu.
 
 The plugin comes ready to fly: no file to edit, and nothing to set in X-Plane's thermal settings. It holds X-Plane's own thermal rate at 0 while it is active and puts it back afterwards.
 
@@ -25,8 +25,8 @@ The plugin comes ready to fly: no file to edit, and nothing to set in X-Plane's 
 
 1. **Set the weather.** Fly by day, best from late morning to mid-afternoon: the thermals follow the day (see *Daily cycle* in [The menu](#the-menu)), weak and low in the morning, strongest around 1 pm solar time, gone soon after the sun drops under 10°. Leave out X-Plane's own cumulus clouds: the plugin draws its own over its thermals, and X-Plane's clouds mark none of them, so flying towards one finds nothing. Wind is fine, steady or not.
 2. **Choose the glider.** The Laminar ASK 21. The plugin acts only on gliders, and does nothing on the rest. A motor glider counts once you choose *Treat this aircraft as a glider* in the menu (see [The menu](#the-menu)).
-3. **Turn on the markers for the first climb.** *Plugins → xp-gliding → Training markers* puts a ring at your height over each nearby thermal, and a thin column up to its cloud. It helps while learning how a climb feels. Turn them off later and fly by the clouds.
-4. **Get airborne,** by tow, winch or an air start, and fly towards a cloud.
+3. **Turn on the markers for the first climb.** *Plugins → XP-Gliding → Training markers* puts a ring at your height over each nearby thermal, and a thin column up to its cloud. It helps while learning how a climb feels. Turn them off later and fly by the clouds.
+4. **Get airborne,** by tow, winch or an air start, and fly towards a cloud. Or choose *Plugins → XP-Gliding → Put me near a cloud*: the glider is set flying 1.5 km from a cloud, heading for it, a little over halfway from the ground to the cloud's base.
 5. **Check that the airbrakes are closed.** The ASK 21 can start with them open, which feels like a heavy glider and reads as strong sink.
 6. **Circle where the lift is.** When the vario goes up, turn. A bank of 28–35° at 90–95 km/h has worked in the ASK 21, flown by hand in X-Plane 12.4.3. Steeper turns cost a lot of climb in this glider.
 7. **Listen, if you like.** The AUDIO switch on the ASK 21's panel turns on X-Plane's own audio vario, which hears the plugin's thermals.
@@ -60,7 +60,7 @@ A small panel on the left of the screen. The vario readings and the centring arr
 
 ## The menu
 
-Everything is in *Plugins → xp-gliding*. What you choose is saved for the next session, and each switch is also a command you can bind to a key or a joystick button in X-Plane's keyboard or joystick settings.
+Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next session, and each switch is also a command you can bind to a key or a joystick button in X-Plane's keyboard or joystick settings.
 
 | Item | What it does | Command |
 | --- | --- | --- |
@@ -75,6 +75,8 @@ Everything is in *Plugins → xp-gliding*. What you choose is saved for the next
 | Soaring HUD | The panel above | `xp_gliding/hud/toggle` |
 | Cloud base from X-Plane's weather (experiment) | The clouds' height from the temperature and dew point of the weather you fly, kept between 1000 m and 3500 m above the ground, in place of the depth below, which is greyed out. A cumulus layer set in X-Plane's weather moves it too, though our clouds can sit a few hundred metres off that layer. Off by default | `xp_gliding/day/weather/toggle` |
 | Treat this aircraft as a glider | For a motor glider: the plugin acts on the aircraft loaded, with its engine running or not, and remembers it by its file. Ticked and greyed out for a glider | `xp_gliding/aircraft/glider/toggle` |
+| Put me near a cloud | Sets the glider flying 1.5 km from the nearest cloud that will last a few minutes more, on the side you were on, heading for it, a little over halfway from the ground to the cloud's base. Needs *Cumulus clouds* on, and the clouds take a few seconds to form after a flight starts | `xp_gliding/airstart/near_cloud` |
+| Day | A whole day at once, setting the four items below it: *Easy* (wide, strong thermals), *Typical* (the default), *Demanding* (narrower, stronger and higher), *Weak and low*, and *Blue*, a day with the same thermals and no clouds to read. The day you are on is ticked; change one of the items below and none is. With *Cloud base from X-Plane's weather* on, the weather sets the depth instead | |
 | Sky | How wide the thermals are: wide (the default and easiest), medium, or narrow (hardest) | |
 | Strength of the day (w\*) | How strong the thermals are at the best time of the day, with *Daily cycle* on, or all day with it off. 3 m/s by default | |
 | Depth of the thermal layer (zi) | How high they go, and so the height of the clouds: in the afternoon, with *Daily cycle* on. 2000 m by default | |
@@ -89,7 +91,7 @@ The menu's last line, greyed out, says what the plugin is doing: how many therma
 
 ## When there are no thermals
 
-First look at the last line of *Plugins → xp-gliding*.
+First look at the last line of *Plugins → XP-Gliding*.
 
 | It says | What to do |
 | --- | --- |
@@ -102,7 +104,7 @@ First look at the last line of *Plugins → xp-gliding*.
 | *Stopped by an error, see XPPython3Log.txt* | Start a new flight, or untick and tick *Enabled*, and [report it](#reporting-a-problem) |
 | *Active: … thermals within reach* | The plugin is working. If no clouds show, tick *Cumulus clouds*; if the climb feels weak, check that the airbrakes are closed |
 
-If *Plugins → xp-gliding* is not in the menu at all, XPPython3 did not load the plugin: check that `PI_xp_gliding.py` and the `xp_gliding` folder sit side by side in `Resources/plugins/PythonPlugins/`, and read the end of `XPPython3Log.txt` in your X-Plane folder.
+If *Plugins → XP-Gliding* is not in the menu at all, XPPython3 did not load the plugin: check that `PI_xp_gliding.py` and the `xp_gliding` folder sit side by side in `Resources/plugins/PythonPlugins/`, and read the end of `XPPython3Log.txt` in your X-Plane folder.
 
 ## Known limits
 

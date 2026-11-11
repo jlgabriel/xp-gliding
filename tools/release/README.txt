@@ -1,4 +1,4 @@
-xp-gliding {version}
+XP-Gliding {version}
 ===================
 
 Thermals for gliders in X-Plane 12: find them by reading the clouds, and climb
@@ -35,7 +35,7 @@ INSTALLING
        X-Plane 12/Resources/plugins/PythonPlugins/
 
    README.txt and LICENSE do not need to be copied.
-3. Start X-Plane. The menu Plugins > xp-gliding should be there.
+3. Start X-Plane. The menu Plugins > XP-Gliding should be there.
 
 Updating from an earlier version: delete the old xp_gliding folder first,
 then copy the new one. Your settings are kept.
@@ -56,10 +56,12 @@ A FIRST FLIGHT
 2. Aircraft: the Laminar ASK 21. The plugin does nothing on aircraft with
    engines, unless you choose Treat this aircraft as a glider in the menu,
    which is how a motor glider gets the thermals.
-3. For the first climb, turn on Plugins > xp-gliding > Training markers: a
+3. For the first climb, turn on Plugins > XP-Gliding > Training markers: a
    ring at your height shows where each nearby thermal is. Turn them off later
    and fly by the clouds.
-4. Get airborne and fly towards a cloud. Check that the airbrakes are closed.
+4. Get airborne and fly towards a cloud, or choose Plugins > XP-Gliding >
+   Put me near a cloud to start flying 1.5 km from one, heading for it.
+   Check that the airbrakes are closed.
 5. When the vario goes up, circle: a bank of about 30 degrees at 90-95 km/h
    works well in the ASK 21.
 6. For sound, turn on the AUDIO switch on the ASK 21's panel: X-Plane's own
@@ -69,7 +71,7 @@ Everything is ready out of the box: no file to edit and nothing to set in
 X-Plane's thermal settings.
 
 
-THE MENU (Plugins > xp-gliding)
+THE MENU (Plugins > XP-Gliding)
 -------------------------------
 
 - Enabled: the plugin on or off.
@@ -78,6 +80,9 @@ THE MENU (Plugins > xp-gliding)
 - Training markers: show where the thermals are.
 - Cumulus clouds, Soaring HUD: turn each off if you like.
 - Treat this aircraft as a glider: for a motor glider, remembered by its file.
+- Put me near a cloud: start flying 1.5 km from a cloud, heading for it.
+- Day: a whole day at once: Easy, Typical, Demanding, Weak and low, or Blue
+  (the same thermals, no clouds to read). The items below set one thing each.
 - Sky: wide thermals (the default, easiest), medium, or narrow (hardest).
 - Strength of the day, Depth of the thermal layer: stronger or weaker
   thermals (at the best time of the day), higher or lower clouds.
@@ -94,7 +99,7 @@ Your choices are saved for the next session.
 SOMETHING WRONG?
 ----------------
 
-First look at the last line of Plugins > xp-gliding: it says what the
+First look at the last line of Plugins > XP-Gliding: it says what the
 plugin is doing, or why there are no thermals. The pilot guide has what to
 do for each case.
 

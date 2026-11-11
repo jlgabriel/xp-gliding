@@ -378,6 +378,10 @@ class Injector:
         return last is not None and (abs(s.sky_t_s - last[0]) > JUMP_S
                                      or LocalFrame(last[1], last[2]).distance_to_origin(s.lat, s.lon) > JUMP_M)
 
+    def moved_to(self, lat, lon, sky_t_s):
+        """The plugin moved the aircraft here itself (`engine/airstart.py`): the same sky, not a jump."""
+        self._last_place = (sky_t_s, lat, lon)
+
     def _ground(self, s):
         """The ground under the aircraft for the field, m MSL. None: no floors, the old way."""
         return None if self.heights is None else s.msl_m - s.agl_m
@@ -386,7 +390,7 @@ class Injector:
         """Keep the field loaded around the aircraft. Not for every frame."""
         st = self.settings
         lat, lon = self.drift.to_air(s.lat, s.lon)
-        key = (st.seed, s.day, st.range_m, st.sky, self.zi_m, st.sun_enabled)
+        key = (st.seed, s.day, st.range_m, st.sky, self.zi_m, st.sun_enabled, st.blue_day)
         new_sky = self.jumped = self._jumped(s)
         if self.field is None or key != self._field_key:
             new_sky = True
@@ -435,8 +439,11 @@ class Injector:
             heights.span_m = base_zzi * zi
             heights.level_m = s.msl_m - s.agl_m + heights.span_m
             cycle = self.field.cycle
-            heights.blue = (None if cycle is None
-                            else lambda th: cycle.blue(th.lat, th.lon, th.birth, base_zzi))
+            if self.settings.blue_day:  # no thermal has a cloud: each goes by the level
+                heights.blue = lambda th: True
+            else:
+                heights.blue = (None if cycle is None
+                                else lambda th: cycle.blue(th.lat, th.lon, th.birth, base_zzi))
         if new_sky or changed:
             t0 = time.perf_counter()
             for th in self.field.thermals():

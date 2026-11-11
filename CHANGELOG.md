@@ -2,6 +2,12 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## Unreleased
+
+- **Put me near a cloud.** *Plugins → XP-Gliding → Put me near a cloud* sets the glider flying 1.5 km from the nearest cloud that will last a few minutes more, heading for it, a little over halfway from the ground to the cloud's base. A first flight no longer needs a tow before there is anything to see.
+- **Days with a name.** *Plugins → XP-Gliding → Day* chooses a whole day at once: *Easy*, *Typical*, *Demanding*, *Weak and low*, or *Blue*, a day whose thermals climb as usual with no clouds to show where they are. The submenus for the sky, the strength, the depth and the seed stay, for choosing one thing at a time.
+- **The name is now XP-Gliding** in the menu, X-Plane's plugin list and the documentation. Commands, datarefs, the settings file and the folders keep `xp_gliding` and `xp-gliding`, so nothing needs changing on your side.
+
 ## 0.6 — 2026-11-11
 
 - **Low thermals in the morning, a cloud base that rises.** With *Daily cycle* on, each thermal is as deep as the day was when it was born, and stays so. In the morning they are low and narrow: around 10 am solar time they end at less than half the afternoon's height, and they reach it by mid-afternoon. The first cumulus, around 1 pm solar time, stand a few hundred metres under the afternoon's base (about a sixth of its height), and the base rises to it by 3 pm. The depth chosen in the menu, or the weather's cloud base, is the afternoon's. The HUD's `TOP`, the training markers and the menu's last line follow the depth of the moment.

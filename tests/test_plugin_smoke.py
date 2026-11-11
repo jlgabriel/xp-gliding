@@ -15,6 +15,7 @@ import types
 
 import pytest
 
+from xp_gliding.engine.airstart import pick_cloud
 from xp_gliding.engine.clouds import carries_cloud
 from xp_gliding.engine.field import sky_named
 
@@ -316,7 +317,7 @@ def test_a_glider_not_filed_as_one_is_known_by_its_lack_of_engines(plugin):
 
 def glider_item(xp):
     """(checked, enabled) of the menu's "Treat this aircraft as a glider"."""
-    menu = xp.menus["xp-gliding"]
+    menu = xp.menus["XP-Gliding"]
     index = next(i for i, (name, _) in enumerate(menu["items"]) if name == "Treat this aircraft as a glider")
     return index in menu["checked"], index not in menu["disabled"]
 
@@ -393,7 +394,7 @@ def test_an_error_stops_the_effect_without_raising(plugin, capsys):
 
 
 def enabled_label(xp):
-    return xp.menus["xp-gliding"]["items"][0][0]
+    return xp.menus["XP-Gliding"]["items"][0][0]
 
 
 def test_an_error_shows_in_the_menu_and_the_loop_starts_again(plugin, capsys):
@@ -445,7 +446,7 @@ def test_inert_at_the_main_menu(plugin):
 
 def status_line(xp):
     """The menu's last line, greyed out."""
-    menu = xp.menus["xp-gliding"]
+    menu = xp.menus["XP-Gliding"]
     index = len(menu["items"]) - 1
     assert index in menu["disabled"]
     return menu["items"][index][0]
@@ -776,6 +777,53 @@ def first_clouds(pi, data):
         if pi.clouds.instances:
             return
     raise AssertionError("no cloud")
+
+
+def near_cloud(xp):
+    handler, refcon = xp.handlers["xp_gliding/airstart/near_cloud"]
+    handler("xp_gliding/airstart/near_cloud", xp.CommandBegin, refcon)
+
+
+def test_put_me_near_a_cloud(plugin, monkeypatch):
+    pi, xp, data = plugin
+    placed, spoken = [], []
+
+    def place(*args):  # X-Plane sends its new flight's message from inside the call
+        placed.append(args)
+        pi.XPluginReceiveMessage(0, xp.MSG_AIRPORT_LOADED, 0)
+
+    xp.placeUserAtLocation = place
+    xp.speakString = spoken.append
+    near_cloud(xp)  # before any cloud: said, not done
+    assert not placed and spoken and "forming" in spoken[-1]
+    first_clouds(pi, data)
+    fill_sky(pi, data)
+    drift, frame, s = pi.injector.drift, pi.injector.frame, pi.state
+    t = s.sky_t_s
+    nearest, _ = pick_cloud(pi.clouds.catalog.thermals(), *frame.to_enu(*drift.to_air(s.lat, s.lon)), t,
+                            pi.clouds.planner.params)
+    weather_resets = []
+    monkeypatch.setattr(type(pi.injector.weather), "reset", lambda self, now: weather_resets.append(now))
+    resets = pi.clouds.heights.resets
+    near_cloud(xp)
+    assert nearest is not None and len(placed) == 1, spoken
+    lat, lon, msl_m, heading, speed = placed[0]
+    # 1.5 km from that cloud's thermal, heading for it, between the ground and the cloud's base.
+    e, n = frame.to_enu(*drift.to_air(lat, lon))
+    assert math.hypot(nearest.e - e, nearest.n - n) == pytest.approx(1500.0, abs=1.0)
+    bearing = math.degrees(math.atan2(nearest.e - e, nearest.n - n)) % 360.0
+    assert heading == pytest.approx(bearing, abs=0.1)
+    assert 1116.0 + 300.0 <= msl_m < pi.clouds.heights.base_m(nearest, t, drift)
+    assert speed > 20.0
+    # X-Plane takes the move as a new flight; the sky stays, its clouds and its weather.
+    data["sim/flightmodel/position/latitude"], data["sim/flightmodel/position/longitude"] = lat, lon
+    clouds_tick(pi, data)
+    assert pi.clouds.heights.resets == resets and weather_resets == []
+    assert pi.clouds.instances
+    # Not with Thermals unticked.
+    pi.settings.thermals_enabled = False
+    near_cloud(xp)
+    assert len(placed) == 1 and "no thermals" in spoken[-1]
 
 
 def fill_sky(pi, data):
@@ -1433,7 +1481,7 @@ def test_the_setting_has_a_switch_in_the_menu_saved_and_taken_back_at_once(plugi
     handler("xp_gliding/wind/clouds/toggle", xp.CommandBegin, attr)
     assert pi.settings.wind_at_clouds
     assert saved(pi)["wind_at_clouds"] is True
-    assert "Sky moves with the wind at the clouds (experiment)" in checked(xp, "xp-gliding")
+    assert "Sky moves with the wind at the clouds (experiment)" in checked(xp, "XP-Gliding")
     pi.next_lean = 0.0
     frame(pi, data)
     frame(pi, data)
@@ -1509,16 +1557,17 @@ MENU_SUBMENUS = (
 
 def test_the_menu_is_in_the_order_of_the_pilot_guide(plugin):
     pi, xp, data = plugin
-    labels = [name for name, _ in xp.menus["xp-gliding"]["items"]]
-    assert labels[:-1] == ([label for label, _, _ in MENU_SWITCHES] + ["Treat this aircraft as a glider"]
-                           + [title for title, _, _ in MENU_SUBMENUS])
+    labels = [name for name, _ in xp.menus["XP-Gliding"]["items"]]
+    assert labels[:-1] == ([label for label, _, _ in MENU_SWITCHES] + ["Treat this aircraft as a glider",
+                                                                     "Put me near a cloud"]
+                           + ["Day"] + [title for title, _, _ in MENU_SUBMENUS])
     assert labels[-1] == status_line(xp)  # the status line closes it
 
 
 def test_every_switch_changes_its_own_setting_and_ticks_its_own_item(plugin):
     # New switches go in the middle of the menu, so a label, its command and its tick must not part.
     pi, xp, data = plugin
-    commands = dict(xp.menus["xp-gliding"]["items"])
+    commands = dict(xp.menus["XP-Gliding"]["items"])
     attrs = [attr for _, _, attr in MENU_SWITCHES]
     for label, cmd, attr in MENU_SWITCHES:
         assert commands[label] == cmd
@@ -1526,10 +1575,10 @@ def test_every_switch_changes_its_own_setting_and_ticks_its_own_item(plugin):
         handler, refcon = xp.handlers[cmd]
         handler(cmd, xp.CommandBegin, refcon)
         assert [a for a in attrs if getattr(pi.settings, a) != before[a]] == [attr]
-        assert (label in checked(xp, "xp-gliding")) == getattr(pi.settings, attr)
+        assert (label in checked(xp, "XP-Gliding")) == getattr(pi.settings, attr)
         handler(cmd, xp.CommandBegin, refcon)
         assert getattr(pi.settings, attr) == before[attr]
-        assert (label in checked(xp, "xp-gliding")) == before[attr]
+        assert (label in checked(xp, "XP-Gliding")) == before[attr]
 
 
 def test_every_choice_sets_the_value_its_label_says_and_ticks_only_itself(plugin):
@@ -1540,6 +1589,48 @@ def test_every_choice_sets_the_value_its_label_says_and_ticks_only_itself(plugin
             choose(xp, title, label)
             assert getattr(pi.settings, attr) == value
             assert checked(xp, title) == [label]
+
+
+# The named days as the pilot guide lists them, and what each sets.
+MENU_DAYS = (
+    ("Easy: wide, strong thermals", {"sky": "wide_carriers", "wstar_ms": 3.5, "zi_m": 2000.0, "blue_day": False}),
+    ("Typical", {"sky": "wide_carriers", "wstar_ms": 3.0, "zi_m": 2000.0, "blue_day": False}),
+    ("Demanding: narrower, stronger, higher", {"sky": "medium_carriers", "wstar_ms": 4.0, "zi_m": 2500.0,
+                                               "blue_day": False}),
+    ("Weak and low", {"sky": "wide_carriers", "wstar_ms": 2.0, "zi_m": 1500.0, "blue_day": False}),
+    ("Blue: no clouds to read", {"sky": "wide_carriers", "wstar_ms": 3.0, "zi_m": 2000.0, "blue_day": True}),
+)
+
+
+def test_a_named_day_sets_its_settings_ticks_itself_and_is_saved(plugin):
+    pi, xp, data = plugin
+    assert [name for name, _ in xp.menus["Day"]["items"]] == [label for label, _ in MENU_DAYS]
+    assert checked(xp, "Day") == ["Typical"]  # the defaults are the typical day
+    for label, values in MENU_DAYS:
+        choose(xp, "Day", label)
+        assert {key: getattr(pi.settings, key) for key in values} == values
+        assert checked(xp, "Day") == [label]
+        assert {key: saved(pi)[key] for key in values} == values
+    # One setting changed by hand: no day is ticked, and the single submenus show it.
+    choose(xp, "Strength of the day (w*)", "5 m/s")
+    assert checked(xp, "Day") == [] and checked(xp, "Strength of the day (w*)") == ["5 m/s"]
+
+
+def test_a_blue_day_has_the_lift_and_no_clouds(plugin):
+    pi, xp, data = plugin
+    first_clouds(pi, data)
+    choose(xp, "Day", "Blue: no clouds to read")
+    for _ in range(5):
+        clouds_tick(pi, data)
+    assert not pi.clouds.instances and not pi.clouds.holding
+    # Every thermal's lift goes by the level, as a thermal with no cloud does.
+    heights = pi.injector.heights
+    some = next(th for th in pi.injector.field.thermals() if carries_cloud(th, pi.clouds.planner.params))
+    assert heights.base_m(some, pi.state.sky_t_s, pi.injector.drift) == heights.level_of(some)
+    assert dataref(xp, "active") == 1 and pi.injector.nearest.alive > 0
+    # And back: the clouds return.
+    choose(xp, "Day", "Typical")
+    first_clouds(pi, data)
 
 
 def test_every_sky_in_the_menu_exists_and_every_sky_is_in_the_menu(plugin):
@@ -1946,7 +2037,7 @@ def switch(xp, cmd):
 
 
 def zi_item(xp):
-    labels = [name for name, _ in xp.menus["xp-gliding"]["items"]]
+    labels = [name for name, _ in xp.menus["XP-Gliding"]["items"]]
     return labels.index("Depth of the thermal layer (zi)")
 
 
@@ -1955,9 +2046,9 @@ def test_the_weather_sets_the_cloud_base_once_turned_on(plugin):
     weather_day(data)
     frame(pi, data)
     assert dataref(xp, "day/zi_m") == 2000.0 and dataref(xp, "day/weather_base_m") == -1.0
-    assert zi_item(xp) not in xp.menus["xp-gliding"]["disabled"]
+    assert zi_item(xp) not in xp.menus["XP-Gliding"]["disabled"]
     switch(xp, WEATHER_SWITCH)
-    assert zi_item(xp) in xp.menus["xp-gliding"]["disabled"]
+    assert zi_item(xp) in xp.menus["XP-Gliding"]["disabled"]
     frame(pi, data)
     zi = 1250.0 / sky_named(pi.settings.sky).cloud_base_zzi
     assert dataref(xp, "day/weather_base_m") == pytest.approx(1250.0)
@@ -2033,7 +2124,7 @@ def test_turning_the_weather_off_goes_back_to_the_menus_zi(plugin):
     switch(xp, WEATHER_SWITCH)
     frame(pi, data)
     switch(xp, WEATHER_SWITCH)
-    assert zi_item(xp) not in xp.menus["xp-gliding"]["disabled"]
+    assert zi_item(xp) not in xp.menus["XP-Gliding"]["disabled"]
     frame(pi, data)
     assert dataref(xp, "day/zi_m") == 2000.0
     assert pi.injector.heights.level_m == pytest.approx(1116.0 + sky_named(pi.settings.sky).cloud_base_zzi * 2000.0)

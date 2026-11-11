@@ -18,7 +18,7 @@ knots and feet, as glider varios read where altitudes are in feet (Juan Luis, 20
 wind is in knots either way, as in X-Plane's weather settings. Only the text and the tape change:
 everything is worked out in SI, and the datarefs stay in m/s.
 TOP is how far the clouds are, up from the glider: to the nearest one drawn, or to the sky's level.
-Plugins > xp-gliding > Soaring HUD toggles it, as does the command `xp_gliding/hud/toggle`.
+Plugins > XP-Gliding > Soaring HUD toggles it, as does the command `xp_gliding/hud/toggle`.
 """
 
 import math

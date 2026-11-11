@@ -1,4 +1,4 @@
-"""xp-gliding: soaring layer for X-Plane 12 (XPPython3 entry point).
+"""XP-Gliding: soaring layer for X-Plane 12 (XPPython3 entry point).
 
 Install this file and the `xp_gliding` package side by side in
 `Resources/plugins/PythonPlugins/` (see docs/pilot-guide.md; from the repository,

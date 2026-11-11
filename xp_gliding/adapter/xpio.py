@@ -117,6 +117,11 @@ class XPlaneIO:
         _, path = xp.getNthAircraftModel(0)
         return path
 
+    @staticmethod
+    def place_user(lat, lon, msl_m, heading_deg, speed_ms):
+        """Put the user's aircraft in level flight here (XPLMPlaceUserAtLocation, X-Plane 12)."""
+        xp.placeUserAtLocation(lat, lon, msl_m, heading_deg, speed_ms)
+
 
 class SkyObjects:
     """The SDK calls behind the markers and the clouds (`markers.py`, `clouds.py`): never

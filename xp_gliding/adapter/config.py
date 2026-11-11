@@ -34,6 +34,7 @@ DEFAULTS = {
     "helix_enabled": True,  # cancel the climbing-turn overbanking of the energy force
     "markers_enabled": False,  # training mode: draw a ring and a column over nearby thermals
     "clouds_enabled": True,  # cumulus over the thermals that carry one
+    "blue_day": False,  # a blue day: the thermals that would carry a cloud climb as usual, with none
     "hud_enabled": True,  # soaring HUD: vario, netto, average, height to the top, centring aid
     "hud_units": "metric",  # a name in UNIT_NAMES: the HUD's vario in m/s and TOP in m, or knots and feet
     "gliders_only": True,  # only act on gliders: filed as one, with no engines, or in also_gliders
@@ -64,9 +65,30 @@ LIMITS = {
 UNIT_NAMES = ("metric", "aviation")
 NAMES = {"sky": tuple(SKIES), "hud_units": UNIT_NAMES}
 
-# The menu's submenus: (title, setting, ((label, value), ...)). The values of the sky are
-# names in engine.field.SKIES, and all of them are first guesses to judge by flying.
+# Named days: each sets the sky, the strength and depth of the day, and whether it is blue, which
+# the submenus after it set one by one. First guesses, to judge by flying. With the weather's cloud
+# base on, the depth set here waits until it is off.
+DAYS = (
+    ("Easy: wide, strong thermals", {"sky": "wide_carriers", "wstar_ms": 3.5, "zi_m": 2000.0, "blue_day": False}),
+    ("Typical", {"sky": "wide_carriers", "wstar_ms": 3.0, "zi_m": 2000.0, "blue_day": False}),
+    ("Demanding: narrower, stronger, higher", {"sky": "medium_carriers", "wstar_ms": 4.0, "zi_m": 2500.0,
+                                               "blue_day": False}),
+    ("Weak and low", {"sky": "wide_carriers", "wstar_ms": 2.0, "zi_m": 1500.0, "blue_day": False}),
+    ("Blue: no clouds to read", {"sky": "wide_carriers", "wstar_ms": 3.0, "zi_m": 2000.0, "blue_day": True}),
+)
+
+
+def day_index(settings):
+    """The place in DAYS of the day the settings make, or None if they make none of them."""
+    return next((k for k, (_, values) in enumerate(DAYS)
+                 if all(getattr(settings, key) == value for key, value in values.items())), None)
+
+
+# The menu's submenus: (title, setting, ((label, value), ...)). "day" is not a setting: its values
+# are places in DAYS. The values of the sky are names in engine.field.SKIES, and all of them are
+# first guesses to judge by flying.
 MENU_CHOICES = (
+    ("Day", "day", tuple((label, k) for k, (label, _) in enumerate(DAYS))),
     ("Sky", "sky", (
         ("Wide thermals under the clouds (x2)", "wide_carriers"),
         ("Medium thermals under the clouds (x1.5)", "medium_carriers"),

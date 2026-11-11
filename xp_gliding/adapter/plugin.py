@@ -1,4 +1,4 @@
-"""The XPPython3 plugin: flight loop, menu, commands and xp-gliding's own datarefs.
+"""The XPPython3 plugin: flight loop, menu, commands and XP-Gliding's own datarefs.
 
 `PI_xp_gliding.py` (installed next to the `xp_gliding` package in
 `Resources/plugins/PythonPlugins/`) only re-exports `PythonInterface` from here.
@@ -18,8 +18,8 @@ clouds or markers, and the traceback in XPPython3Log.txt. The menu's first item 
 and the loop starts again from a clean state with a new flight or aircraft, or when the pilot
 unticks and ticks Enabled, up to MAX_RESTARTS times; after that only re-enabling the plugin does.
 
-The Plugins > xp-gliding menu has the switches below, and submenus to choose the sky, the
-day and the HUD's units (`config.MENU_CHOICES`). What is chosen there is saved to `config.json`. Its last item,
+The Plugins > XP-Gliding menu has the switches below, and submenus to choose the sky, the
+day, by name (`config.DAYS`) or one setting at a time, and the HUD's units (`config.MENU_CHOICES`). What is chosen there is saved to `config.json`. Its last item,
 greyed out, says what the plugin is doing and, when there are no thermals, why (`status_line`).
 
 Commands (also in the menu):
@@ -36,6 +36,8 @@ Commands (also in the menu):
                                (off by default; greys out the zi submenu)
   xp_gliding/aircraft/glider/toggle  treat this aircraft as a glider, for a motor glider; saved
                                by its .acf name in `also_gliders`
+  xp_gliding/airstart/near_cloud  put the glider in the air near a cloud worth flying to
+                               (`engine/airstart.py`)
 
 Datarefs (`xp_gliding/...`, see DATAREFS): settings and debug modes are
 writable, so the flight logger and the test pilot can read what the adapter
@@ -53,8 +55,9 @@ import xp
 
 from .. import __version__
 from .aircraft import DEFAULT_GEOMETRY, read_acf_geometry
-from .config import MENU_CHOICES, load_settings, save_settings
+from .config import DAYS, MENU_CHOICES, day_index, load_settings, save_settings
 from .core import AircraftState, Injection, Injector, NativeThermalGuard
+from ..engine.airstart import SPEED_MS, pick_cloud, place_near, start_height_m
 from ..engine.sun import SUN_MIN_DEG
 from .clouds import CumulusClouds
 from .hud import Hud
@@ -66,6 +69,7 @@ LEAN_PERIOD_S = 5.0  # X-Plane's layers of wind are read this often
 CLOUDS_PERIOD_S = 0.25  # cloud tiles load in small bites
 TAG = "[xp-gliding]"
 MAX_RESTARTS = 3  # errors in the flight loop after which it is not started again
+PLACED_GRACE_S = 15.0  # after putting the glider near a cloud, a new flight's message keeps the sky
 ENABLED_LABEL = "Enabled"
 FAILED_LABEL = "Enabled: stopped by an error, see XPPython3Log.txt"
 
@@ -94,6 +98,7 @@ DATAREFS = (
     ("helix_enabled", "settings", "helix_enabled", "i", 1),
     ("markers_enabled", "settings", "markers_enabled", "i", 1),
     ("clouds_enabled", "settings", "clouds_enabled", "i", 1),
+    ("blue_day", "settings", "blue_day", "i", 1),
     ("clouds/rate", "clouds", "status.rate_dummy", "f", 0),
     ("clouds/scale", "clouds", "status.scale_dummy", "f", 0),
     ("clouds/count", "clouds", "status.count", "i", 0),
@@ -223,7 +228,7 @@ def _write_float(refcon, value):
 
 class PythonInterface:
     def XPluginStart(self):
-        self.Name = "xp-gliding"
+        self.Name = "XP-Gliding"
         self.Sig = "jlgabriel.xp_gliding"
         self.Desc = "Soaring layer for X-Plane 12: thermals as energy-based forces."
 
@@ -251,6 +256,7 @@ class PythonInterface:
         self.native_glider = False  # a glider without the pilot saying so: filed as one, or no engines
         self.failed = False  # the flight loop stopped on an error
         self.failures = 0  # errors in the flight loop since the plugin was enabled
+        self.placed_at = None  # when the glider was last put near a cloud (time.monotonic)
         self.next_slow = 0.0
         self.next_markers = 0.0
         self.next_clouds = 0.0
@@ -276,40 +282,44 @@ class PythonInterface:
             self.datarefs.append(ref)
 
         self.commands = (
-            (xp.createCommand("xp_gliding/toggle", "xp-gliding: plugin effect on/off"),
+            (xp.createCommand("xp_gliding/toggle", "XP-Gliding: plugin effect on/off"),
              self.on_toggle, "enabled", ENABLED_LABEL),
-            (xp.createCommand("xp_gliding/thermals/toggle", "xp-gliding: thermals on/off"),
+            (xp.createCommand("xp_gliding/thermals/toggle", "XP-Gliding: thermals on/off"),
              self.on_toggle, "thermals_enabled", "Thermals"),
             (xp.createCommand("xp_gliding/day/cycle/toggle",
-                              "xp-gliding: daily cycle on/off (off: the same strength all day, sun or not)"),
+                              "XP-Gliding: daily cycle on/off (off: the same strength all day, sun or not)"),
              self.on_toggle, "sun_enabled", "Daily cycle"),
-            (xp.createCommand("xp_gliding/wind/toggle", "xp-gliding: thermals follow the wind on/off"),
+            (xp.createCommand("xp_gliding/wind/toggle", "XP-Gliding: thermals follow the wind on/off"),
              self.on_toggle, "wind_enabled", "Thermals follow the wind"),
-            (xp.createCommand("xp_gliding/lean/toggle", "xp-gliding: thermals lean with the wind on/off"),
+            (xp.createCommand("xp_gliding/lean/toggle", "XP-Gliding: thermals lean with the wind on/off"),
              self.on_toggle, "lean_enabled", "Thermals lean with the wind (experiment)"),
             (xp.createCommand("xp_gliding/wind/clouds/toggle",
-                              "xp-gliding: the sky moves with the wind at the clouds, not at the glider"),
+                              "XP-Gliding: the sky moves with the wind at the clouds, not at the glider"),
              self.on_toggle, "wind_at_clouds", "Sky moves with the wind at the clouds (experiment)"),
-            (xp.createCommand("xp_gliding/markers/toggle", "xp-gliding: training markers on/off"),
+            (xp.createCommand("xp_gliding/markers/toggle", "XP-Gliding: training markers on/off"),
              self.on_toggle, "markers_enabled", "Training markers"),
-            (xp.createCommand("xp_gliding/clouds/toggle", "xp-gliding: cumulus on/off"),
+            (xp.createCommand("xp_gliding/clouds/toggle", "XP-Gliding: cumulus on/off"),
              self.on_toggle, "clouds_enabled", "Cumulus clouds"),
-            (xp.createCommand("xp_gliding/hud/toggle", "xp-gliding: soaring HUD on/off"),
+            (xp.createCommand("xp_gliding/hud/toggle", "XP-Gliding: soaring HUD on/off"),
              self.on_toggle, "hud_enabled", "Soaring HUD"),
             (xp.createCommand("xp_gliding/day/weather/toggle",
-                              "xp-gliding: cloud base from X-Plane's weather, not the menu's zi"),
+                              "XP-Gliding: cloud base from X-Plane's weather, not the menu's zi"),
              self.on_toggle, "weather_base_enabled", "Cloud base from X-Plane's weather (experiment)"),
         )
-        self.menu_item = xp.appendMenuItem(xp.findPluginsMenu(), "xp-gliding", 0)
-        self.menu = xp.createMenu("xp-gliding", xp.findPluginsMenu(), self.menu_item, None, None)
+        self.menu_item = xp.appendMenuItem(xp.findPluginsMenu(), "XP-Gliding", 0)
+        self.menu = xp.createMenu("XP-Gliding", xp.findPluginsMenu(), self.menu_item, None, None)
         for cmd, handler, attr, label in self.commands:
             xp.registerCommandHandler(cmd, handler, 1, attr)
             xp.appendMenuItemWithCommand(self.menu, label, cmd)
         self.glider_cmd = xp.createCommand("xp_gliding/aircraft/glider/toggle",
-                                           "xp-gliding: treat this aircraft as a glider (motor gliders)")
+                                           "XP-Gliding: treat this aircraft as a glider (motor gliders)")
         xp.registerCommandHandler(self.glider_cmd, self.on_glider_toggle, 1, None)
         self.glider_item = xp.appendMenuItemWithCommand(self.menu, "Treat this aircraft as a glider",
                                                         self.glider_cmd)
+        self.near_cloud_cmd = xp.createCommand("xp_gliding/airstart/near_cloud",
+                                               "XP-Gliding: put the glider in the air near a cloud")
+        xp.registerCommandHandler(self.near_cloud_cmd, self.on_near_cloud, 1, None)
+        xp.appendMenuItemWithCommand(self.menu, "Put me near a cloud", self.near_cloud_cmd)
         xp.appendMenuSeparator(self.menu)
         self.submenus = []  # (menu, setting, values, in the menu's order)
         # What each submenu item sets. An item carries only its place in this list: a tuple made
@@ -340,6 +350,7 @@ class PythonInterface:
         for cmd, handler, attr, _ in self.commands:
             xp.unregisterCommandHandler(cmd, handler, 1, attr)
         xp.unregisterCommandHandler(self.glider_cmd, self.on_glider_toggle, 1, None)
+        xp.unregisterCommandHandler(self.near_cloud_cmd, self.on_near_cloud, 1, None)
         for submenu, _, _ in self.submenus:
             xp.destroyMenu(submenu)
         xp.destroyMenu(self.menu)
@@ -375,8 +386,10 @@ class PythonInterface:
             self.restart("a new flight")
         elif inMessage == xp.MSG_AIRPORT_LOADED:
             # A new flight with the same aircraft sends this and not MSG_PLANE_LOADED (seen in
-            # X-Plane 12.4.3, 2026-11-09): its weather may be another day's.
-            self.injector.weather.reset(time.monotonic())
+            # X-Plane 12.4.3, 2026-11-09): its weather may be another day's. Putting the glider
+            # near a cloud sends it too, and keeps the sky.
+            if not self.just_placed(time.monotonic()):
+                self.injector.weather.reset(time.monotonic())
             self.hud.reset_instruments()
             self.next_slow = 0.0
 
@@ -453,6 +466,62 @@ class PythonInterface:
             self.save()
         return 1
 
+    def on_near_cloud(self, commandRef, phase, refcon):
+        """Put the glider in the air near a cloud. What went wrong is said on screen and logged;
+        an exception would stop the plugin's effect in the next flight loop, so it is only logged."""
+        if phase == xp.CommandBegin:
+            try:
+                why = self.put_near_cloud()
+                if why:
+                    print(f"{TAG} put near a cloud: {why}")
+                    xp.speakString(f"XP-Gliding: {why}")
+            except Exception:
+                print(f"{TAG} error putting the glider near a cloud, ignored:\n" + traceback.format_exc())
+        return 1
+
+    def just_placed(self, now):
+        """Was the glider put near a cloud a moment ago? Then the sky, and the weather it was made
+        from, stay: X-Plane takes the move as a new flight (seen in X-Plane 12.4.3, 2026-11-11),
+        and a new reading of the weather's base, a metre off, made a new sky with no clouds."""
+        return self.placed_at is not None and now - self.placed_at < PLACED_GRACE_S
+
+    def put_near_cloud(self):
+        """Place the glider (`engine/airstart.py`). None if done, else why not, for the pilot."""
+        st = self.settings
+        if not (st.enabled and self.eligible and st.thermals_enabled and not self.failed):
+            return "no thermals now, see the menu's last line"
+        if st.blue_day:
+            return "a blue day has no clouds; choose another day"
+        if not st.clouds_enabled:
+            return "tick Cumulus clouds first"
+        catalog, heights, frame = self.clouds.catalog, self.clouds.heights, self.injector.frame
+        s = self.state
+        if (catalog is None or not catalog.started or heights.level_m is None or frame is None
+                or getattr(s, "sky_t_s", None) is None):
+            return "the clouds are still forming, try again in a few seconds"
+        drift, t = self.injector.drift, s.sky_t_s
+        e, n = frame.to_enu(*drift.to_air(s.lat, s.lon))
+        th, r = pick_cloud(catalog.thermals(), e, n, t, self.clouds.planner.params)
+        if th is None:
+            return "no cloud within reach"
+        pe, pn, heading = place_near(th.e, th.n, e, n, s.psi_deg)
+        lat, lon = drift.to_ground(*frame.to_latlon(pe, pn))
+        ground_m = self.clouds.sky.ground_m(lat, lon)
+        if ground_m is None:
+            ground_m = s.msl_m - s.agl_m
+        base_m = heights.base_m(th, t, drift)
+        msl_m = start_height_m(ground_m, base_m)
+        # Before the call: X-Plane sends its new flight's message from inside it (2026-11-11).
+        self.placed_at = time.monotonic()
+        self.injector.moved_to(lat, lon, t)
+        self.io.place_user(lat, lon, msl_m, heading, SPEED_MS)
+        self.hud.reset_instruments()
+        self.next_slow = 0.0
+        print(f"{TAG} put near a cloud {r / 1000.0:.1f} km away: at {lat:.5f}, {lon:.5f}, "
+              f"{msl_m:.0f} m MSL ({msl_m - ground_m:.0f} m above the ground, base {base_m:.0f} m), "
+              f"heading {heading:.0f}")
+        return None
+
     def on_choice(self, menuRef, itemRef):
         """A value chosen in a submenu. A new sky or seed gives a new field in the slow path,
         and the clouds and markers follow it. The clouds' base comes from zi when each is
@@ -462,12 +531,18 @@ class PythonInterface:
         stop the plugin's effect, so a failed choice is only written to the log."""
         try:
             attr, value = self.choices[itemRef]
-            self.settings.update({attr: value})
-            if attr == "zi_m" and not self.settings.weather_base_enabled:
+            zi = self.settings.zi_m
+            if attr == "day":
+                label, values = DAYS[value]
+                self.settings.update(values)
+                print(f"{TAG} day: {label} ({', '.join(f'{k} = {v}' for k, v in values.items())})")
+            else:
+                self.settings.update({attr: value})
+                print(f"{TAG} {attr} = {getattr(self.settings, attr)}")
+            if self.settings.zi_m != zi and not self.settings.weather_base_enabled:
                 self.clouds.clear()
             self.next_slow = 0.0
             self.refresh_menu()
-            print(f"{TAG} {attr} = {getattr(self.settings, attr)}")
             self.save()
         except Exception:
             print(f"{TAG} error in a menu choice, ignored:\n" + traceback.format_exc())
@@ -512,13 +587,18 @@ class PythonInterface:
             self.status_text = text
             xp.setMenuItemName(self.menu, self.status_item, text)
 
+    def chosen(self, attr):
+        """What a submenu shows as chosen: a setting, or the place in DAYS of the day the settings
+        make (None, no tick, when they make none)."""
+        return day_index(self.settings) if attr == "day" else getattr(self.settings, attr)
+
     def refresh_menu(self):
         """The menu's ticks and greyed-out items. Called once a second too, since a dataref can
         change a setting, so the SDK is only called when what the menu shows has changed."""
         self.update_status()
         st = self.settings
         state = (tuple(getattr(st, attr) for _, _, attr, _ in self.commands),
-                 tuple(getattr(st, attr) for _, attr, _ in self.submenus),
+                 tuple(self.chosen(attr) for _, attr, _ in self.submenus),
                  self.acf, self.native_glider, st.treated_as_glider(self.acf))
         if state == self._menu_state:
             return
@@ -527,7 +607,7 @@ class PythonInterface:
             check = xp.Menu_Checked if getattr(self.settings, attr) else xp.Menu_Unchecked
             xp.checkMenuItem(self.menu, index, check)
         for submenu, attr, values in self.submenus:
-            current = getattr(self.settings, attr)
+            current = self.chosen(attr)
             for index, value in enumerate(values):
                 xp.checkMenuItem(submenu, index, xp.Menu_Checked if value == current else xp.Menu_Unchecked)
         # Checked for any glider; only an aircraft with engines that is not filed as a glider can change it.
@@ -578,7 +658,7 @@ class PythonInterface:
         markers = active and st.thermals_enabled and st.markers_enabled
         if not markers and self.markers.shown:
             self.markers.clear()
-        clouds = active and st.thermals_enabled and st.clouds_enabled
+        clouds = active and st.thermals_enabled and st.clouds_enabled and not st.blue_day
         if not clouds and self.clouds.holding:
             self.clouds.clear()
         if not active or self.io.frozen():
@@ -605,7 +685,7 @@ class PythonInterface:
             if st.weather_base_enabled and self.injector.weather.due(now):
                 self.read_weather(s, now)
             self.injector.slow_update(s)
-            if self.injector.jumped:
+            if self.injector.jumped and not self.just_placed(now):
                 self.injector.weather.reset(now)  # a new place or time: read its weather
                 self.hud.reset_instruments()  # and the vario's average starts over
             zi = self.injector.zi_m

@@ -1,4 +1,4 @@
-"""XP12 adapter: the only part of xp-gliding that talks to the X-Plane SDK.
+"""XP12 adapter: the only part of XP-Gliding that talks to the X-Plane SDK.
 
 Modules:
   aircraft  wing geometry of the user's aircraft, read from its .acf (no `xp`)
