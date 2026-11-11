@@ -68,7 +68,9 @@ import time
 
 from ..engine import injection as inj
 from ..engine.day import weather_base_m
-from ..engine.field import SKY_NAMES, FieldConfig, ThermalField, sky_index, sky_named
+from ..engine.edge import EdgeTurbulence, bumps
+from ..engine.field import (EDGE_RING, EDGE_SINK_GAIN, SKY_NAMES, FieldConfig, ThermalField, sky_index,
+                            sky_named)
 from ..engine.geo import LocalFrame
 from ..engine.sun import SUN_MIN_DEG, sun_elevation_deg
 from ..engine.wind import AirDrift, Lean, layer_wind
@@ -84,6 +86,7 @@ WEATHER_KEEP_M = 100.0  # a later base closer than this to the one in use is not
 # No lift of this model comes near this (30 m/s at the strongest core offline, w* 8 in the narrow
 # sky): more, or a value that is not a number, is a fault, and no force is better than a wrong one.
 MAX_LIFT_MS = 50.0
+MAX_KICK_GAP_S = 0.25  # frames further apart than this (a pause, a hitch) start the kick over
 
 
 def wind_layers(altitudes_msl_m, speeds_kt, from_deg, ground_m):
@@ -128,14 +131,14 @@ class AircraftState:
 class Injection:
     """What the adapter applies, and the lift behind it (also published as datarefs)."""
 
-    __slots__ = ("faxil_n", "fside_n", "fnrml_n", "roll_nm", "force_n",
+    __slots__ = ("faxil_n", "fside_n", "fnrml_n", "roll_nm", "force_n", "kick_n",
                  "w_centre", "w_left", "w_right", "w_tail", "w_span", "dw_dy", "dw_dy_helix")
 
     def __init__(self):
         self.clear()
 
     def clear(self):
-        self.faxil_n = self.fside_n = self.fnrml_n = self.roll_nm = self.force_n = 0.0
+        self.faxil_n = self.fside_n = self.fnrml_n = self.roll_nm = self.force_n = self.kick_n = 0.0
         self.w_centre = self.w_left = self.w_right = self.w_tail = self.w_span = 0.0
         self.dw_dy = self.dw_dy_helix = 0.0
 
@@ -251,8 +254,12 @@ class Injector:
         self.uniform_ms = 0.0
         self.debug_dwdy = 0.0
         self.samples = None
-        self.clp = 0.0
+        self.clp = self.cla = 0.0
         self.geometry = None
+        self.kick = inj.HighPass()  # what changes in the lift, for the kick (sharper edges)
+        self._kick_t = None  # time.monotonic of the kick's last frame
+        self.turbulence = EdgeTurbulence()  # how strong the edge's bumps are where the glider is
+        self.turb_ms = 0.0  # their amplitude, last frame: published
         self.set_geometry(geometry)
         self.frame = None
         self.field = None
@@ -282,6 +289,7 @@ class Injector:
         self.geometry = geometry
         self.samples = inj.SampleGeometry(geometry.span_m, geometry.tail_arm_m)
         self.clp = inj.roll_damping(geometry.aspect_ratio, geometry.taper)
+        self.cla = inj.lift_slope(geometry.aspect_ratio)
 
     @property
     def sky_index(self):
@@ -404,6 +412,11 @@ class Injector:
             self.frame = LocalFrame(lat, lon)
             self.field.set_frame(self.frame)
         changed = self.field.update(s.sky_t_s, lat, lon)
+        self.field.ring = EDGE_RING if st.edge_enabled else 0.0
+        self.field.sink_gain = EDGE_SINK_GAIN if st.edge_enabled else 1.0
+        if new_sky:
+            self.kick.reset()  # a new sky's lift is not air the glider flew into
+            self.turbulence.reset()
         self.sun_elevation_deg = sun_elevation_deg(s.lat, s.lon, s.day, s.sky_t_s)
         self.sun_share = self.field.sink_share
         cycle = self.field.cycle
@@ -454,6 +467,39 @@ class Injector:
 
     # --- every frame ---------------------------------------------------------
 
+    def _kick(self, s, w, wl, wc, wr):
+        """The kick's lift (N) and the gradient (1/s) the edge's bumps add across the span.
+
+        The kick is the lift of a change in w as the wing meets it (engine/injection.py), w with
+        the edge's bumps added (engine/edge.py). Neither does work: the climb stays the energy
+        force's, from the smooth lift.
+        """
+        now = time.monotonic()
+        dt = 0.0 if self._kick_t is None else now - self._kick_t
+        self._kick_t = now
+        if dt > MAX_KICK_GAP_S:
+            self.kick.reset()
+            self.turbulence.reset()
+        span = self.geometry.span_m
+        amp = self.turbulence.step(wc, inj.span_gradient(wl, wr, span), s.tas_ms, dt)
+        self.turb_ms = amp
+        g, t = self.samples, s.sky_t_s
+        if amp > 0.0 and self.uniform_ms == 0.0:
+            w += amp * bumps(g.ce, g.cn, t)
+            bumps_dwdy = amp * (bumps(g.re, g.rn, t) - bumps(g.le, g.ln, t)) / span
+        else:
+            bumps_dwdy = 0.0
+        area = self.geometry.area_m2
+        tau = inj.heave_time_s(s.mass_kg, s.rho, s.tas_ms, area, self.cla)
+        return inj.kick_force(s.rho, s.tas_ms, area, self.cla, self.kick.step(w, dt, tau)), bumps_dwdy
+
+    def _no_kick(self):
+        self.kick.reset()
+        self.turbulence.reset()
+        self._kick_t = None
+        self.turb_ms = 0.0
+        return 0.0, 0.0
+
     def step(self, s, out):
         """Fill `out` with the forces for this frame. Call slow_update first, once."""
         st = self.settings
@@ -484,20 +530,25 @@ class Injector:
         fwd, right, up = inj.path_force_body(force, s.alpha_deg, -s.beta_deg)
         span = self.geometry.span_m
         dw_dy = self.debug_dwdy if self.debug_dwdy != 0.0 else inj.span_gradient(wl, wr, span)
+        # The sharper edges: the kick, and the edge's bumps, which also roll the wing.
+        kick, bumps_dwdy = self._kick(s, w, wl, wc, wr) if st.edge_enabled else self._no_kick()
+        dw_dy += bumps_dwdy
         helix = inj.helix_gradient(w, s.r_rad, s.tas_ms) if st.helix_enabled else 0.0
         dw_dy += helix
         roll = 0.0
         if st.roll_enabled:
             roll = inj.gust_roll_moment(s.rho, s.tas_ms, self.geometry.area_m2, span,
                                         dw_dy, self.clp)
-        if not (abs(w) <= MAX_LIFT_MS and math.isfinite(roll)):
+        if not (abs(w) <= MAX_LIFT_MS and math.isfinite(roll) and math.isfinite(kick)):
             out.clear()
             return out
-        out.faxil_n = -fwd
+        kick_fwd, kick_up = inj.lift_force_body(kick, s.alpha_deg)
+        out.faxil_n = -(fwd + kick_fwd)
         out.fside_n = right
-        out.fnrml_n = up
+        out.fnrml_n = up + kick_up
         out.roll_nm = roll
         out.force_n = force
+        out.kick_n = kick
         out.w_centre, out.w_left, out.w_right, out.w_tail = wc, wl, wr, wt
         out.w_span = w
         out.dw_dy = dw_dy

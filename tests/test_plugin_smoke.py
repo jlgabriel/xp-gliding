@@ -1533,6 +1533,7 @@ def test_the_menu_shows_the_current_choices(plugin):
 MENU_SWITCHES = (
     ("Enabled", "xp_gliding/toggle", "enabled"),
     ("Thermals", "xp_gliding/thermals/toggle", "thermals_enabled"),
+    ("Sharper thermal edges (experiment)", "xp_gliding/edge/toggle", "edge_enabled"),
     ("Daily cycle", "xp_gliding/day/cycle/toggle", "sun_enabled"),
     ("Thermals follow the wind", "xp_gliding/wind/toggle", "wind_enabled"),
     ("Thermals lean with the wind (experiment)", "xp_gliding/lean/toggle", "lean_enabled"),
@@ -2224,3 +2225,33 @@ def test_with_the_daily_cycle_off_every_thermal_is_as_deep_as_the_day(plugin):
     assert dataref(xp, "day/depth_share") == 1.0 and dataref(xp, "day/zi_now_m") == 2000.0
     assert all(th.depth == 1.0 for th in pi.injector.field.thermals())
     assert status_line(xp).endswith("zi 2000 m")
+
+
+def test_the_sharper_edges_kick_on_a_change_of_lift_and_do_no_work(plugin):
+    pi, xp, data = plugin
+    frame(pi, data)
+    assert dataref(xp, "kick_n") == 0.0  # off by default
+    handler, refcon = xp.handlers["xp_gliding/edge/toggle"]
+    handler("xp_gliding/edge/toggle", xp.CommandBegin, refcon)
+    assert pi.settings.edge_enabled
+    frame(pi, data)
+    dataref(xp, "debug/uniform_ms", 2.0)  # into 2 m/s of lift at once
+    frame(pi, data)
+    kick = dataref(xp, "kick_n")
+    assert kick > 1000.0  # most of 0.5 rho V S CLa w: the frames are milliseconds apart
+    # Perpendicular to the flight path: with no angle of attack, all of it is up.
+    data["sim/flightmodel/position/alpha"] = 0.0
+    frame(pi, data)
+    assert math.isfinite(dataref(xp, "kick_n"))
+    # After a pause the kick starts over instead of jumping.
+    pi.injector._kick_t -= 1.0
+    frame(pi, data)
+    assert dataref(xp, "kick_n") == 0.0
+    # The field carries the ring and the sink between thermals while it is on.
+    pi.next_slow = 0.0
+    frame(pi, data)
+    assert pi.injector.field.ring > 0.0 and pi.injector.field.sink_gain > 1.0
+    handler("xp_gliding/edge/toggle", xp.CommandBegin, refcon)
+    pi.next_slow = 0.0
+    frame(pi, data)
+    assert pi.injector.field.ring == 0.0 and pi.injector.field.sink_gain == 1.0 and dataref(xp, "kick_n") == 0.0

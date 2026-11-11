@@ -79,6 +79,14 @@ DECAY_FRACTION = 0.3  # strength 1 -> 0 at the end
 WIDEN_FRACTION = 0.4  # radius gain RADIUS_START -> 1
 RADIUS_START = 0.6
 
+# Sharper thermal edges (stage 2, first guesses to judge by flying, with the kick in
+# engine/injection.py): a sink ring around every thermal, peaking at 1.5 r2 at this share of its
+# mean updraft, and the sink between thermals times EDGE_SINK_GAIN. Both depart from Allen's
+# conservation of mass, whose ring is weak and only high up, and whose sink between thermals is
+# -0.14 m/s in the wide sky (notes/SPEC.md, open questions).
+EDGE_RING = 0.5
+EDGE_SINK_GAIN = 2.0
+
 # Clamp the per-thermal gains so a lognormal tail cannot make giants.
 WGAIN_RANGE = (0.3, 2.5)
 RGAIN_RANGE = (0.5, 2.0)
@@ -415,6 +423,9 @@ class ThermalField:
         # The share of a full day's thermals alive, which scales the sink between them. 1 with
         # no sun; with it, set by `update`.
         self.sink_share = 1.0
+        # The sharper thermal edges (switch `edge_enabled`): set from outside, read by lift_at.
+        self.ring = 0.0  # a sink ring around every thermal, of this share of its mean updraft
+        self.sink_gain = 1.0  # the sink between thermals, times this
         self._share = None
         if config.sun_min_deg is not None:
             self._share = sun.ThermalShare(config.lifetime_min_s, config.lifetime_max_s, envelope_flux,
@@ -565,7 +576,8 @@ class ThermalField:
         cx = math.floor(e / cell_m)
         cy = math.floor(n / cell_m)
         grid = self._grid
-        total = we * self.sink_share
+        total = we * self.sink_share * self.sink_gain
+        ring = self.ring
         # Most thermals share a floor, the level's, and without the depth cycle a zi.
         last_z, last_zi, last_we = z, zi * self.depth_share, we
         for ix in range(cx - k, cx + k + 1):
@@ -595,6 +607,6 @@ class ThermalField:
                         last_z, last_zi = zt, zit
                         last_we = updraft.environment_sink(zt, zit, wstar, self._flux_density)
                     w = updraft.updraft_velocity(r / th.stretch, zt, zit, wstar, th.wgain * th.gain,
-                                                 th.rgain * rf, last_we)
+                                                 th.rgain * rf, last_we, ring=ring)
                     total += s * (w - last_we)
         return total

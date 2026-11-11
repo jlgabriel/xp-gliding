@@ -32,10 +32,21 @@ from a tuned constant. Note it grows with V: at a given spatial gradient a
 faster glider is rolled harder, as in reality. Flown in test F (2026-11-07, notes/SPEC.md):
 the wing lifts enough to notice and no more.
 
+The kick (with the sharper thermal edges). Entering rising air raises every
+station's angle of attack by w / V, and the wing's lift by
+
+    dL = (1/2) rho V S CLa w
+
+before the glider has risen with the air. The energy force gives the climb
+and not this jolt. The kick is that lift, applied only while w changes: w goes
+through a high-pass filter whose time constant is the wing's own heave time,
+2 m / (rho V S CLa), about 0.4 s in the ASK 21, so it fades as a real glider
+settles into the new air, and it never adds energy, since it is perpendicular
+to the flight path (`lift_force_body`). Leaving lift gives the opposite jolt.
+X-Plane's own flight model damps it further.
+
 Not covered yet: the pitch moment from the tail sample (needs tail area and
-arm), and the transient load factor from the angle-of-attack change when
-entering lift ("the seat kick"); the energy force alone gives the right climb
-but a softer entry. Neither is modeled yet (notes/SPEC.md).
+arm).
 """
 
 import math
@@ -143,6 +154,52 @@ def helix_gradient(w_ms, yaw_rate_rad, tas_ms):
     if tas_ms < MIN_TAS_MS:
         return 0.0
     return w_ms * yaw_rate_rad / tas_ms
+
+
+def heave_time_s(mass_kg, rho, tas_ms, wing_area_m2, cla):
+    """How long the wing takes to settle into a change of vertical air (s): 2 m / (rho V S CLa)."""
+    if tas_ms < MIN_TAS_MS or rho <= 0.0 or cla <= 0.0:
+        return 0.0
+    return 2.0 * mass_kg / (rho * tas_ms * wing_area_m2 * cla)
+
+
+def kick_force(rho, tas_ms, wing_area_m2, cla, w_changing):
+    """Lift (N) from the change of angle of attack that w_changing (m/s) gives, before it settles."""
+    if tas_ms < MIN_TAS_MS:
+        return 0.0
+    return 0.5 * rho * tas_ms * wing_area_m2 * cla * w_changing
+
+
+def lift_force_body(force_n, alpha_deg):
+    """Split a force perpendicular to the flight path, in the plane of symmetry, into body axes.
+
+    Returns (forward, up) in newtons: lift tilts forward with the angle of attack. It does no
+    work, so it adds no energy.
+    """
+    a = math.radians(alpha_deg)
+    return force_n * math.sin(a), force_n * math.cos(a)
+
+
+class HighPass:
+    """What changes in a signal: x minus its first-order lag. Reset on any gap."""
+
+    __slots__ = ("low",)
+
+    def __init__(self):
+        self.low = None
+
+    def reset(self):
+        self.low = None
+
+    def step(self, x, dt_s, tau_s):
+        """x's change for this frame. dt_s may be 0: two frames within the clock's resolution
+        (about 15 ms on Windows) share a time, and the second is a change all the same."""
+        if self.low is None or tau_s <= 0.0:
+            self.low = x
+            return 0.0
+        if dt_s > 0.0:
+            self.low += (x - self.low) * dt_s / (tau_s + dt_s)
+        return x - self.low
 
 
 def span_average(w_left, w_centre, w_right):

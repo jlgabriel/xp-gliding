@@ -6,6 +6,7 @@ What changes for a pilot in each version. Each release on [GitHub](https://githu
 
 - **Put me near a cloud.** *Plugins → XP-Gliding → Put me near a cloud* sets the glider flying 1.5 km from the nearest cloud that will last a few minutes more, heading for it, a little over halfway from the ground to the cloud's base. A first flight no longer needs a tow before there is anything to see.
 - **Days with a name.** *Plugins → XP-Gliding → Day* chooses a whole day at once: *Easy*, *Typical*, *Demanding*, *Weak and low*, or *Blue*, a day whose thermals climb as usual with no clouds to show where they are. The submenus for the sky, the strength, the depth and the seed stay, for choosing one thing at a time.
+- **Sharper thermal edges (experiment).** *Plugins → XP-Gliding → Sharper thermal edges* adds a jolt when you fly into lift and out of it, bumps at a thermal's edge, stronger low down, a ring of sink around each thermal, and twice the sink between thermals. The climb in the thermal is unchanged. Off by default.
 - **The name is now XP-Gliding** in the menu, X-Plane's plugin list and the documentation. Commands, datarefs, the settings file and the folders keep `xp_gliding` and `xp-gliding`, so nothing needs changing on your side.
 
 ## 0.6 — 2026-11-11

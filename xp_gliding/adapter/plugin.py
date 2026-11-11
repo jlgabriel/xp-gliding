@@ -25,6 +25,8 @@ greyed out, says what the plugin is doing and, when there are no thermals, why (
 Commands (also in the menu):
   xp_gliding/toggle            plugin effect on / off
   xp_gliding/thermals/toggle   our thermals on / off, the plugin stays loaded (issue #30)
+  xp_gliding/edge/toggle       sharper thermal edges: a kick on entry and exit, a sink ring and
+                               more sink between thermals (off by default, to judge by flying)
   xp_gliding/wind/toggle       XP12's wind carries the thermals, or they stay where they are
   xp_gliding/lean/toggle       thermals lean with the wind (off by default, a first guess)
   xp_gliding/wind/clouds/toggle  the sky moves with the wind at the clouds, not at the glider
@@ -78,6 +80,7 @@ FAILED_LABEL = "Enabled: stopped by an error, see XPPython3Log.txt"
 DATAREFS = (
     ("enabled", "settings", "enabled", "i", 1),
     ("thermals_enabled", "settings", "thermals_enabled", "i", 1),
+    ("edge_enabled", "settings", "edge_enabled", "i", 1),
     ("wind_enabled", "settings", "wind_enabled", "i", 1),
     ("wind_at_clouds", "settings", "wind_at_clouds", "i", 1),
     ("sun_enabled", "settings", "sun_enabled", "i", 1),
@@ -155,6 +158,8 @@ DATAREFS = (
     ("dw_dy", "out", "dw_dy", "f", 0),
     ("dw_dy_helix", "out", "dw_dy_helix", "f", 0),
     ("force_n", "out", "force_n", "f", 0),
+    ("kick_n", "out", "kick_n", "f", 0),  # the kick's lift (sharper edges), before its split
+    ("turbulence_ms", "injector", "turb_ms", "f", 0),  # the edge's bumps, their amplitude
     ("roll_nm", "out", "roll_nm", "f", 0),
     ("water/checked", "injector", "water_checked", "i", 0),
     ("water/rejected", "injector", "water_rejected", "i", 0),
@@ -286,6 +291,9 @@ class PythonInterface:
              self.on_toggle, "enabled", ENABLED_LABEL),
             (xp.createCommand("xp_gliding/thermals/toggle", "XP-Gliding: thermals on/off"),
              self.on_toggle, "thermals_enabled", "Thermals"),
+            (xp.createCommand("xp_gliding/edge/toggle",
+                              "XP-Gliding: sharper thermal edges on/off (a kick, a sink ring, more sink)"),
+             self.on_toggle, "edge_enabled", "Sharper thermal edges (experiment)"),
             (xp.createCommand("xp_gliding/day/cycle/toggle",
                               "XP-Gliding: daily cycle on/off (off: the same strength all day, sun or not)"),
              self.on_toggle, "sun_enabled", "Daily cycle"),
