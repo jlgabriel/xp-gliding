@@ -139,13 +139,14 @@ class TrainingMarkers:
             self._reconcile(select_markers(field, e, n, s.agl_m, s.sky_t_s, wstar, zi, self.shown,
                                            ground_m=msl_m - s.agl_m))
             st.select_us = (time.perf_counter() - t0) * 1e6
-        top_m = field.config.sky.cloud_base_zzi * zi  # the column's top, over its thermal's floor
+        base_zzi = field.config.sky.cloud_base_zzi  # the column's top, over its thermal's floor
         lean_m = math.hypot(lean_e_m, lean_n_m)
         lean_heading = math.degrees(math.atan2(lean_e_m, lean_n_m)) % 360.0
         best_r, best_x, best_y, best_z, best = math.inf, 0.0, 0.0, 0.0, None
         for item in self.shown.values():
             th = item.thermal
             x, y, z = self.sky.world_to_local(*drift.to_ground(th.lat, th.lon), msl_m)
+            top_m = base_zzi * th.zi(zi)  # at its own depth (daily cycle)
             top_dy = top_m - s.agl_m if th.floor_m is None else th.floor_m + top_m - msl_m
             # The column hangs from its top, so its pitch swings the bottom toward its heading.
             pitch = heading = 0.0

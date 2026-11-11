@@ -454,7 +454,11 @@ def status_line(xp):
 def test_the_menu_says_why_there_are_no_thermals(plugin):
     pi, xp, data = plugin
     frame(pi, data)
-    assert status_line(xp).startswith("Active: ") and "thermals within reach, zi 2000 m" in status_line(xp)
+    # 14:00 local at Hobbs: the day is not quite as deep as it will be (daily cycle, step B).
+    zi_now = pi.injector.zi_now_m
+    assert 1800.0 < zi_now < 1995.0
+    assert status_line(xp).startswith("Active: ")
+    assert f"thermals within reach, zi {zi_now:.0f} m, 2000 m by mid-afternoon" in status_line(xp)
     pi.on_toggle("xp_gliding/thermals/toggle", xp.CommandBegin, "thermals_enabled")
     assert status_line(xp) == "No thermals: Thermals is unticked"
     pi.on_toggle("xp_gliding/thermals/toggle", xp.CommandBegin, "thermals_enabled")
@@ -552,8 +556,10 @@ def test_markers_create_two_instances_per_thermal_at_the_right_heights(plugin):
         assert position is not None and position[3:] == (0.0, 0.0, 0.0)
     # Rings at the glider's height, columns' tops at the top of the lift over its ground.
     assert {v[1][1] for v in rings} == {1916.0 - 1000.0}
-    top = 1916.0 - 800.0 + 2000.0 / 1.1
-    assert all(v[1][1] == pytest.approx(top - 1000.0) for v in columns)
+    # At 14:00 local the day is not quite at its depth (daily cycle): each top is its thermal's.
+    for item in pi.markers.shown.values():
+        top = 1916.0 - 800.0 + item.thermal.zi(2000.0) / 1.1
+        assert xp.instances[item.column][1][1] == pytest.approx(top - 1000.0)
     # Both instances of a thermal share x and z, and they are the thermal's.
     th = next(iter(pi.markers.shown))
     x, y, z = xp.worldToLocal(th.lat, th.lon, 1916.0)
@@ -789,7 +795,9 @@ def test_clouds_are_on_by_default_and_fill_the_sky_over_many_updates(plugin):
     assert all("xp_gliding/assets/clouds/cumulus.obj" in p for p in xp.objects.values())
     assert set(xp.instances) == xp.shifted
     assert dataref(xp, "clouds/nearest_m") >= 0.0
-    assert dataref(xp, "clouds/nearest_base_m") >= dataref(xp, "clouds/level_m") > 0.0
+    heights = pi.clouds.heights
+    lowest = min(heights.level_of(th) for th in pi.clouds.instances)
+    assert dataref(xp, "clouds/nearest_base_m") >= lowest > 0.0 and dataref(xp, "clouds/level_m") > 0.0
     assert 0.6 <= dataref(xp, "clouds/nearest_scale") <= 1.4
 
 
@@ -802,14 +810,14 @@ def test_clouds_carry_their_rate_and_scale_at_the_base_of_the_clouds(plugin):
         assert name in xp.accessors
     # y in the fake's world_to_local is the height minus 1000; the base is above the ground
     # under the glider: 1916 - 800, plus the top of the lift.
-    base = 1916.0 - 800.0 + 2000.0 / 1.1
+    # Each thermal's own level: a little lower for one born before mid-afternoon (daily cycle).
     from xp_gliding.engine.clouds import SCALE_RANGE
-    used = {inst for inst, _, _ in pi.clouds.instances.values()}
+    used = {inst: 1916.0 - 800.0 + th.zi(2000.0) / 1.1 for th, (inst, _, _) in pi.clouds.instances.items()}
     assert used
     for ref, (_, position, values, drefs) in xp.instances.items():
         assert drefs == wanted
         if ref in used:
-            assert position[1] == pytest.approx(base - 1000.0)
+            assert position[1] == pytest.approx(used[ref] - 1000.0)
             assert values[0] > 0.0 and SCALE_RANGE[0] <= values[1] <= SCALE_RANGE[1]
         else:  # made in advance for a ring, not used yet
             assert values[0] == 0.0
@@ -825,11 +833,13 @@ def test_clouds_keep_a_level_over_low_ground_and_clear_a_hill(plugin):
     fill_sky(pi, data)
     assert dataref(xp, "clouds/level_m") == pytest.approx(level)
     bases = {th: entry[1] for th, entry in pi.clouds.instances.items()}
-    west = [b for th, b in bases.items() if th.lon < lon0 + 0.04]
+    own = pi.clouds.heights.level_of  # each thermal's level, for the depth it was born with
+    west = [(b, own(th)) for th, b in bases.items() if th.lon < lon0 + 0.04]
     east = [b for th, b in bases.items() if th.lon > lon0 + 0.06]
-    assert west and all(b == pytest.approx(level) for b in west)
+    assert west and all(b == pytest.approx(mine) for b, mine in west)
+    assert all(level - 200.0 < mine <= level for _, mine in west)
     assert east and all(b == pytest.approx(4300.0) for b in east)
-    assert dataref(xp, "clouds/raised") == sum(b > level + 1.0 for b in bases.values()) >= len(east)
+    assert dataref(xp, "clouds/raised") == sum(b > own(th) + 1.0 for th, b in bases.items()) >= len(east)
     assert dataref(xp, "clouds/base_max_m") == pytest.approx(4300.0)
     assert dataref(xp, "clouds/base_us") > 0.0
     # What was asked for is where the instance is.
@@ -849,8 +859,10 @@ def test_a_cloud_is_high_enough_for_the_hill_it_will_drift_into(plugin):
     upwind = {th: e[1] for th, e in pi.clouds.instances.items() if th.lon < start - 0.01}
     downwind = {th: e[1] for th, e in pi.clouds.instances.items() if th.lon > end + 0.01}
     assert any(b == pytest.approx(4300.0) for b in upwind.values())
-    assert any(b == pytest.approx(level) for b in upwind.values())
-    assert downwind and all(b == pytest.approx(level) for b in downwind.values())
+    own = pi.clouds.heights.level_of  # each thermal's level, for the depth it was born with
+    assert any(b == pytest.approx(own(th)) for th, b in upwind.items())
+    assert downwind and all(b == pytest.approx(own(th)) for th, b in downwind.items())
+    assert all(level - 200.0 < own(th) <= level for th in downwind)
 
 
 def test_with_no_ground_loaded_a_cloud_stays_at_the_level(plugin):
@@ -859,7 +871,9 @@ def test_with_no_ground_loaded_a_cloud_stays_at_the_level(plugin):
     xp.ground = lambda lat, lon: None
     fill_sky(pi, data)
     level = 1916.0 - 800.0 + 2000.0 / 1.1
-    assert all(e[1] == pytest.approx(level) for e in pi.clouds.instances.values())
+    own = pi.clouds.heights.level_of
+    assert all(e[1] == pytest.approx(own(th)) for th, e in pi.clouds.instances.items())
+    assert all(level - 200.0 < own(th) <= level for th in pi.clouds.instances)
     assert dataref(xp, "clouds/ground_misses") >= 5 * dataref(xp, "clouds/created") > 0
     assert dataref(xp, "clouds/raised") == 0
 
@@ -872,7 +886,8 @@ def test_the_level_stays_for_a_sky_and_is_new_with_the_next(plugin):
     data["sim/flightmodel/position/y_agl"] -= 300.0
     fill_sky(pi, data)
     assert dataref(xp, "clouds/level_m") == level
-    assert len({round(e[1], 3) for e in pi.clouds.instances.values()}) == 1
+    own = pi.clouds.heights.level_of  # each at its own thermal's depth, from the sky's level
+    assert all(e[1] == pytest.approx(own(th)) for th, e in pi.clouds.instances.items())
     pi.injector.reset_field()
     clouds_tick(pi, data)
     assert dataref(xp, "clouds/level_m") == pytest.approx(level + 300.0)
@@ -1349,12 +1364,17 @@ def test_the_wind_at_the_clouds_comes_from_the_layers_at_their_level(plugin):
     assert dataref(xp, "wind/e_ms") == pytest.approx(expected * 0.514444, abs=1e-3)
     assert dataref(xp, "wind/n_ms") == pytest.approx(0.0, abs=1e-6)
     # With clouds, at their level, wherever the glider is.
-    pi.injector.heights.level_m = 2000.0
+    # At the clouds' level of the moment (daily cycle): the sky's, lowered by the depth it lacks.
+    heights = pi.injector.heights
+    heights.level_m = 2000.0
     pi.next_lean = 0.0
     data["sim/flightmodel/position/elevation"] += 500.0
     frame(pi, data)
     frame(pi, data)
-    assert dataref(xp, "wind/e_ms") == pytest.approx(12.0 * 0.514444, abs=1e-3)
+    level = heights.level_at(pi.injector.depth_share)
+    assert 1800.0 < level < 2000.0
+    expected = 9.0 + (level - 1000.0) / 2000.0 * 6.0
+    assert dataref(xp, "wind/e_ms") == pytest.approx(expected * 0.514444, abs=1e-3)
 
 
 def test_the_height_of_a_cloud_reads_the_wind_that_carries_the_sky(plugin):
@@ -1650,7 +1670,7 @@ def test_each_thermal_gets_the_floor_that_puts_its_cloud_at_the_skys_share_of_zi
     for th in field.thermals():
         assert th.floor_m is not None
         if carries_cloud(th, params) and th.lon > edge + 0.01:
-            assert th.floor_m == pytest.approx(3300.0 - base_zzi * zi)
+            assert th.floor_m == pytest.approx(3300.0 - base_zzi * th.zi(zi))
             raised += 1
         elif not carries_cloud(th, params):
             assert th.floor_m == pytest.approx(1116.0)
@@ -1669,7 +1689,7 @@ def test_the_lift_at_a_drawn_cloud_ends_by_the_height_that_cloud_was_drawn_at(pl
             if (c.lat, c.lon, c.birth) in by_key]
     assert both and any(c.lon > edge + 0.01 for c, _ in both)
     for cloud, th in both:
-        assert th.floor_m == pytest.approx(pi.clouds.instances[cloud][1] - base_zzi * zi)
+        assert th.floor_m == pytest.approx(pi.clouds.instances[cloud][1] - base_zzi * th.zi(zi))
 
 
 def test_on_flat_ground_the_force_is_what_it_was_with_no_floors(plugin):
@@ -1776,7 +1796,9 @@ def test_the_top_on_the_hud_is_the_distance_up_to_the_clouds(plugin):
     # With no cloud drawn, the level.
     assert pi.clouds.status.nearest_base_m == -1.0
     hud_samples(pi, xp, data, count=3)
-    assert pi.hud._top_text == f"TOP {1116.0 + base_zzi * zi - 1916.0:+.0f} m"
+    zi_now = pi.injector.zi_now_m  # the clouds' level of the moment (daily cycle)
+    assert zi_now < zi
+    assert pi.hud._top_text == f"TOP {1116.0 + base_zzi * zi_now - 1916.0:+.0f} m"
     # With one, how far its base is from the glider: the ground under the glider does not count.
     pi.clouds.status.nearest_base_m = 3000.0
     pi.next_slow = 0.0
@@ -1820,8 +1842,8 @@ def test_each_column_stands_at_its_own_thermals_cloud(plugin):
     for item in pi.markers.shown.values():
         ring = xp.instances[item.ring][1]
         column = xp.instances[item.column][1]
-        assert column[1] - ring[1] == pytest.approx(item.thermal.floor_m + base_zzi * zi - msl)
-        tops.add(round(column[1], 3))
+        assert column[1] - ring[1] == pytest.approx(item.thermal.floor_m + base_zzi * item.thermal.zi(zi) - msl)
+        tops.add(round(column[1] - base_zzi * item.thermal.zi(zi), 3))  # less its own depth
     assert len(tops) == 2
 
 
@@ -1896,7 +1918,7 @@ def test_the_weather_sets_the_cloud_base_once_turned_on(plugin):
     assert dataref(xp, "day/zi_m") == pytest.approx(zi)
     assert pi.injector.field.config is not None and pi.injector._field_key[4] == pytest.approx(zi)
     assert pi.injector.heights.level_m == pytest.approx(1116.0 + 1250.0)
-    assert pi.hud.zi_m == pytest.approx(zi)
+    assert pi.hud.zi_m == pytest.approx(pi.injector.zi_now_m) and pi.injector.zi_now_m < zi
     # The menu's zi is kept for when the weather is turned off, and both are saved.
     assert pi.settings.zi_m == 2000.0
     assert saved(pi)["zi_m"] == 2000.0 and saved(pi)["weather_base_enabled"] is True
@@ -1911,7 +1933,10 @@ def test_a_base_from_the_weather_starts_the_clouds_over(plugin):
     frame(pi, data)
     assert not pi.clouds.instances
     fill_sky(pi, data)
-    assert {base for _, base, _ in pi.clouds.instances.values()} >= {1116.0 + 1250.0}
+    own = pi.clouds.heights.level_of
+    assert pi.clouds.heights.level_m == pytest.approx(1116.0 + 1250.0)
+    assert all(base >= own(th) for th, (_, base, _) in pi.clouds.instances.items())
+    assert any(base == pytest.approx(own(th)) for th, (_, base, _) in pi.clouds.instances.items())
 
 
 def test_the_weather_is_read_once_more_later_and_then_kept(plugin):
@@ -2026,4 +2051,39 @@ def test_a_thermal_born_in_the_blue_morning_goes_by_the_level(plugin):
     assert born_early
     assert not pi.clouds.instances
     for th in born_early[:5]:
-        assert heights.base_m(th, pi.state.sky_t_s, pi.injector.drift) == heights.level_m
+        # Its own level: the sky's lowered by the depth the day lacked at its birth.
+        assert heights.base_m(th, pi.state.sky_t_s, pi.injector.drift) == heights.level_of(th) < heights.level_m
+
+
+def test_a_morning_thermal_is_as_deep_as_the_day_at_its_birth(plugin):
+    # 10:00 local at Hobbs (about 10:24 solar): the day is under half its afternoon's depth.
+    pi, xp, data = plugin
+    data["sim/time/zulu_time_sec"], data["sim/time/local_time_sec"] = 61200.0, 36000.0
+    frame(pi, data)
+    injector = pi.injector
+    assert injector.field.config.depth_cycle
+    share = dataref(xp, "day/depth_share")
+    assert 0.3 < share < 0.7
+    assert dataref(xp, "day/zi_m") == 2000.0
+    assert dataref(xp, "day/zi_now_m") == pytest.approx(2000.0 * share)
+    assert 0.0 < dataref(xp, "nearest/depth") < 0.7
+    assert all(th.depth < 0.7 for th in injector.field.alive(pi.state.sky_t_s))
+    assert f"zi {injector.zi_now_m:.0f} m, 2000 m by mid-afternoon" in status_line(xp)
+    # Each thermal's floor puts its own top over the ground: none is raised in the blue.
+    for th in injector.field.thermals():
+        assert th.floor_m == pytest.approx(1116.0)
+    hud_samples(pi, xp, data, count=3)
+    base_zzi = injector.field.config.sky.cloud_base_zzi
+    assert pi.hud._top_text == f"TOP {1116.0 + base_zzi * injector.zi_now_m - 1916.0:+.0f} m"
+
+
+def test_with_the_daily_cycle_off_every_thermal_is_as_deep_as_the_day(plugin):
+    pi, xp, data = plugin
+    data["sim/time/zulu_time_sec"], data["sim/time/local_time_sec"] = 61200.0, 36000.0
+    pi.on_toggle("xp_gliding/day/cycle/toggle", xp.CommandBegin, "sun_enabled")
+    assert not pi.settings.sun_enabled
+    frame(pi, data)
+    assert not pi.injector.field.config.depth_cycle
+    assert dataref(xp, "day/depth_share") == 1.0 and dataref(xp, "day/zi_now_m") == 2000.0
+    assert all(th.depth == 1.0 for th in pi.injector.field.thermals())
+    assert status_line(xp).endswith("zi 2000 m")

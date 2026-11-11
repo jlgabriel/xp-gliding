@@ -73,6 +73,20 @@ class _Day:
         return values[k] + f * (values[k + 1] - values[k])
 
 
+def _solar_noon(lon, day, solar_day):
+    """The field's t of solar noon on that solar day, from the day alone.
+
+    The table must not depend on the t it was first asked for: the field and the clouds ask at
+    different times, and each thermal's depth must be the same for both (found 2026-11-11: the
+    noon taken from the asking t moved with the equation of time by a fraction of a second).
+    """
+    noon = 43200.0 + 86400.0 * solar_day - 240.0 * lon
+    for _ in range(3):
+        diff = 43200.0 - sun.solar_time_s(lon, day, noon)
+        noon += (diff + 43200.0) % 86400.0 - 43200.0
+    return noon
+
+
 class DayCycle:
     """The daily cycle around the sky: strength and depth of the moment, as shares of the day's peak."""
 
@@ -94,7 +108,8 @@ class DayCycle:
         if table is None:
             if len(self._days) >= CACHE_DAYS:
                 self._days.pop(next(iter(self._days)))
-            table = _Day(lat_c, lon_c, self.day, noon, self.onset_deg, self.cap_solar_h)
+            table = _Day(lat_c, lon_c, self.day, _solar_noon(lon_c, self.day, solar_day),
+                         self.onset_deg, self.cap_solar_h)
             self._days[key] = table
         return table
 

@@ -50,9 +50,18 @@ height shifts the point by `wind.Lean` first.
 
 The sun (`sun.py`): with `FieldConfig.sun_min_deg` set, a thermal is born only while the sun is
 that high at its place and birth, and the environment sink fades with the share of thermals alive
-(`ThermalField.sink_share`). A cutoff, not the daily cycle of w* and zi (SPEC, stage 2).
+(`ThermalField.sink_share`). The strength of the moment is the caller's w* (`daycycle.py`, step A).
 
-Not modeled yet: the daily cycle, terrain triggers (stages 2 and 3). Ground where no
+The depth of the moment (`FieldConfig.depth_cycle`, the daily cycle's step B, off by default): a
+thermal is as deep as the day was at its birth, `Thermal.depth` of the field's zi, which
+`daycycle.DayCycle.depth_share` gives. Its whole profile is Allen's for that zi: a morning thermal
+is low and narrow, and keeps the depth it was born with for life, so its cloud keeps one base and
+the bases rise through the day as later thermals are born deeper. The sink between thermals is
+Allen's for the zi of the moment at the glider (`ThermalField.depth_share`). The number of
+thermals stays the one drawn for the field's zi: a morning sky holds as many as the afternoon's,
+narrower, so less of it rises and less sinks (notes/phase5.md, *Step B*).
+
+Not modeled yet: terrain triggers (stage 3). Ground where no
 thermal is born (the adapter: water) is excluded with an optional `accept(lat, lon, birth)`
 predicate, which never shifts the random stream; nor does the sun.
 """
@@ -223,17 +232,18 @@ class FieldConfig:
     """Parameters of a thermal field. All defaults are first guesses to tune.
 
     zi_m is the day's depth the field is for, which sets its density; ask `lift_at` with the
-    same zi. density_per_km2, if given, replaces that.
+    same zi. density_per_km2, if given, replaces that. With depth_cycle (and the sun on), zi_m
+    is the afternoon's, and each thermal is as deep as the day was at its birth.
     """
 
     __slots__ = ("seed", "day", "tile_deg", "zi_m", "density_per_km2", "lifetime_min_s",
                  "lifetime_max_s", "wgain_sigma", "rgain_sigma", "range_m", "cell_m", "sky",
-                 "sun_min_deg")
+                 "sun_min_deg", "depth_cycle")
 
     def __init__(self, seed=0, day=0, tile_deg=0.02, density_per_km2=None,
                  lifetime_min_s=300.0, lifetime_max_s=1800.0, wgain_sigma=0.3,
                  rgain_sigma=0.2, range_m=10000.0, cell_m=400.0, zi_m=ZI_TUNED_M, sky=None,
-                 sun_min_deg=None):
+                 sun_min_deg=None, depth_cycle=False):
         self.seed = int(seed)
         # Days since 1 January (X-Plane's local date). With sun_min_deg it places the sun.
         self.day = int(day)
@@ -251,6 +261,12 @@ class FieldConfig:
         self.sky = sky if sky is not None else SKIES["default"]
         # A thermal is born only with the sun at least this high (degrees); None: at any hour.
         self.sun_min_deg = None if sun_min_deg is None else float(sun_min_deg)
+        # Each thermal as deep as the day at its birth (daily cycle, step B). Only with the sun.
+        self.depth_cycle = bool(depth_cycle) and self.sun_min_deg is not None
+
+    def cycle(self):
+        """The daily cycle of this sky (`daycycle.DayCycle`), or None with the sun off."""
+        return None if self.sun_min_deg is None else DayCycle(self.day, onset_deg=self.sun_min_deg)
 
     @property
     def slot_s(self):
@@ -294,13 +310,14 @@ class Thermal:
 
     wgain and rgain are as drawn, which is what decides a cloud and its size. gain and
     stretch are what the sky's profile does to the lift (`SkyProfile`). floor_m, if set from
-    outside, is where its height is measured from (`height_in_thermal`), m MSL.
+    outside, is where its height is measured from (`height_in_thermal`), m MSL. depth is its zi
+    as a share of the field's: 1, or the day's at its birth with `FieldConfig.depth_cycle`.
     """
 
     __slots__ = ("lat", "lon", "birth", "death", "wgain", "rgain", "gain", "stretch", "e", "n",
-                 "cell", "floor_m")
+                 "cell", "floor_m", "depth")
 
-    def __init__(self, lat, lon, birth, death, wgain, rgain, gain=1.0, stretch=1.0):
+    def __init__(self, lat, lon, birth, death, wgain, rgain, gain=1.0, stretch=1.0, depth=1.0):
         self.lat = lat
         self.lon = lon
         self.birth = birth
@@ -313,6 +330,11 @@ class Thermal:
         self.n = 0.0
         self.cell = None
         self.floor_m = None
+        self.depth = depth
+
+    def zi(self, zi):
+        """Its own zi (m) in a field made for zi."""
+        return zi * self.depth
 
     def envelope(self, t):
         """Life-cycle (strength, radius) factors at time t; (0, 0) if not alive."""
@@ -327,8 +349,14 @@ def tile_area_m2(i, j, tile_deg):
     return (m * d) * (n * math.cos(math.radians(lat_c)) * d)
 
 
-def generate_tile(config, i, j, slot, accept=None):
-    """Thermals born in tile (i, j) during time slot `slot`. Pure function."""
+def generate_tile(config, i, j, slot, accept=None, cycle=None):
+    """Thermals born in tile (i, j) during time slot `slot`. Pure function.
+
+    cycle: the sky's `DayCycle`, which gives each thermal its depth with `config.depth_cycle`;
+    made here if not given.
+    """
+    if config.depth_cycle and cycle is None:
+        cycle = config.cycle()
     rng = SplitMix64(hash_key(config.seed, config.day, i, j, slot))
     area_km2 = tile_area_m2(i, j, config.tile_deg) * 1e-6
     lam = config.density_per_km2 * area_km2 * config.slot_s / config.mean_lifetime_s
@@ -361,7 +389,8 @@ def generate_tile(config, i, j, slot, accept=None):
             continue
         if accept is not None and not accept(lat, lon, birth):
             continue
-        thermals.append(Thermal(lat, lon, birth, birth + life, wgain, rgain, gain, stretch))
+        depth = cycle.depth_share(lat, lon, birth) if config.depth_cycle else 1.0
+        thermals.append(Thermal(lat, lon, birth, birth + life, wgain, rgain, gain, stretch, depth))
     return thermals
 
 
@@ -391,7 +420,10 @@ class ThermalField:
             self._share = sun.ThermalShare(config.lifetime_min_s, config.lifetime_max_s, envelope_flux,
                                            min_deg=config.sun_min_deg)
         # The daily cycle: the strength of the moment as a share of the day's peak (daycycle.py).
-        self.cycle = None if config.sun_min_deg is None else DayCycle(config.day, onset_deg=config.sun_min_deg)
+        self.cycle = config.cycle()
+        # zi of the moment at the glider over the field's, for the sink between thermals. 1 with
+        # no depth cycle; with it, set by `update`.
+        self.depth_share = 1.0
 
     # --- loading -----------------------------------------------------------
 
@@ -413,10 +445,13 @@ class ThermalField:
     def update(self, t, lat, lon):
         """Load tiles and slots around (lat, lon) at time t, drop the rest.
 
-        Returns True if the set of thermals changed. With the sun, also sets `sink_share`.
+        Returns True if the set of thermals changed. With the sun, also sets `sink_share`, and
+        with the depth cycle `depth_share`.
         """
         if self._share is not None:
             self.sink_share = self._share.at(lat, lon, self.config.day, t)
+        if self.config.depth_cycle:
+            self.depth_share = self.cycle.depth_share(lat, lon, t)
         wanted = self.wanted_keys(t, lat, lon)
         changed = False
         for key in [k for k in self._tiles if k not in wanted]:
@@ -425,7 +460,7 @@ class ThermalField:
             changed = True
         for key in wanted:
             if key not in self._tiles:
-                thermals = generate_tile(self.config, *key, accept=self.accept)
+                thermals = generate_tile(self.config, *key, accept=self.accept, cycle=self.cycle)
                 for th in thermals:
                     th.e, th.n = self.frame.to_enu(th.lat, th.lon)
                     self._grid_add(th)
@@ -469,7 +504,7 @@ class ThermalField:
 
     def environment_sink(self, z, wstar, zi):
         """The sink of a full day at z, which each thermal's profile is drawn against. The air
-        between thermals sinks at this times `sink_share`."""
+        between thermals sinks at this times `sink_share`, at the zi of the moment."""
         return updraft.environment_sink(z, zi, wstar, self._flux_density)
 
     def nearest(self, e, n, t, max_m):
@@ -513,13 +548,15 @@ class ThermalField:
     def lift_at(self, e, n, z, t, wstar, zi, ground_m=None):
         """Vertical air velocity (m/s) at local (e, n), height z AGL, time t.
 
-        wstar and zi are the convective scales of the moment (m/s, m AGL). ground_m is the
+        wstar is the convective velocity of the moment (m/s) and zi the field's depth (m AGL),
+        which each thermal reads at its own `depth`. ground_m is the
         ground's height MSL under the point: with it, a thermal with a floor is read at its
-        own height (`height_in_thermal`). The sink between thermals stays with z.
+        own height (`height_in_thermal`). The sink between thermals stays with z, and is
+        the one for the zi of the moment (`depth_share`).
         """
         if zi <= 0.0 or z <= 0.0 or (z >= zi and ground_m is None):
             return 0.0
-        we = updraft.environment_sink(z, zi, wstar, self._flux_density)
+        we = updraft.environment_sink(z, zi * self.depth_share, wstar, self._flux_density)
         # With floors a thermal can be at any height of its own, so the widest of them all.
         reach_z = z if ground_m is None else 0.999 * zi
         reach = updraft.influence_radius(reach_z, zi, RGAIN_RANGE[1]) * self._max_stretch
@@ -529,7 +566,8 @@ class ThermalField:
         cy = math.floor(n / cell_m)
         grid = self._grid
         total = we * self.sink_share
-        last_z, last_we = z, we  # most thermals share a floor, the level's
+        # Most thermals share a floor, the level's, and without the depth cycle a zi.
+        last_z, last_zi, last_we = z, zi * self.depth_share, we
         for ix in range(cx - k, cx + k + 1):
             for iy in range(cy - k, cy + k + 1):
                 bucket = grid.get((ix, iy))
@@ -547,14 +585,16 @@ class ThermalField:
                     # Scale the whole perturbation, not wgain: Allen's stretch toward
                     # the environment sink (Eq. 23) leaves a residual of about |we|
                     # when wgain -> 0, which would jump at birth and death.
-                    zt, wet = z, we
+                    zt = z
                     if ground_m is not None and th.floor_m is not None:
                         zt = height_in_thermal(th, z, ground_m)
-                        if zt != last_z:
-                            last_z = zt
-                            last_we = updraft.environment_sink(zt, zi, wstar, self._flux_density)
-                        wet = last_we
-                    w = updraft.updraft_velocity(r / th.stretch, zt, zi, wstar, th.wgain * th.gain,
-                                                 th.rgain * rf, wet)
-                    total += s * (w - wet)
+                    zit = zi * th.depth
+                    if zt >= zit:
+                        continue  # above its own layer: nothing of it, nor of its sink
+                    if zt != last_z or zit != last_zi:
+                        last_z, last_zi = zt, zit
+                        last_we = updraft.environment_sink(zt, zit, wstar, self._flux_density)
+                    w = updraft.updraft_velocity(r / th.stretch, zt, zit, wstar, th.wgain * th.gain,
+                                                 th.rgain * rf, last_we)
+                    total += s * (w - last_we)
         return total

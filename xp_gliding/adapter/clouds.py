@@ -85,12 +85,18 @@ class CloudHeights:
     cloud is known by (lat, lon, birth), and its base is worked out once: its lift ends with the
     cloud that is drawn. It reads the ground the cloud will pass over, so only for a new thermal,
     never per frame. A thermal with no cloud goes by the level.
+
+    With the daily cycle's depth (`Thermal.depth` under 1), a thermal's own level is lower than
+    the sky's, which is the afternoon's: as much lower as its zi is shallower (`level_of`).
     """
 
     def __init__(self, ground_m, params):
         self.ground_m = ground_m  # ground_m(lat, lon): m MSL, None where no ground is loaded
         self.params = params
         self.level_m = None  # m MSL, for this sky
+        # How high the level is over the ground it was set from: the sky's cloud_base_zzi of zi.
+        # Set with the level; only a thermal shallower than the field's needs it.
+        self.span_m = 0.0
         self.resets = 0  # how many skies, so that the clouds can tell a new one
         self.misses = 0  # ground readings that found no ground
         self.base_us = self.base_us_max = 0.0  # working out one cloud's height
@@ -105,10 +111,20 @@ class CloudHeights:
         self.resets += 1
         self._bases.clear()
 
-    def base_m(self, thermal, t, drift):
-        """Its cloud's base (m MSL), or the level for a thermal with no cloud."""
-        if not carries_cloud(thermal, self.params) or (self.blue is not None and self.blue(thermal)):
+    def level_at(self, depth):
+        """The level (m MSL) for a zi this share of the sky's: the sky's, lowered. None: no sky yet."""
+        if depth == 1.0 or self.level_m is None:
             return self.level_m
+        return self.level_m - self.span_m * (1.0 - depth)
+
+    def level_of(self, thermal):
+        """This thermal's own level (m MSL): the sky's, lowered for a thermal born shallower."""
+        return self.level_at(thermal.depth)
+
+    def base_m(self, thermal, t, drift):
+        """Its cloud's base (m MSL), or its level for a thermal with no cloud."""
+        if not carries_cloud(thermal, self.params) or (self.blue is not None and self.blue(thermal)):
+            return self.level_of(thermal)
         key = (thermal.lat, thermal.lon, thermal.birth)
         base_m = self._bases.get(key)
         if base_m is None:
@@ -117,7 +133,7 @@ class CloudHeights:
             points = ground_points(lat, lon, CLOUD_HALF_WIDTH_M * cloud_scale(thermal), drift.wind_e_ms,
                                    drift.wind_n_ms, cloud_seconds_left(thermal, t, self.params))
             grounds = [self.ground_m(*point) for point in points]
-            base_m = cloud_base_m(self.level_m, grounds)
+            base_m = cloud_base_m(self.level_of(thermal), grounds)
             self.misses += grounds.count(None)
             if len(self._bases) >= MAX_BASES:
                 self._bases.clear()
@@ -127,8 +143,8 @@ class CloudHeights:
         return base_m
 
     def floor_m(self, thermal, t, drift, base_zzi, zi):
-        """Where this thermal's height starts (m MSL): its cloud's base is at base_zzi of zi."""
-        return self.base_m(thermal, t, drift) - base_zzi * zi
+        """Where this thermal's height starts (m MSL): its cloud's base is at base_zzi of its zi."""
+        return self.base_m(thermal, t, drift) - base_zzi * thermal.zi(zi)
 
 
 class CumulusClouds:
@@ -356,7 +372,7 @@ class CumulusClouds:
         """The height of a cloud being created, and the count of them for the datarefs."""
         st = self.status
         base_m = self.heights.base_m(th, t, drift)
-        st.raised += base_m > self.level_m
+        st.raised += base_m > self.heights.level_of(th)  # above its own level, for the ground
         st.base_max_m = max(st.base_max_m, base_m)
         return base_m
 
@@ -365,7 +381,8 @@ class CumulusClouds:
         for action, th, rate in actions:
             if action == CREATE:
                 if self.level_m is None:
-                    self.heights.level_m = ground_m + self.config.sky.cloud_base_zzi * zi
+                    self.heights.span_m = self.config.sky.cloud_base_zzi * zi
+                    self.heights.level_m = ground_m + self.heights.span_m
                 base_m = self._base_m(th, t, drift)
                 r = math.hypot(th.e - e, th.n - n)
                 self.instances[th] = (self._place(th, r, base_m, rate, drift, e, n), base_m, rate)

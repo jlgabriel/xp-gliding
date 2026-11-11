@@ -45,7 +45,8 @@ once more about 90 s later, for real weather that arrives late, then kept (`Weat
 
 The daily cycle (`engine/daycycle.py`, unless `sun_enabled` is off): no thermal is born with the sun
 low, and the w* in use is the menu's times the share of the day's peak at this hour (`Injector.wstar_ms`)
-for the lift, the markers and the lean. None is born over
+for the lift, the markers and the lean. Each thermal is also as deep as the day was at its birth
+(`FieldConfig.depth_cycle`, step B): zi above is the afternoon's, and `Injector.zi_now_m` the moment's. None is born over
 water (`Injector.accept_thermal`). A thermal keeps its place in the air,
 so what counts is the ground under it at its birth, worked out in the present wind: the field and
 the clouds load the same thermal at different times, and in a steady wind must agree about it.
@@ -142,13 +143,14 @@ class Injection:
 class Nearest:
     """Nearest alive thermal, refreshed by slow_update."""
 
-    __slots__ = ("distance_m", "bearing_deg", "core_ms", "floor_m", "alive", "loaded")
+    __slots__ = ("distance_m", "bearing_deg", "core_ms", "floor_m", "depth", "alive", "loaded")
 
     def __init__(self):
         self.distance_m = -1.0  # -1: none within NEAREST_MAX_M
         self.bearing_deg = 0.0
         self.core_ms = 0.0  # lift at its centre, at the aircraft's height
         self.floor_m = -1.0  # where its height starts, m MSL; -1: no thermal, or no floor
+        self.depth = 0.0  # its zi over the afternoon's (daily cycle); 0: no thermal
         self.alive = 0  # thermals alive among those loaded
         self.loaded = 0
 
@@ -268,6 +270,7 @@ class Injector:
         self.sun_elevation_deg = 0.0  # the engine's sun at the aircraft, to compare with X-Plane's
         self.sun_share = 1.0  # the share of a full day's thermals alive (`ThermalField.sink_share`)
         self.day_share = 1.0  # w* of the moment over the menu's, the day's peak (daily cycle)
+        self.depth_share = 1.0  # zi of the moment over the afternoon's (daily cycle, step B)
         self.weather = WeatherBase()
         self.jumped = False  # the last slow update found a jump: a new flight, the map, the clock
         # The tail's sample feeds only a dataref the flight logger reads (pitch is not modelled),
@@ -296,6 +299,11 @@ class Injector:
         if st.weather_base_enabled and self.weather.base_m is not None:
             return self.weather.base_m / sky_named(st.sky).cloud_base_zzi
         return st.zi_m
+
+    @property
+    def zi_now_m(self):
+        """The depth of the moment at the aircraft: `zi_m`, the afternoon's, with the daily cycle."""
+        return self.zi_m * self.depth_share
 
     @property
     def wstar_ms(self):
@@ -338,7 +346,7 @@ class Injector:
             self.sky_wind = None
             return
         if level_m is None:
-            level_m = msl_m - s.agl_m + sky_named(self.settings.sky).cloud_base_zzi * self.zi_m
+            level_m = msl_m - s.agl_m + sky_named(self.settings.sky).cloud_base_zzi * self.zi_now_m
         self.sky_wind = layer_wind(level_m, heights, east, north)
 
     def lean_update(self, s, altitudes_msl_m, speeds_kt, from_deg, msl_m):
@@ -349,7 +357,7 @@ class Injector:
             return
         heights, east, north = wind_layers(altitudes_msl_m, speeds_kt, from_deg, msl_m - s.agl_m)
         if heights:
-            self.lean.set_wind(heights, east, north, sky_named(st.sky).cloud_base_zzi * self.zi_m,
+            self.lean.set_wind(heights, east, north, sky_named(st.sky).cloud_base_zzi * self.zi_now_m,
                                self.wstar_ms, s.sky_t_s)
 
     def sky_position(self, s):
@@ -384,7 +392,8 @@ class Injector:
             new_sky = True
             self.frame = LocalFrame(lat, lon)
             config = FieldConfig(seed=st.seed, day=s.day, range_m=st.range_m, zi_m=self.zi_m,
-                                 sky=sky_named(st.sky), sun_min_deg=SUN_MIN_DEG if st.sun_enabled else None)
+                                 sky=sky_named(st.sky), sun_min_deg=SUN_MIN_DEG if st.sun_enabled else None,
+                                 depth_cycle=st.sun_enabled)
             self.field = ThermalField(config, self.frame, self.accept_thermal if self.is_wet else None)
             self._field_key = key
         elif self.frame.distance_to_origin(lat, lon) > st.recentre_m:
@@ -395,6 +404,7 @@ class Injector:
         self.sun_share = self.field.sink_share
         cycle = self.field.cycle
         self.day_share = 1.0 if cycle is None else cycle.strength_share(lat, lon, s.sky_t_s)
+        self.depth_share = self.field.depth_share
         if self.heights is not None:
             self._set_floors(s, new_sky, changed)
 
@@ -402,13 +412,14 @@ class Injector:
         e, n = self.sky_position(s)
         th, r = self.field.nearest(e, n, s.sky_t_s, NEAREST_MAX_M)
         if th is None:
-            near.distance_m, near.bearing_deg, near.core_ms, near.floor_m = -1.0, 0.0, 0.0, -1.0
+            near.distance_m, near.bearing_deg, near.core_ms, near.floor_m, near.depth = -1.0, 0.0, 0.0, -1.0, 0.0
         else:
             near.distance_m = r
             near.bearing_deg = math.degrees(math.atan2(th.e - e, th.n - n)) % 360.0
             near.core_ms = self.field.lift_at(th.e, th.n, s.agl_m, s.sky_t_s,
                                               self.wstar_ms, self.zi_m, self._ground(s))
             near.floor_m = -1.0 if th.floor_m is None else th.floor_m
+            near.depth = th.depth
         near.alive = len(self.field.alive(s.sky_t_s))
         near.loaded = self.field.loaded_count()
         self._tail_due = True
@@ -421,7 +432,8 @@ class Injector:
         base_zzi = self.field.config.sky.cloud_base_zzi
         if new_sky:
             heights.reset()
-            heights.level_m = s.msl_m - s.agl_m + base_zzi * zi
+            heights.span_m = base_zzi * zi
+            heights.level_m = s.msl_m - s.agl_m + heights.span_m
             cycle = self.field.cycle
             heights.blue = (None if cycle is None
                             else lambda th: cycle.blue(th.lat, th.lon, th.birth, base_zzi))

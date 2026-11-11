@@ -149,3 +149,15 @@ def test_the_field_owns_the_cycle_only_with_the_sun():
     without = ThermalField(FieldConfig(day=NOV_2), frame)
     assert with_sun.cycle is not None and with_sun.cycle.onset_deg == sun.SUN_MIN_DEG
     assert without.cycle is None
+
+
+def test_the_day_does_not_depend_on_the_time_it_was_first_asked_for():
+    # The field and the clouds ask at different times and must agree to the last bit.
+    lat, lon = HOBBS
+    answers = set()
+    for first in (25000.0, 50000.0, 70000.0, 95000.0):
+        cycle = DayCycle(NOV_2)
+        cycle.depth_share(lat, lon, first)
+        answers.add(tuple((cycle.depth_share(lat, lon, t), cycle.strength_share(lat, lon, t))
+                          for t in (solar(lon, NOV_2, h / 2.0) for h in range(14, 36))))
+    assert len(answers) == 1

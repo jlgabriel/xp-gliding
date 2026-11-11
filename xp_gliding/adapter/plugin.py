@@ -81,6 +81,8 @@ DATAREFS = (
     ("sun/share", "injector", "sun_share", "f", 0),  # of a full day's thermals, alive now
     ("day/wstar_ms", "injector", "wstar_ms", "f", 0),  # in use: the menu's times the daily cycle
     ("day/strength_share", "injector", "day_share", "f", 0),  # the daily cycle's share of the peak
+    ("day/depth_share", "injector", "depth_share", "f", 0),  # zi now over the afternoon's, at the glider
+    ("day/zi_now_m", "injector", "zi_now_m", "f", 0),  # day/zi_m times day/depth_share
     ("wind/e_ms", "injector", "drift.wind_e_ms", "f", 0),  # the wind that carries the sky
     ("wind/n_ms", "injector", "drift.wind_n_ms", "f", 0),
     ("wind/dlat_deg", "injector", "drift.dlat_deg", "f", 0),  # the sky's offset from the ground
@@ -131,7 +133,7 @@ DATAREFS = (
     ("wstar_ms", "settings", "wstar_ms", "f", 1),
     ("zi_m", "settings", "zi_m", "f", 1),  # the setting; day/zi_m is the one in use
     ("weather_base_enabled", "settings", "weather_base_enabled", "i", 1),
-    ("day/zi_m", "injector", "zi_m", "f", 0),
+    ("day/zi_m", "injector", "zi_m", "f", 0),  # the afternoon's: the field's, maybe the weather's
     ("day/weather_base_m", "injector", "weather.published_m", "f", 0),  # m above the ground, -1: none
     ("day/weather_reads", "injector", "weather.reads", "i", 0),
     # The place of the sky in engine.field.SKY_NAMES. Tools can write it; that is not saved.
@@ -155,6 +157,7 @@ DATAREFS = (
     ("nearest/bearing_deg", "injector", "nearest.bearing_deg", "f", 0),
     ("nearest/core_ms", "injector", "nearest.core_ms", "f", 0),
     ("nearest/floor_m", "injector", "nearest.floor_m", "f", 0),
+    ("nearest/depth", "injector", "nearest.depth", "f", 0),  # its zi over the afternoon's; 0: none
     ("floors_us", "injector", "floors_us", "f", 0),
     ("floors_us_max", "injector", "floors_us_max", "f", 0),
     ("thermals_alive", "injector", "nearest.alive", "i", 0),
@@ -491,12 +494,14 @@ class PythonInterface:
         injector = self.injector
         if injector.field is None:
             return "Starting"
-        zi = injector.zi_m
+        zi, zi_now = injector.zi_m, injector.zi_now_m
         alive = injector.nearest.alive
         if alive == 0:
             if st.sun_enabled and injector.sun_elevation_deg < SUN_MIN_DEG:
                 return f"No thermals: the sun is under {SUN_MIN_DEG:.0f} degrees"
             return "No thermals within reach"
+        if round(zi_now) < round(zi):
+            return f"Active: {alive} thermals within reach, zi {zi_now:.0f} m, {zi:.0f} m by mid-afternoon"
         return f"Active: {alive} thermals within reach, zi {zi:.0f} m"
 
     def update_status(self):
@@ -587,7 +592,8 @@ class PythonInterface:
             self.next_lean = now + LEAN_PERIOD_S
             layers = self.io.wind_layers() if st.lean_enabled or st.wind_at_clouds else None
             if st.wind_at_clouds:
-                self.injector.sky_wind_update(s, *layers, s.msl_m, self.clouds.level_m)
+                self.injector.sky_wind_update(s, *layers, s.msl_m,
+                                              self.clouds.heights.level_at(self.injector.depth_share))
             if st.lean_enabled:
                 self.injector.lean_update(s, *layers, s.msl_m)
             else:
@@ -607,8 +613,9 @@ class PythonInterface:
                 if self.sky_zi_m is not None:
                     self.clouds.clear()
                 self.sky_zi_m = zi
-            self.hud.zi_m = zi
-            self.hud.set_top(self.clouds.status.nearest_base_m, self.clouds.level_m)
+            self.hud.zi_m = self.injector.zi_now_m
+            self.hud.set_top(self.clouds.status.nearest_base_m,
+                             self.clouds.heights.level_at(self.injector.depth_share))
             self.refresh_menu()
         elif clouds and now >= self.next_clouds and self.injector.field is not None:
             self.next_clouds = now + CLOUDS_PERIOD_S

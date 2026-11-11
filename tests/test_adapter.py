@@ -390,6 +390,26 @@ def test_a_floor_puts_the_cloud_at_the_skys_share_of_zi():
     assert heights.floor_m(cloud_thermal(), 1500.0, AirDrift(), 0.75, 2000.0) == 2800.0 - 1500.0
 
 
+def test_a_thermal_born_shallower_has_its_cloud_and_floor_lower():
+    heights = heights_over(Ground(1000.0), level=2500.0)
+    heights.span_m = 1500.0  # 0.75 of zi 2000 over ground at 1000 m
+    th = cloud_thermal()
+    th.depth = 0.8
+    assert heights.level_of(th) == pytest.approx(2200.0)
+    assert heights.base_m(th, 1500.0, AirDrift()) == pytest.approx(2200.0)
+    # The floor still puts the cloud at the sky's share of the thermal's own zi: on the ground.
+    assert heights.floor_m(th, 1500.0, AirDrift(), 0.75, 2000.0) == pytest.approx(1000.0)
+
+
+def test_a_thermal_born_shallower_still_clears_high_ground():
+    heights = heights_over(Ground(2500.0), level=2500.0)
+    heights.span_m = 1500.0
+    th = cloud_thermal()
+    th.depth = 0.8
+    assert heights.base_m(th, 1500.0, AirDrift()) == 2800.0
+    assert heights.floor_m(th, 1500.0, AirDrift(), 0.75, 2000.0) == pytest.approx(2800.0 - 1200.0)
+
+
 def test_a_new_sky_forgets_every_height_and_says_so():
     ground = Ground(2500.0)
     heights = heights_over(ground)

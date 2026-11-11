@@ -48,9 +48,9 @@ A FIRST FLIGHT
 --------------
 
 1. Weather: fly by day, best from late morning to mid-afternoon, and turn
-   off X-Plane's own cumulus clouds. The thermals follow the sun: weak in the
-   morning, strongest around 1 pm solar time, none with the sun under 10
-   degrees, and the first clouds around solar noon. The plugin draws its own
+   off X-Plane's own cumulus clouds. The thermals follow the sun: weak and low
+   in the morning, strongest around 1 pm solar time, none with the sun under 10
+   degrees, and the first clouds around solar noon, lower than later on. The plugin draws its own
    clouds over its thermals, and X-Plane's clouds mark none of them. Wind is
    fine.
 2. Aircraft: the Laminar ASK 21. The plugin does nothing on aircraft with
@@ -73,7 +73,8 @@ THE MENU (Plugins > xp-gliding)
 -------------------------------
 
 - Enabled: the plugin on or off.
-- Daily cycle: the thermals follow the sun. Off: the same strength all day.
+- Daily cycle: the thermals follow the sun, and are low in the morning. Off:
+  the same strength and depth all day.
 - Training markers: show where the thermals are.
 - Cumulus clouds, Soaring HUD: turn each off if you like.
 - Treat this aircraft as a glider: for a motor glider, remembered by its file.

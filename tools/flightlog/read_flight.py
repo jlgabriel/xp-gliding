@@ -46,6 +46,7 @@ from xp_gliding.engine.field import (SKIES, SKY_NAMES, FieldConfig, ThermalField
                                       sky_time)
 from xp_gliding.engine.geo import LocalFrame  # noqa: E402
 from xp_gliding.engine.markers import core_of  # noqa: E402
+from xp_gliding.engine.sun import SUN_MIN_DEG  # noqa: E402
 
 TURN_RATE_DPS = 5.0  # circling: faster than a turn in 72 s
 SMOOTH_S = 11  # of the heading's rate, odd
@@ -117,6 +118,7 @@ def own_lift(th, field, e, n, z, t, wstar, zi, ground_m=None):
     if z <= 0.0:
         return 0.0
     z = height_in_thermal(th, z, ground_m)
+    zi = th.zi(zi)  # its own depth (daily cycle, step B)
     if z >= zi:
         return 0.0
     s, rf = th.envelope(t)
@@ -131,11 +133,12 @@ def own_lift(th, field, e, n, z, t, wstar, zi, ground_m=None):
 def ceiling_agl(th, field, sink, t, z_from, wstar, zi, ground_m=None):
     """The height (m AGL) where this thermal's core no longer holds up a glider sinking at `sink`."""
     z = max(z_from, CEILING_STEP_M)
+    zit = th.zi(zi)  # its own depth (daily cycle, step B)
     while True:
         zt = height_in_thermal(th, z, ground_m)
-        if zt >= zi:
-            return z - (zt - zi)
-        core, _ = core_of(th, zt, t, wstar, zi, field.environment_sink(zt, wstar, zi))
+        if zt >= zit:
+            return z - (zt - zit)
+        core, _ = core_of(th, zt, t, wstar, zi, field.environment_sink(zt, wstar, zit))
         if core <= sink:
             return z
         z += CEILING_STEP_M
@@ -166,8 +169,8 @@ def floor_of(th, seen, log, a, b, sky, zi, carries):
         return seen[th], "logged"
     level = log["xpg_cloud_level_m"][b]
     if carries:
-        base, source = cloud_base_of(log, a, b, cloud_scale(th), sky, zi)
-        return base - sky.cloud_base_zzi * zi, f"from the base, {source}"
+        base, source = cloud_base_of(log, a, b, cloud_scale(th), sky, zi, th.depth)
+        return base - sky.cloud_base_zzi * th.zi(zi), f"from the base, {source}"
     if level > 0.0:
         return float(level) - sky.cloud_base_zzi * zi, "from the level"
     return None, ""
@@ -186,7 +189,7 @@ class Climb:
                  "over_ground", "phase", "z_from", "floor", "floor_from")
 
 
-def read_climb(log, sky_t, e, n, frame, a, b, seed, day, sky, wstar, zi):
+def read_climb(log, sky_t, e, n, frame, a, b, seed, day, sky, wstar, zi, cycle=False):
     """One circling, from row a to row b, against the thermal it belongs to (or none)."""
     c = Climb()
     t, elev, agl = log["t_run_s"], log["elev_m"], log["agl_m"]
@@ -209,7 +212,9 @@ def read_climb(log, sky_t, e, n, frame, a, b, seed, day, sky, wstar, zi):
 
     lat, lon = frame.to_latlon(e[rows].mean(), n[rows].mean())
     mid = 0.5 * (sky_t[a] + sky_t[b])
-    field = ThermalField(FieldConfig(seed=seed, day=day, range_m=SEARCH_M + 2000.0, zi_m=zi, sky=sky), frame)
+    # With the daily cycle (logged since 0.10.0), the sun and each thermal's depth, as the plugin.
+    field = ThermalField(FieldConfig(seed=seed, day=day, range_m=SEARCH_M + 2000.0, zi_m=zi, sky=sky,
+                                     sun_min_deg=SUN_MIN_DEG if cycle else None, depth_cycle=cycle), frame)
     field.update(mid, lat, lon)
     floors = log.get("xpg_nearest_floor_m")
     has_floors = floors is not None and len(floors) == len(t)
@@ -232,7 +237,7 @@ def read_climb(log, sky_t, e, n, frame, a, b, seed, day, sky, wstar, zi):
     if best is None:
         return c
     z_mid = height_in_thermal(best, float(np.mean(agl[rows])), float(np.mean(ground[rows])) if has_floors else None)
-    c.core, _ = core_of(best, z_mid, mid, wstar, zi, field.environment_sink(z_mid, wstar, zi))
+    c.core, _ = core_of(best, z_mid, mid, wstar, zi, field.environment_sink(z_mid, wstar, best.zi(zi)))
     c.phase = phase_of_life(best, mid)
     c.ceiling_msl = (elev[b] - agl[b]) + ceiling_agl(best, field, c.sink, sky_t[b], agl[b], wstar, zi, ground[b])
     r_cloud = np.hypot(e[a:b + 1] - best.e, n[a:b + 1] - best.n)
@@ -247,12 +252,12 @@ def read_climb(log, sky_t, e, n, frame, a, b, seed, day, sky, wstar, zi):
         c.scale = cloud_scale(best)
         c.half_width = CLOUD_HALF_WIDTH_M * c.scale
         c.under = float(np.mean(r_cloud < c.half_width))
-        c.base, c.base_from = cloud_base_of(log, a, b, c.scale, sky, zi)
+        c.base, c.base_from = cloud_base_of(log, a, b, c.scale, sky, zi, best.depth)
     return c
 
 
-def cloud_base_of(log, a, b, scale, sky, zi):
-    """This cloud's base (m MSL), and where that comes from."""
+def cloud_base_of(log, a, b, scale, sky, zi, depth=1.0):
+    """This cloud's base (m MSL), and where that comes from. depth: its thermal's (daily cycle)."""
     near, base, size = (log.get(k) for k in ("xpg_cloud_nearest_m", "xpg_cloud_nearest_base_m",
                                              "xpg_cloud_nearest_scale"))
     if near is not None and len(near) == len(log["t_run_s"]):
@@ -260,10 +265,10 @@ def cloud_base_of(log, a, b, scale, sky, zi):
         if m.any():
             return float(np.median(base[a:b + 1][m])), "logged"
         level = log["xpg_cloud_level_m"][b]
-        if level > 0.0:
-            return float(level), "the level"
+        if level > 0.0:  # the sky's, lowered for a thermal born shallower
+            return float(level) - sky.cloud_base_zzi * zi * (1.0 - depth), "the level"
     ground = log["elev_m"][0] - log["agl_m"][0]
-    return float(ground + sky.cloud_base_zzi * zi), "worked out"
+    return float(ground + sky.cloud_base_zzi * zi * depth), "worked out"
 
 
 def report_climbs(climbs):
@@ -386,8 +391,14 @@ def main(argv=None):
     # Since logger 0.9.0 the log's w* is the one in use, which the daily cycle moves: each climb
     # takes its own.
     per_row = args.wstar is None and len(log["xpg_wstar_ms"]) == n_rows
+    # Since logger 0.10.0 the log says whether the daily cycle was on, and with it each thermal's depth.
+    sun_on = log.get("xpg_sun_enabled")
+    cycle = sun_on is not None and len(sun_on) == n_rows and sun_on[-1] > 0
+    if cycle:
+        print("The daily cycle was on: each thermal as deep as the day at its birth.")
     climbs = [read_climb(log, sky_t, air[:, 0], air[:, 1], frame, keep[a], keep[b], seed, day, SKIES[sky_name],
-                         float(np.median(log["xpg_wstar_ms"][keep[a]:keep[b] + 1])) if per_row else wstar, zi)
+                         float(np.median(log["xpg_wstar_ms"][keep[a]:keep[b] + 1])) if per_row else wstar, zi,
+                         cycle)
               for a, b in circlings]
     print(f"{len(climbs)} circling(s) of at least one turn.")
     report_climbs(climbs)

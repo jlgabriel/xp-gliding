@@ -196,3 +196,79 @@ As offline. No traceback in the log. Left: Juan Luis's hand flights, one in the 
 - **The afternoon.** A 15:00 start was tried first and dropped: the share is 0.79 there, about the morning's, and he saw it look much the same. At 14:00 he found few thermals at first ("no hay muchas térmicas"): with zi at 3645 m the density that follows zi spreads them out, and step A leaves their number alone. He searched for about three and a half minutes, then took a yellow-ring thermal, a mature one with a weaker core than the morning's, and climbed little. So the afternoon's climb says more about which thermal he took than about the hour: one climb each, no number about the cycle can be drawn from them.
 - **Then a good one.** He flew on (same log, t_run 609-709): 100 s under a larger cloud (size 1.40), +231 m at +2.31 (TE +2.27), 92 m from the centre of a core offered at 3.66 m/s, left at 3134 m, 711 m under the base, still at +2.30; that thermal could have held him to 3954 m. "Ahí alcancé una bien buena". The afternoon has strong thermals; they are fewer and have to be found.
 - **His word:** he likes that it costs: "me gusta que cueste". A day that changes with the hour, the place and the weather, more clouds or fewer, different strength, is "más interesante", and a day like this one is a harder flight, "como niveles de dificultad". Step A reads right to him.
+
+### Step B: the depth of the moment
+
+2026-11-11, worked alone at Juan Luis's request ("elijamos algo para que sigas trabajando solo"; he chose step B). Built in the engine and tested offline, **not wired**: nothing in the plugin turns it on, and with it off every number is as before, bit for bit (checked against `main` on 40,000 samples of lift, with and without floors, and the markers).
+
+**The idea.** Each thermal is as deep as the day was at its birth: `Thermal.depth` is `DayCycle.depth_share` at its place and birth, and its whole profile is Allen's for zi × depth. So a morning thermal is low and narrow, and keeps that depth for life: its cloud keeps one base, and the bases rise through the day because later thermals are born deeper. Nothing else is drawn differently: the same random stream gives the same thermals in the same places, only shallower.
+
+- `FieldConfig.depth_cycle` (off by default, and only with the sun on). zi in the field and in `lift_at` is the afternoon's, the menu's or the weather's, as now.
+- `lift_at` reads each thermal at its own zi, and skips it above that. The sink between thermals is Allen's for the zi of the moment at the glider (`ThermalField.depth_share`, set once a slow update, as `sink_share`).
+- The markers read each thermal at its own zi. The cloud catalog gives its thermals the same depths as the field (the same `DayCycle`).
+- `CloudHeights.level_of`: a thermal's own level is the sky's lowered by the share of zi it lacks, so its cloud base and floor put the cloud at the sky's `cloud_base_zzi` of its own zi; over high ground the cloud still stands 300 m clear of it, as now. `span_m` (the level's height over its ground) is set with the level.
+- The blue morning is step A's rule, unchanged: no cloud until zi has reached the afternoon's base. So the first cumulus stand at 0.75 of the afternoon's base, and rise to it by 15:00 solar.
+- `tools/engine_plots/day_depth.py` measures it.
+
+**Found on the way, and fixed** (it affected step A too, in 0.5): `DayCycle` built a day's table from the time it was first asked for, and its noon moved with the equation of time by a fraction of a second, so two holders of the same sky asked at different times got shares different in the seventh digit. The field and the clouds do exactly that, so a thermal could in theory be blue for one and not for the other. The table's noon now comes from the solar day alone (`daycycle._solar_noon`); a test pins it. Step A's numbers change only in that digit.
+
+**Offline, Hobbs, 2 November**, wide sky, w* 3 at the peak, zi 2000 m (the menu's default), flat ground, no wind, four skies pooled. Strong mature thermals within 5 km (life 0.2-0.7, the numbers that carry a cloud, blue or not), each with an ASK 21 circling centred at the best of 35°/90, 45°/85 and 50°/80 km/h:
+
+| Solar | zi now | w* now | Step | Sink between at 0.4 zi | Climb at 0.4 zi | > 0.5 m/s | Top of the climb | First clouds' base |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 09:00 | 554 m | 1.70 | A | -0.08 | +0.73 | 73% | 1200 m | blue |
+| | | | B | -0.01 | -0.50 | 2% | none | blue |
+| 10:00 | 891 m | 2.28 | A | -0.10 | +1.42 | 95% | 1400 m | blue |
+| | | | B | -0.02 | +1.06 | 84% | 500 m | blue |
+| 11:00 | 1198 m | 2.67 | A | -0.12 | +1.77 | 97% | 1400 m | blue |
+| | | | B | -0.04 | +1.45 | 94% | 750 m | blue |
+| 12:00 | 1468 m | 2.91 | A | -0.13 | +2.13 | 100% | 1450 m | blue |
+| | | | B | -0.07 | +2.15 | 100% | 1050 m | blue |
+| 13:00 | 1696 m | 3.00 | A | -0.14 | +2.41 | 100% | 1475 m | 1500 m |
+| | | | B | -0.10 | +2.29 | 100% | 1225 m | 1246 m |
+| 14:00 | 1875 m | 2.91 | A | -0.13 | +2.13 | 98% | 1450 m | 1500 m |
+| | | | B | -0.12 | +2.12 | 98% | 1350 m | 1389 m |
+| 15:00 | 2000 m | 2.61 | A and B | -0.12 | +1.60 | 90% | 1400 m | 1500 m (B: 1488) |
+| 16:00 | 2000 m | 1.86 | A and B | -0.09 | +0.52 | 54% | 1150 m | 1500 m |
+
+Heights over the ground. Step A's thermals reach the afternoon's height at 09:00, when the day is 554 m deep: that is what B corrects. With B the morning climbs nearly as fast at 0.4 of its depth, but only to 500 m at 10:00, 750 m at 11:00 and 1050 m at noon; the first clouds come at 13:00 about 250 m under the afternoon's base and reach it by 15:00. Under the weather's deep base at Hobbs (zi 3645 m, as in his flights of 2026-11-10), the tops are 450 m at 09:00, 1025 m at 10:00, 1550 m at 11:00 and 1800 m at noon, and the first clouds' base rises from 2272 m at 13:00 to 2714 m at 15:00. His morning flight that day (09:30 local, about 09:55 solar) climbed from about 1030 to 1290 m over the ground (Hobbs at about 1115 m); with B the thermals there would end near 1000 m, so that climb would not exist and the same start would be above them.
+
+**Cost.** A sample of the lift costs the same (12-23 µs, A or B). Loading the field around the glider takes 20 ms more (41 → 61 ms at zi 2000, 14 → 29-34 ms at zi 3645), the first time and at each half hour, in the slow path: a depth for each thermal kept.
+
+**The number of thermals stays the afternoon's.** Allen's density goes as 1/zi², so in his model a morning holds many more, smaller thermals, and the share of the sky that rises (and the sink between) stays the same. Here the number is the one drawn for the afternoon's zi, so a morning thermal is narrower and as far from the next as in the afternoon: less of the sky rises, and the sink between them is a fifth of step A's at 10:00. Following Allen would mean drawing the sky at the morning's density and thinning it through the day; at 10:00 that is five times the thermals, and loading them five times the cost.
+
+**What wiring it needs** (once the questions below are answered): the setting and its place in the menu; `Injector.slow_update` passes it to `FieldConfig`; the HUD's `TOP` and the markers' columns take the thermal's own depth, not the sky's (`adapter/markers.py` puts every column's top at the sky's share of zi); the status line and the datarefs say the zi of the moment beside the afternoon's; the lean's height of the clouds; the flight logger records the depth of the nearest thermal; smoke tests; the guide and the CHANGELOG. Then the test pilot's air starts at 10:00, 13:00 and 15:00 solar, and Juan Luis's hand flights.
+
+### Questions for Juan Luis on step B
+
+1. **Low, narrow morning thermals** that keep their depth for life, as built. Proposed: yes.
+2. **How many thermals in the morning.** Proposed: as many as in the afternoon, narrower (as built): the morning is harder to find and to use, and costs nothing more to load. The other choice is Allen's, many more and smaller, the same share of the sky rising.
+3. **The first cumulus lower, the base rising** about a quarter of its height from 13:00 to 15:00 solar (as built). The other choice is step A's: every cloud at the afternoon's base, with only the thermals under them shallower.
+4. **With the weather's base on**, that base is the afternoon's, and our first clouds stand under it. X-Plane's custom weather does not change with the hour, so its layer stays where it is all day. Proposed: yes.
+5. **The switch.** Proposed: no new menu item; step B becomes part of *Daily cycle*, since step A alone has 09:00 thermals reaching the afternoon's height.
+
+**Answered by Juan Luis (2026-11-11, the same morning):** "Sí, las cinco". Morning thermals low and narrow for life; as many as in the afternoon, narrower; the first cumulus lower and the base rising; the weather's base is the afternoon's; no new menu item, step B is part of *Daily cycle*.
+
+### Step B wired
+
+2026-11-11, the same morning, after his answers. Part of *Daily cycle*: no new menu item or setting.
+
+- `Injector.slow_update` builds the field with `depth_cycle` = `sun_enabled`. `Injector.depth_share` and `zi_now_m` are the depth of the moment at the glider; `zi_m` stays the afternoon's, the menu's or the weather's, and a new one still starts the sky over.
+- The HUD's `TOP` with no cloud near goes to the clouds' level of the moment (`CloudHeights.level_at`), and its forecast to `zi_now_m`. The training markers' columns stand at each thermal's own top. The lean and the wind at the clouds read the clouds' level of the moment. `clouds/raised` counts a cloud above its own thermal's level.
+- The menu's last line: "Active: N thermals within reach, zi 1856 m, 3645 m by mid-afternoon" while the day is shallower.
+- Datarefs `xp_gliding/day/depth_share`, `day/zi_now_m`, `nearest/depth`; `day/zi_m` is the afternoon's.
+- Flight logger 0.10.0 records `xpg_sun_enabled`, `xpg_depth_share` and `xpg_nearest_depth`; `read_flight.py` rebuilds the sky with the sun and each thermal's depth when the log says the cycle was on (older logs read as before: yesterday's morning climb comes out the same).
+- Smoke tests: 14 of them compared clouds, floors, columns and `TOP` with the sky's level at 14:00 local, where the day is at 0.97 of its depth; they now compare with each thermal's own. Two new ones: a morning at 10:00 local, and the cycle off. 458 tests pass.
+- Pilot guide, release README, README and CHANGELOG (*Unreleased*). The guide's known limit "the day changes the thermals' strength, not their height" is gone; in its place, that the day's shape follows the sun alone, not the weather.
+
+### Step B checked in X-Plane
+
+2026-11-11, X-Plane 12.4.3, by the test pilot: air starts of the ASK 21 at Hobbs, 2 November, calm and clear, his settings (the weather's base on, zi 3645 m), 900 m over the ground, read 40 s after each.
+
+| Local time | Depth now | zi now | w* in use | Nearest thermal's depth | Our clouds | Nearest cloud's base | Frame |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 10:00 | 0.51 | 1856 m | 2.46 m/s | 0.50 | 0 | none | 151 µs |
+| 13:00 | 0.89 | 3233 m | 2.99 m/s | 0.87 | 8, filling | 3478 m MSL, 367 m under the level | 180 µs |
+| 15:00 | 1.00 | 3645 m | 2.38 m/s | 1.00 | 8, filling | 3845 m MSL, the level | 118 µs |
+
+As offline: at 13:00 the nearest cloud's base is the level less 0.75 × 3645 m × (1 − 0.87). No traceback in the log. Left: his hand flights, one in the morning (low climbs) and one around 13:00-14:00 solar (the first clouds, lower).
