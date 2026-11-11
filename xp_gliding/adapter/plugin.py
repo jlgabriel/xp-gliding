@@ -18,8 +18,8 @@ clouds or markers, and the traceback in XPPython3Log.txt. The menu's first item 
 and the loop starts again from a clean state with a new flight or aircraft, or when the pilot
 unticks and ticks Enabled, up to MAX_RESTARTS times; after that only re-enabling the plugin does.
 
-The Plugins > xp-gliding menu has the switches below, and submenus to choose the sky and
-the day (`config.MENU_CHOICES`). What is chosen there is saved to `config.json`. Its last item,
+The Plugins > xp-gliding menu has the switches below, and submenus to choose the sky, the
+day and the HUD's units (`config.MENU_CHOICES`). What is chosen there is saved to `config.json`. Its last item,
 greyed out, says what the plugin is doing and, when there are no thermals, why (`status_line`).
 
 Commands (also in the menu):

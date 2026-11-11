@@ -5,6 +5,7 @@ What changes for a pilot in each version. Each release on [GitHub](https://githu
 ## Unreleased
 
 - **Low thermals in the morning, a cloud base that rises.** With *Daily cycle* on, each thermal is as deep as the day was when it was born, and stays so. In the morning they are low and narrow: around 10 am solar time they end at less than half the afternoon's height, and they reach it by mid-afternoon. The first cumulus, around 1 pm solar time, stand a few hundred metres under the afternoon's base (about a sixth of its height), and the base rises to it by 3 pm. The depth chosen in the menu, or the weather's cloud base, is the afternoon's. The HUD's `TOP`, the training markers and the menu's last line follow the depth of the moment.
+- **Knots and feet on the HUD.** *Plugins → xp-gliding → Units on the HUD → Aviation* shows the vario in knots and `TOP` in feet. Metric (m/s and m) stays the default, and the wind is in knots with both.
 
 ## 0.5 — 2026-11-10
 

@@ -35,6 +35,7 @@ DEFAULTS = {
     "markers_enabled": False,  # training mode: draw a ring and a column over nearby thermals
     "clouds_enabled": True,  # cumulus over the thermals that carry one
     "hud_enabled": True,  # soaring HUD: vario, netto, average, height to the top, centring aid
+    "hud_units": "metric",  # a name in UNIT_NAMES: the HUD's vario in m/s and TOP in m, or knots and feet
     "gliders_only": True,  # only act on gliders: filed as one, with no engines, or in also_gliders
     # Aircraft files (.acf names, any case) the pilot treats as gliders from the menu: motor
     # gliders, which their authors file as something else (filed as gliders, X-Plane tows them).
@@ -59,6 +60,10 @@ LIMITS = {
     "seed": (-2**31, 2**31 - 1),  # an int dataref
 }
 
+# The settings that take one of a few names. Another name is left out.
+UNIT_NAMES = ("metric", "aviation")
+NAMES = {"sky": tuple(SKIES), "hud_units": UNIT_NAMES}
+
 # The menu's submenus: (title, setting, ((label, value), ...)). The values of the sky are
 # names in engine.field.SKIES, and all of them are first guesses to judge by flying.
 MENU_CHOICES = (
@@ -74,6 +79,10 @@ MENU_CHOICES = (
         ("1000 m", 1000.0), ("1500 m", 1500.0), ("2000 m", 2000.0), ("2500 m", 2500.0), ("3000 m", 3000.0),
     )),
     ("Seed of the sky", "seed", tuple((str(k), k) for k in range(1, 6))),
+    ("Units on the HUD", "hud_units", (
+        ("Metric: m/s and m", "metric"),
+        ("Aviation: knots and feet", "aviation"),
+    )),
 )
 
 
@@ -133,8 +142,8 @@ def _checked(key, value):
         if isinstance(value, (bool, int)) and value in (0, 1):
             return bool(value), False
         return None
-    if key == "sky":
-        return (value, False) if isinstance(value, str) and value in SKIES else None
+    if key in NAMES:
+        return (value, False) if isinstance(value, str) and value in NAMES[key] else None
     try:
         number = type(default)(value)
     except (TypeError, ValueError, OverflowError):

@@ -51,11 +51,11 @@ A small panel on the left of the screen. The vario readings and the centring arr
 
 | Item | What it shows |
 | --- | --- |
-| Large amber number, and the tape | Total energy rate, m/s |
+| Large amber number, and the tape | Total energy rate, m/s, or knots with aviation units (the tape then spans ±10 kt) |
 | `NET` | Netto: the air's own motion, from total energy and the glider's sink. Only the Laminar ASK 21 has a measured polar, and any other glider shows `NET --` |
-| `AVG` | The average climb over the last 30 s, m/s |
-| `TOP` | Height up to the nearest thermal's cloud, m. It can jump when the nearest cloud changes |
-| `WIND` | The wind at the glider, in knots, with an arrow pointing where it goes, relative to the nose |
+| `AVG` | The average climb over the last 30 s, m/s or knots |
+| `TOP` | Height up to the nearest thermal's cloud, m, or feet to the nearest 10 with aviation units. It can jump when the nearest cloud changes |
+| `WIND` | The wind at the glider, in knots with either units, with an arrow pointing where it goes, relative to the nose |
 | Centring arrow | Which way the core lies, when the lift changes enough around the circle to tell. It is most useful 60–100 m off centre, and says little closer in |
 
 ## The menu
@@ -79,6 +79,7 @@ Everything is in *Plugins → xp-gliding*. What you choose is saved for the next
 | Strength of the day (w\*) | How strong the thermals are at the best time of the day, with *Daily cycle* on, or all day with it off. 3 m/s by default | |
 | Depth of the thermal layer (zi) | How high they go, and so the height of the clouds: in the afternoon, with *Daily cycle* on. 2000 m by default | |
 | Seed of the sky | Another arrangement of thermals | |
+| Units on the HUD | Metric (m/s and m, the default) or aviation (knots and feet). The wind is in knots with both | |
 
 Markers appear for up to 20 thermals within 3 km with at least 1.5 m/s at the core. The colour shows the lift at the core at your height: pale below 2 m/s, yellow from 2, orange from 3, and red from 4.
 

@@ -77,9 +77,9 @@ def test_settings_coerce_types_and_ignore_unknown_keys():
 def test_settings_leave_out_what_is_not_a_finite_value_of_their_kind():
     s = config.Settings()
     notes = s.update({"zi_m": math.nan, "wstar_ms": math.inf, "seed": math.inf, "range_m": "nan",
-                      "enabled": "false", "clouds_enabled": 2, "sky": "wide"})
+                      "enabled": "false", "clouds_enabled": 2, "sky": "wide", "hud_units": "imperial"})
     assert s.as_dict() == config.DEFAULTS
-    assert len(notes) == 7 and all("left out" in note for note in notes)
+    assert len(notes) == 8 and all("left out" in note for note in notes)
     assert s.update({"markers_enabled": 1, "hud_enabled": False}) == []
     assert s.markers_enabled is True and s.hud_enabled is False
 

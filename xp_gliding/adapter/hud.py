@@ -13,7 +13,10 @@ glyph from Python; only the big TE reading pays for it.
 It never touches the forces, and a failure here only hides the panel: an
 exception must not leave a draw callback, because XPPython3 stops calling it.
 
-Metric units for now: m/s and m, except the wind, in knots as in X-Plane's weather settings.
+Units: the menu's *Units on the HUD* (`hud_units`) gives the vario in m/s and TOP in m, or in
+knots and feet, as glider varios read where altitudes are in feet (Juan Luis, 2026-11-11). The
+wind is in knots either way, as in X-Plane's weather settings. Only the text and the tape change:
+everything is worked out in SI, and the datarefs stay in m/s.
 TOP is how far the clouds are, up from the glider: to the nearest one drawn, or to the sky's level.
 Plugins > xp-gliding > Soaring HUD toggles it, as does the command `xp_gliding/hud/toggle`.
 """
@@ -29,7 +32,6 @@ from .vario import SAMPLE_PERIOD_S, CentringAid, Vario, height_to_top, polar_for
 
 WIDTH, HEIGHT = 170, 300
 MARGIN_LEFT, MARGIN_BOTTOM = 20, 300  # clear of the ASK 21's panel in the default view
-TAPE_MS = 5.0
 TAPE_BOTTOM, TAPE_TOP = 12, HEIGHT - 12
 TAPE_X = 8
 AID_X, AID_Y, AID_RADIUS = 118, 52, 34
@@ -44,6 +46,33 @@ AID_FULL_AMP_MS = 3.0
 SOLVE_EVERY = 5  # samples between CentringAid solutions
 FONT_BIG = "Resources/fonts/Roboto-Bold.ttf"
 KT_TO_KMH = 1.852
+FT_PER_M = 1.0 / 0.3048
+
+
+class Units:
+    """How the HUD shows a rate and a height: the tape's span and marks, the text's units."""
+
+    __slots__ = ("per_ms", "tape", "major", "per_m", "height_step", "height_label")
+
+    def __init__(self, per_ms, tape, major, per_m, height_step, height_label):
+        self.per_ms = per_ms  # a rate shown, per m/s
+        self.tape = tape  # the tape goes from -tape to +tape, a mark at each whole unit
+        self.major = major  # a longer mark every so many
+        self.per_m = per_m  # a height shown, per m
+        self.height_step = height_step  # TOP is rounded to this
+        self.height_label = height_label
+
+    def height_text(self, height_m):
+        step = self.height_step
+        return f"{round(height_m * self.per_m / step) * step:+.0f} {self.height_label}"
+
+
+# Knots: 10 kt is 5.1 m/s, so the tape spans about what it does in m/s. Feet are rounded to 10,
+# since the last digit would turn over with every 30 cm of height.
+UNITS = {
+    "metric": Units(1.0, 5, 5, 1.0, 1, "m"),
+    "aviation": Units(KT_PER_MS, 10, 5, FT_PER_M, 10, "ft"),
+}
 
 SCRIM = (0.0, 0.0, 0.0, 0.45)
 WHITE = (1.0, 1.0, 1.0)
@@ -52,10 +81,10 @@ GREEN = (0.3, 1.0, 0.45)
 CYAN = (0.3, 0.85, 1.0)
 
 
-def tape_y(value_ms):
-    """Height of a value on the tape, clamped to its ends."""
-    v = max(-TAPE_MS, min(TAPE_MS, value_ms))
-    return TAPE_BOTTOM + (v + TAPE_MS) / (2.0 * TAPE_MS) * (TAPE_TOP - TAPE_BOTTOM)
+def tape_y(value, tape):
+    """Height on a tape that spans -tape to +tape of a value in its own units, clamped to its ends."""
+    v = max(-tape, min(tape, value))
+    return TAPE_BOTTOM + (v + tape) / (2.0 * tape) * (TAPE_TOP - TAPE_BOTTOM)
 
 
 def aid_arrow(core_az_deg, psi_deg, amp_ms):
@@ -86,10 +115,12 @@ class Hud:
         self.failed = False
         self.window = None
         self.static_list = None
+        self.static_units = None  # the units the static list was drawn for
+        self.units = UNITS["metric"]
         self.GL = self.xpgl = None
         self.font_big = None
         self._samples = 0
-        self._te_y = self._netto_y = self._average_y = tape_y(0.0)
+        self._te_y = self._netto_y = self._average_y = tape_y(0.0, 1.0)
         self._arrow = None
         self._wind_arrow = None
         self._te_text = self._netto_text = self._average_text = self._top_text = ""
@@ -200,6 +231,7 @@ class Hud:
 
     def sample(self):
         getf = xp.getDataf
+        units = self.units = UNITS.get(self.settings.hud_units, UNITS["metric"])
         t = getf(self._time)
         bank = getf(self._phi)
         psi = getf(self._psi)
@@ -213,20 +245,22 @@ class Hud:
         if self._samples >= SOLVE_EVERY:
             self._samples = 0
             self.aid.solve()
-        self._te_y = tape_y(vario.te_ms)
-        self._netto_y = tape_y(vario.netto_ms)
-        self._average_y = tape_y(vario.average_ms)
+        per_ms, tape = units.per_ms, units.tape
+        te, netto, average = vario.te_ms * per_ms, vario.netto_ms * per_ms, vario.average_ms * per_ms
+        self._te_y = tape_y(te, tape)
+        self._netto_y = tape_y(netto, tape)
+        self._average_y = tape_y(average, tape)
         self._arrow = None
         if self.aid.valid and self.aid.amp_ms >= AID_MIN_AMP_MS:
             self._arrow = aid_arrow(self.aid.core_az_deg, psi, self.aid.amp_ms)
-        self._te_text = f"{vario.te_ms:+.1f}"
-        self._netto_text = f"NET {vario.netto_ms:+.1f}" if vario.has_netto else "NET --"
-        self._average_text = f"AVG {vario.average_ms:+.1f}"
+        self._te_text = f"{te:+.1f}"
+        self._netto_text = f"NET {netto:+.1f}" if vario.has_netto else "NET --"
+        self._average_text = f"AVG {average:+.1f}"
         if self.top_msl_m is not None:
             top_m = self.top_msl_m - msl_m
         else:
             top_m = height_to_top(self.zi_m, getf(self._agl), sky_named(self.settings.sky).cloud_base_zzi)
-        self._top_text = f"TOP {top_m:+.0f} m"
+        self._top_text = "TOP " + units.height_text(top_m)
         wind_x, wind_z = getf(self._wind_x), getf(self._wind_z)
         self._wind_arrow = wind_arrow(wind_x, wind_z, psi)
         if self._wind_arrow is None:
@@ -255,7 +289,11 @@ class Hud:
         # module's counterclockwise polygons would not draw at all.
         GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
         GL.glDisable(GL.GL_CULL_FACE)
+        if self.static_list is not None and self.static_units is not self.units:
+            GL.glDeleteLists(self.static_list, 1)  # the units changed: a new tape
+            self.static_list = None
         if self.static_list is None:
+            self.static_units = self.units
             self.static_list = GL.glGenLists(1)
             GL.glNewList(self.static_list, GL.GL_COMPILE)
             self.draw_static()
@@ -284,10 +322,11 @@ class Hud:
         GL.glEnd()
         GL.glColor4f(1.0, 1.0, 1.0, 0.9)
         GL.glBegin(GL.GL_LINES)
-        for v in range(-int(TAPE_MS), int(TAPE_MS) + 1):
-            y = tape_y(v)
+        units = self.static_units
+        for v in range(-units.tape, units.tape + 1):
+            y = tape_y(v, units.tape)
             GL.glVertex2f(TAPE_X, y)
-            GL.glVertex2f(TAPE_X + (22 if v == 0 else 14 if v % 5 == 0 else 8), y)
+            GL.glVertex2f(TAPE_X + (22 if v == 0 else 14 if v % units.major == 0 else 8), y)
         GL.glVertex2f(TAPE_X, TAPE_BOTTOM)
         GL.glVertex2f(TAPE_X, TAPE_TOP)
         GL.glEnd()

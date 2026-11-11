@@ -82,6 +82,7 @@ THE MENU (Plugins > xp-gliding)
 - Strength of the day, Depth of the thermal layer: stronger or weaker
   thermals (at the best time of the day), higher or lower clouds.
 - Seed of the sky: another arrangement of thermals.
+- Units on the HUD: metric (m/s and m) or aviation (knots and feet).
 - Cloud base from X-Plane's weather (experiment): the clouds' height from the
   weather you fly, in place of the depth.
 - Items marked (experiment) are off by default. The two about the wind are

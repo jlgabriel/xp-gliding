@@ -1497,6 +1497,7 @@ MENU_SUBMENUS = (
     ("Depth of the thermal layer (zi)", "zi_m", (("1000 m", 1000.0), ("1500 m", 1500.0), ("2000 m", 2000.0),
                                                  ("2500 m", 2500.0), ("3000 m", 3000.0))),
     ("Seed of the sky", "seed", tuple((str(k), k) for k in range(1, 6))),
+    ("Units on the HUD", "hud_units", (("Metric: m/s and m", "metric"), ("Aviation: knots and feet", "aviation"))),
 )
 
 
@@ -1645,6 +1646,45 @@ def test_the_hud_gives_the_wind_in_knots_and_says_when_it_is_calm(plugin):
     data["sim/weather/aircraft/wind_now_x_msc"] = 7.72
     hud_samples(pi, xp, data)
     assert pi.hud._wind_text == "WIND 15 kt" and pi.hud._wind_arrow is not None
+
+
+def test_the_hud_in_aviation_units_gives_knots_and_feet(plugin):
+    pi, xp, data = plugin
+    hud, hud_module = pi.hud, sys.modules["xp_gliding.adapter.hud"]
+    data["acf_path"] = "Aircraft/Laminar Research/Schleicher ASK 21/ASK21.acf"
+    pi.load_aircraft()
+    pi.hud.set_top(3000.0, None)  # a cloud 1084 m over the glider
+    hud_samples(pi, xp, data, count=3)
+    assert hud._top_text == "TOP +1084 m" and hud.units.tape == 5
+    pi.settings.hud_units = "aviation"
+    for _ in range(30):  # sinking at 1 m/s, as in the metric test above
+        data["sim/time/total_running_time_sec"] += 0.1
+        data["sim/flightmodel/position/elevation"] -= 0.1
+        hud.tick()
+    te_ms = dataref(xp, "hud/te_ms")  # the dataref stays in m/s
+    assert te_ms == pytest.approx(-1.0, abs=0.1)
+    assert hud._te_text == f"{te_ms / 0.514444:+.1f}"  # knots
+    assert hud._te_text in ("-1.8", "-1.9")
+    top_ft = (3000.0 - data["sim/flightmodel/position/elevation"]) / 0.3048
+    assert hud._top_text == f"TOP +{round(top_ft / 10) * 10} ft"
+    assert hud.units.tape == 10
+    # The tape spans 10 kt, about the 5 m/s of the metric one: -1 m/s sits where it did.
+    assert hud._te_y == pytest.approx(hud_module.tape_y(te_ms, 5), abs=1.0)
+    assert hud_module.tape_y(-20.0, 10) == hud_module.TAPE_BOTTOM  # clamped at its end
+    # The wind stays in knots, and an unknown name falls back to metric.
+    assert hud._wind_text == "WIND calm"
+    pi.settings.hud_units = "imperial"
+    hud_samples(pi, xp, data, count=1)
+    assert hud._top_text.endswith(" m")
+
+
+def test_feet_on_the_hud_are_rounded_to_ten_and_never_minus_zero(plugin):
+    hud_module = sys.modules["xp_gliding.adapter.hud"]
+    feet = hud_module.UNITS["aviation"]
+    assert feet.height_text(1000.0) == "+3280 ft"
+    assert feet.height_text(-1.0) == "+0 ft"
+    assert feet.height_text(-2.0) == "-10 ft"
+    assert hud_module.UNITS["metric"].height_text(-0.4) == "+0 m"
 
 
 # --- the lift ends with its cloud -----------------------------------------------------------------

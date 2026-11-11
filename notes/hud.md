@@ -108,6 +108,15 @@ Changed on 2026-11-06, with [the lift that ends with its cloud](phase4.md#the-li
 
 TOP is now the nearest drawn cloud's base less the height MSL, or the sky's level if none is drawn, or the old formula if neither is known. The nearest cloud is worked out once per plan, every few seconds, so TOP lags the height a little, and it jumps when the nearest cloud changes to one at another height. Whether that helps or misleads is still to ask from the seat. Two screenshots agree with the logged base, and the value on the HUD is not logged.
 
+## Units
+
+2026-11-11. The menu's *Units on the HUD* (`hud_units` in `config.json`) gives metric, the default (m/s and m, as before), or aviation: the vario in knots and `TOP` in feet. Juan Luis's answers the same morning: knots rather than feet per minute for the vario, since glider varios read knots where heights are in feet (fpm is a powered aircraft's VSI); the wind in knots with both, as X-Plane's weather gives it.
+
+- Only the text and the tape change. Everything is worked out in SI, and the datarefs (`hud/te_ms` and the rest) stay in m/s.
+- The tape spans ±10 kt with a mark at each knot and a longer one every 5, about the ±5 m/s of the metric tape. The static display list is drawn again when the units change.
+- Feet are rounded to 10: the last digit would turn over with every 30 cm. Neither unit shows "-0".
+- In X-Plane 12.4.3 by the test pilot: an air start of the ASK 21 over Hobbs, `config.json` set to aviation before launch. The panel read `-5.9`, `NET -2.8`, `AVG -4.7`, `TOP +4670 ft`, `WIND calm`, the tape with 21 marks and the arrows where the values put them. HUD sample 30 µs, draw 276 µs (the big number's TrueType, as before). No traceback. A switch in flight from the menu, which draws the tape again, was not tried in X-Plane: only offline.
+
 ## Still open
 
 For when the air works well (Juan Luis, 2026-11-04):
