@@ -115,7 +115,7 @@ TOP is now the nearest drawn cloud's base less the height MSL, or the sky's leve
 - Only the text and the tape change. Everything is worked out in SI, and the datarefs (`hud/te_ms` and the rest) stay in m/s.
 - The tape spans ±10 kt with a mark at each knot and a longer one every 5, about the ±5 m/s of the metric tape. The static display list is drawn again when the units change.
 - Feet are rounded to 10: the last digit would turn over with every 30 cm. Neither unit shows "-0".
-- In X-Plane 12.4.3 by the test pilot: an air start of the ASK 21 over Hobbs, `config.json` set to aviation before launch. The panel read `-5.9`, `NET -2.8`, `AVG -4.7`, `TOP +4670 ft`, `WIND calm`, the tape with 21 marks and the arrows where the values put them. HUD sample 30 µs, draw 276 µs (the big number's TrueType, as before). No traceback. A switch in flight from the menu, which draws the tape again, was not tried in X-Plane: only offline.
+- In X-Plane 12.4.3 by the test pilot: an air start of the ASK 21 over Hobbs, `config.json` set to aviation before launch. The panel read `-5.9`, `NET -2.8`, `AVG -4.7`, `TOP +4670 ft`, `WIND calm`, the tape with 21 marks and the arrows where the values put them. HUD sample 30 µs, draw 276 µs (the big number's TrueType, as before). No traceback. - A switch in flight from the menu, by Juan Luis the same morning, with two screenshots: Hobbs in the morning, the daily cycle on (status line "zi 808 m, 3794 m by mid-afternoon"), the ASK 21 diving unflown. Metric read `-16.5`, `TOP -350 m`; aviation, a few seconds later, `-24.5`, `TOP -400 ft`, the tape drawn again with a mark per knot. `TOP` is negative because the glider was over the morning's low top of the lift. Two-digit readings fit the panel.
 
 ## Still open
 

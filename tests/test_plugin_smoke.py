@@ -521,11 +521,17 @@ def test_a_jump_starts_the_vario_over(plugin):
 # --- training markers -----------------------------------------------------------
 
 def markers_tick(pi, data):
-    """Run the frame of a marker update (half a second after the slow path's frame)."""
+    """Run the frame of a marker update (half a second after the slow path's frame).
+
+    The clouds' turn comes before the markers' in a frame, and the plugin's clock is the wall's:
+    on a slow machine the slow path's frame can outlast the clouds' period (seen on CI, 2026-11-11),
+    so the clouds are held back for the markers' frame."""
     frame(pi, data)  # the slow path, if due
-    pi.next_slow = float("inf")
+    next_clouds = pi.next_clouds
+    pi.next_slow = pi.next_clouds = float("inf")
     pi.next_markers = 0.0
     frame(pi, data)
+    pi.next_clouds = next_clouds
     pi.next_slow = 0.0
 
 
