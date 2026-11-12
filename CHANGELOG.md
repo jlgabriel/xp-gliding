@@ -2,6 +2,13 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## 0.9 — 2026-11-12
+
+- **Good and bad areas.** Over tens of kilometres the thermals are more numerous and stronger in some areas, under more and bigger clouds, and fewer and weaker in others, where some stretches have almost none. In the best areas there are about 1.6 times as many thermals as on average, a fifth stronger; in the worst about 0.4 times as many, a fifth weaker. The sky as a whole holds as many as before, so choosing where to fly by the look of the sky pays. Each date has its own map, and with wind the areas drift with it. *Plugins → XP-Gliding → Good and bad areas* turns them off, for the same sky everywhere.
+- **Clouds thin as their thermal weakens, and outlive it.** A full cloud has a thermal at its best; one that thins has a thermal that is fading; and a cloud stays a few minutes after its thermal has died, draining away, so a thin cloud may have nothing left under it. Before, a long-lived thermal lost its cloud while it still climbed well.
+- **Less lift under X-Plane's clouds, none in rain.** Under the cloud layers set in X-Plane's weather the thermals weaken, by how much of the sky the layers cover and how thick they are: about half as strong under a closed overcast, a little weaker under scattered cloud, hardly at all under thin cirrus. In rain there are none. The change comes over a few minutes as the weather changes from place to place; a clear sky changes nothing. The plugin's own clouds do not count.
+- ***Sharper thermal edges (experiment)*: a narrower, weaker ring of sink.** Leaving a thermal pulled the glider down too hard and too far out. The ring now reaches half as far beyond the thermal and is weaker; the jolt and the bumps on entering are as they were.
+
 ## 0.8 — 2026-11-11
 
 - **New cumulus.** The clouds are drawn anew: lighter, with lobes of several sizes shaded where one hides another, towers that rise off the centre, a light grey base and soft edges that fade out instead of a firm outline of round puffs. Each cloud is turned its own way, so no two look alike. Their size, place, life and lift are unchanged, and they cost no more to draw.
