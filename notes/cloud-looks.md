@@ -181,3 +181,16 @@ What this leaves: the base puffs were also the halo seen from below in his v9 fl
 | cu38 | Both | 183 |
 
 Juan Luis hesitated between the last two, leaning to cu37; my reading the same: the small puffs were what made the outline a puffy chain, and cu37 keeps the texture already flown, while the smoother texture leans towards v11's fog. **Chosen: cu37 as v15** (2026-11-12). Fewer particles, so no cost measured. Installed for his hand flight.
+
+**His flights with v15.** 2026-11-12 evening, Juan Luis by hand over Santiago, first at 18:00 local, then at noon: "¿no son muy grandes? pareciera que estuviera nublado", then "quizás el problema es que son tan iguales que se confunden; cuando están juntas parecen una sola". His log at 18:00: nearest cloud scale 0.96-1.09, zi 2000 m, so each cloud was its usual size; neighbours close together merged into one white wall. Every cloud is one object with one tower layout, only turned by its heading.
+
+**Clouds that merge.** In the lab, four clouds in a row 1.1 km apart, 4.5 km ahead, base 350 m above the glider, random headings, four rows:
+
+| Row | What | Seen |
+| --- | --- | --- |
+| 1 | v15 x4 | Touching and merging into one band, as in his flight |
+| 2 | v15 with the `low` layer narrower (0.78 → 0.65 of the half width), x4 | Sky between them; all four alike |
+| 3 | v15 plus three other layouts of the same 170-183 particles: one tall central tower, two low wide towers, towers leaning to one side | Each cloud reads as its own; still close |
+| 4 | The four layouts, all with the narrower `low` layer | Each its own, with sky between: the clearest |
+
+Not chosen yet: shown to him at the end of the day ("última prueba por hoy"). Row 4 would mean several cloud objects and the adapter picking one per thermal, deterministically (the same for every pilot); the lift is unchanged, though a cloud narrower at its bottom than the engine's 500 m half width (used for its shade and ground points) is worth weighing.
