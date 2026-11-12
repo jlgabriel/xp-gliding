@@ -47,7 +47,7 @@ import time
 
 import xp
 
-LOGGER_VERSION = "0.12.0"
+LOGGER_VERSION = "0.13.0"
 FLUSH_EVERY_ROWS = 300
 
 # (column, dataref, type) read after the flight model
@@ -160,6 +160,12 @@ XPG_DATAREFS = (
     ("xpg_edge_enabled", "xp_gliding/edge_enabled", "i"),
     ("xpg_kick_n", "xp_gliding/kick_n", "f"),
     ("xpg_turbulence_ms", "xp_gliding/turbulence_ms", "f"),
+    # X-Plane's clouds and rain (since 0.13.0): the share of w* they leave now and the one it
+    # heads for, the sun its layers stop, and the rain (engine/shade.py).
+    ("xpg_shade_share", "xp_gliding/day/shade_share", "f"),
+    ("xpg_shade_target", "xp_gliding/day/shade_target", "f"),
+    ("xpg_sky_cover", "xp_gliding/day/sky_cover", "f"),
+    ("xpg_rain", "xp_gliding/day/rain", "f"),
     # The clouds, which rebuilding the sky cannot give: their height reads the ground
     # (tools/flightlog/read_flight.py). Updated every few seconds, not per frame.
     ("xpg_cloud_level_m", "xp_gliding/clouds/level_m", "f"),

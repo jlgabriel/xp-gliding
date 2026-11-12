@@ -9,6 +9,7 @@ Modules:
   wind         the sky carried by the wind, and thermals leaning with it
   sun          the sun's elevation: no sun, no thermals
   day          the cloud base from the atmosphere's layers
+  shade        less lift under X-Plane's clouds, none in rain
   clouds       which thermals carry a cumulus, and how it looks over its life
   cloud_order  the order the clouds are drawn in, near over far
   markers      training markers: which thermals, where and how bright

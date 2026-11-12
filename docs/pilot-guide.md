@@ -42,6 +42,7 @@ In calm air the sky is the same every time for the same place, date, time and se
 - **A climb ends near its cloud.** The lift fades towards the cloud's base, and usually stops some way under it.
 - **Clouds keep to a level for the area,** and stand higher where the ground under them, or along their drift, would reach them.
 - **A deeper day spaces the thermals out.** With the cloud base from X-Plane's weather, a high base gives wider thermals and clouds farther apart, and a low base narrower thermals and clouds closer together. The sink between them stays the same.
+- **X-Plane's own clouds take the sun away.** Under a layer set in X-Plane's weather the thermals weaken, more the more it covers and the thicker it is: about half as strong under a closed overcast, a little weaker under scattered cloud, hardly at all under thin cirrus. In rain there are none. The change comes over a few minutes, as the weather changes from place to place. A clear sky changes nothing.
 - **No thermal starts over water.** One born over land can drift out over the sea.
 - **X-Plane's ridge lift stays on,** and adds to the thermals where the wind meets a slope.
 

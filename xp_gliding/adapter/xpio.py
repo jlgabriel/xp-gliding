@@ -38,6 +38,7 @@ STATE = (
 )
 
 WIND_LAYERS = 13  # sim/weather/aircraft/wind_*: float[13]
+CLOUD_LAYERS = 3  # sim/weather/aircraft/cloud_*: float[3]
 AIR_LAYERS = 13  # temperatures and dew points aloft, at region/temperature_altitude_msl_m: float[13]
 
 
@@ -62,6 +63,9 @@ class XPlaneIO:
         self._air_alt = xp.findDataRef("sim/weather/region/temperature_altitude_msl_m")
         self._air_temp = xp.findDataRef("sim/weather/aircraft/temperatures_aloft_deg_c")
         self._air_dew = xp.findDataRef("sim/weather/aircraft/dewpoint_deg_c")
+        self._cloud_type = xp.findDataRef("sim/weather/aircraft/cloud_type")
+        self._cloud_cover = xp.findDataRef("sim/weather/aircraft/cloud_coverage_percent")
+        self._rain = xp.findDataRef("sim/weather/region/rain_percent")
 
     def frozen(self):
         """True while paused or in replay: no force is applied then."""
@@ -104,6 +108,14 @@ class XPlaneIO:
         for ref, values in zip((self._air_alt, self._air_temp, self._air_dew), layers):
             xp.getDatavf(ref, values, 0, AIR_LAYERS)
         return layers
+
+    def sky_layers(self):
+        """X-Plane's cloud layers at the aircraft and its rain: (types 0-3, coverages 0-1, rain
+        0-1), for less lift under them (`engine/shade.py`). Once a slow update."""
+        kinds, covers = [], []
+        xp.getDatavf(self._cloud_type, kinds, 0, CLOUD_LAYERS)
+        xp.getDatavf(self._cloud_cover, covers, 0, CLOUD_LAYERS)
+        return kinds, covers, xp.getDataf(self._rain)
 
     def engine_count(self):
         return xp.getDatai(self._engines)

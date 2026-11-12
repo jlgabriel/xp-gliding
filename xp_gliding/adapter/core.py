@@ -45,7 +45,9 @@ once more about 90 s later, for real weather that arrives late, then kept (`Weat
 
 The daily cycle (`engine/daycycle.py`, unless `sun_enabled` is off): no thermal is born with the sun
 low, and the w* in use is the menu's times the share of the day's peak at this hour (`Injector.wstar_ms`)
-for the lift, the markers and the lean. Each thermal is also as deep as the day was at its birth
+for the lift, the markers and the lean. X-Plane's cloud layers at the aircraft take a share of it,
+and rain all of it, over a few minutes (`engine/shade.py`, always on: a clear sky changes nothing).
+Each thermal is also as deep as the day was at its birth
 (`FieldConfig.depth_cycle`, step B): zi above is the afternoon's, and `Injector.zi_now_m` the moment's. None is born over
 water (`Injector.accept_thermal`). A thermal keeps its place in the air,
 so what counts is the ground under it at its birth, worked out in the present wind: the field and
@@ -68,6 +70,7 @@ import time
 
 from ..engine import injection as inj
 from ..engine.day import weather_base_m
+from ..engine.shade import Shade, sky_cover, strength_share
 from ..engine.edge import EdgeTurbulence, bumps
 from ..engine.field import (EDGE_RING, EDGE_SINK_GAIN, SKY_NAMES, FieldConfig, ThermalField, sky_index,
                             sky_named)
@@ -278,6 +281,9 @@ class Injector:
         self.sun_share = 1.0  # the share of a full day's thermals alive (`ThermalField.sink_share`)
         self.day_share = 1.0  # w* of the moment over the menu's, the day's peak (daily cycle)
         self.depth_share = 1.0  # zi of the moment over the afternoon's (daily cycle, step B)
+        self.shade = Shade()  # less lift under X-Plane's clouds, none in rain
+        self.sky_cover = 0.0  # the share of the sun X-Plane's layers stop, at the aircraft
+        self.rain = 0.0  # X-Plane's rain_percent
         self.weather = WeatherBase()
         self.jumped = False  # the last slow update found a jump: a new flight, the map, the clock
         # The tail's sample feeds only a dataref the flight logger reads (pitch is not modelled),
@@ -315,8 +321,9 @@ class Injector:
 
     @property
     def wstar_ms(self):
-        """The w* of the moment: the menu's, the day's peak, times the daily cycle's share."""
-        return self.settings.wstar_ms * self.day_share
+        """The w* of the moment: the menu's, the day's peak, times the daily cycle's share and
+        what X-Plane's clouds and rain leave of it."""
+        return self.settings.wstar_ms * self.day_share * self.shade.share
 
     def reset_field(self):
         """Forget the loaded thermals (they are regenerated identically on demand)."""
@@ -394,8 +401,12 @@ class Injector:
         """The ground under the aircraft for the field, m MSL. None: no floors, the old way."""
         return None if self.heights is None else s.msl_m - s.agl_m
 
-    def slow_update(self, s):
-        """Keep the field loaded around the aircraft. Not for every frame."""
+    def slow_update(self, s, sky_layers=None):
+        """Keep the field loaded around the aircraft. Not for every frame.
+
+        sky_layers: X-Plane's (cloud types, coverages, rain) at the aircraft (`XPlaneIO.sky_layers`),
+        or None for a clear sky.
+        """
         st = self.settings
         lat, lon = self.drift.to_air(s.lat, s.lon)
         key = (st.seed, s.day, st.range_m, st.sky, self.zi_m, st.sun_enabled, st.blue_day)
@@ -417,6 +428,11 @@ class Injector:
         if new_sky:
             self.kick.reset()  # a new sky's lift is not air the glider flew into
             self.turbulence.reset()
+        if self.jumped:
+            self.shade.reset()  # a new place or time: its weather at once
+        kinds, covers, self.rain = sky_layers if sky_layers is not None else ((), (), 0.0)
+        self.sky_cover = sky_cover(kinds, covers)
+        self.shade.step(strength_share(kinds, covers, self.rain), s.sky_t_s)
         self.sun_elevation_deg = sun_elevation_deg(s.lat, s.lon, s.day, s.sky_t_s)
         self.sun_share = self.field.sink_share
         cycle = self.field.cycle

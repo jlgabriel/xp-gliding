@@ -141,7 +141,13 @@ DATAREFS = (
     ("wstar_ms", "settings", "wstar_ms", "f", 1),
     ("zi_m", "settings", "zi_m", "f", 1),  # the setting; day/zi_m is the one in use
     ("weather_base_enabled", "settings", "weather_base_enabled", "i", 1),
-    ("day/zi_m", "injector", "zi_m", "f", 0),  # the afternoon's: the field's, maybe the weather's
+    ("day/zi_m", "injector", "zi_m", "f", 0),
+    # Less lift under X-Plane's clouds, none in rain (engine/shade.py): the share of w* left now,
+    # the share it is heading for, the sun the layers stop, and the rain.
+    ("day/shade_share", "injector", "shade.share", "f", 0),
+    ("day/shade_target", "injector", "shade.target", "f", 0),
+    ("day/sky_cover", "injector", "sky_cover", "f", 0),
+    ("day/rain", "injector", "rain", "f", 0),  # the afternoon's: the field's, maybe the weather's
     ("day/weather_base_m", "injector", "weather.published_m", "f", 0),  # m above the ground, -1: none
     ("day/weather_reads", "injector", "weather.reads", "i", 0),
     # The place of the sky in engine.field.SKY_NAMES. Tools can write it; that is not saved.
@@ -707,7 +713,7 @@ class PythonInterface:
             self.next_clouds = now + CLOUDS_PERIOD_S
             if st.weather_base_enabled and self.injector.weather.due(now):
                 self.read_weather(s, now)
-            self.injector.slow_update(s)
+            self.injector.slow_update(s, self.io.sky_layers())
             if self.injector.jumped and not self.just_placed(now):
                 self.injector.weather.reset(now)  # a new place or time: read its weather
                 self.hud.reset_instruments()  # and the vario's average starts over

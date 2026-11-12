@@ -57,6 +57,10 @@ DATA = {
     "sim/weather/aircraft/wind_altitude_msl_m": [300.0 + 500.0 * k for k in range(13)],
     "sim/weather/aircraft/wind_speed_kts": [15.0] * 13,
     "sim/weather/aircraft/wind_direction_degt": [270.0] * 13,
+    # X-Plane's cloud layers and rain: a clear sky, unless a test sets them (engine/shade.py).
+    "sim/weather/aircraft/cloud_type": [0.0] * 3,
+    "sim/weather/aircraft/cloud_coverage_percent": [0.0] * 3,
+    "sim/weather/region/rain_percent": 0.0,
 }
 
 
@@ -2255,3 +2259,43 @@ def test_the_sharper_edges_kick_on_a_change_of_lift_and_do_no_work(plugin):
     pi.next_slow = 0.0
     frame(pi, data)
     assert pi.injector.field.ring == 0.0 and pi.injector.field.sink_gain == 1.0 and dataref(xp, "kick_n") == 0.0
+
+
+# --- less lift under X-Plane's clouds, none in rain (engine/shade.py) ---
+
+def slow_frame(pi, data, seconds=0.0):
+    data["sim/time/zulu_time_sec"] += seconds
+    data["sim/time/local_time_sec"] += seconds
+    pi.next_slow = 0.0
+    frame(pi, data)
+
+
+def test_an_overcast_weakens_the_thermals_over_minutes_and_rain_stops_them(plugin):
+    pi, xp, data = plugin
+    pi.settings.sun_enabled = False  # the menu's w* all day, to compare
+    pi.settings.wstar_ms = 3.0
+    slow_frame(pi, data)
+    assert dataref(xp, "day/shade_share") == 1.0 and dataref(xp, "day/wstar_ms") == pytest.approx(3.0)
+    data["sim/weather/aircraft/cloud_type"] = [1.0, 0.0, 0.0]  # a closed stratus deck
+    data["sim/weather/aircraft/cloud_coverage_percent"] = [1.0, 0.0, 0.0]
+    slow_frame(pi, data, 60.0)
+    assert dataref(xp, "day/sky_cover") == pytest.approx(1.0)
+    assert dataref(xp, "day/shade_target") == pytest.approx(0.464, abs=0.005)
+    assert 0.464 < dataref(xp, "day/shade_share") < 1.0  # the ground takes its time
+    for _ in range(20):
+        slow_frame(pi, data, 60.0)
+    assert dataref(xp, "day/wstar_ms") == pytest.approx(3.0 * 0.464, abs=0.02)
+    data["sim/weather/region/rain_percent"] = 0.3
+    for _ in range(20):
+        slow_frame(pi, data, 60.0)
+    assert dataref(xp, "day/rain") == pytest.approx(0.3) and dataref(xp, "day/wstar_ms") < 0.01
+
+
+def test_a_new_place_takes_its_weather_at_once(plugin):
+    pi, xp, data = plugin
+    slow_frame(pi, data)
+    data["sim/weather/aircraft/cloud_type"] = [1.0, 0.0, 0.0]
+    data["sim/weather/aircraft/cloud_coverage_percent"] = [1.0, 0.0, 0.0]
+    data["sim/flightmodel/position/latitude"] += 0.2  # 22 km: the map
+    slow_frame(pi, data)
+    assert dataref(xp, "day/shade_share") == pytest.approx(0.464, abs=0.005)
