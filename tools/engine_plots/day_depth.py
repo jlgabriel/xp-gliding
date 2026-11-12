@@ -117,7 +117,7 @@ def main(argv=None):
                 climbs += [best_climb(field, th, 0.4 * th.zi(args.zi), t, wstar, args.zi) for th in picked]
                 tops += [ceiling(field, th, t, wstar, args.zi) for th in picked]
                 bases += [base_zzi * th.zi(args.zi) for th in strong
-                          if not field.cycle.blue(th.lat, th.lon, th.birth, base_zzi)]
+                          if not field.cycle.blue(th.lat, th.lon, th.birth)]
             step = "B" if depth else "A"
             if not climbs:
                 print(f"| {hour:02d}:00 | {zi_now:.0f} m | {wstar:.2f} | {step} | | no thermals | | | | | |")

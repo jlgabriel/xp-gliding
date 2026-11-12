@@ -59,7 +59,7 @@ from .. import __version__
 from .aircraft import DEFAULT_GEOMETRY, read_acf_geometry
 from .config import DAYS, MENU_CHOICES, day_index, load_settings, save_settings
 from .core import AircraftState, Injection, Injector, NativeThermalGuard
-from ..engine.airstart import SPEED_MS, pick_cloud, place_near, start_height_m
+from ..engine.airstart import SPEED_MS, clouds_from, pick_cloud, place_near, start_height_m
 from ..engine.sun import SUN_MIN_DEG
 from .clouds import CumulusClouds
 from .hud import Hud
@@ -493,6 +493,21 @@ class PythonInterface:
         and a new reading of the weather's base, a metre off, made a new sky with no clouds."""
         return self.placed_at is not None and now - self.placed_at < PLACED_GRACE_S
 
+    def why_no_cloud(self, s, catalog):
+        """What to tell the pilot when no cloud is worth flying to. In the morning the daily cycle
+        is blue, so say from when there will be clouds, in the sim's local time."""
+        cycle = catalog.cycle
+        if cycle is not None:
+            when = clouds_from(cycle, s.lat, s.lon, s.sky_t_s)
+            t = s.sky_t_s
+            if when is None:
+                return "no clouds today any more"
+            if when > t:
+                local = (s.t_local_s + (when - t)) % 86400.0
+                return (f"no clouds yet, the morning is blue: the first form at about "
+                        f"{int(local // 3600):02d}:{int(local % 3600 // 60):02d} local time, try a few minutes after")
+        return "no cloud within reach"
+
     def put_near_cloud(self):
         """Place the glider (`engine/airstart.py`). None if done, else why not, for the pilot."""
         st = self.settings
@@ -511,7 +526,7 @@ class PythonInterface:
         e, n = frame.to_enu(*drift.to_air(s.lat, s.lon))
         th, r = pick_cloud(catalog.thermals(), e, n, t, self.clouds.planner.params)
         if th is None:
-            return "no cloud within reach"
+            return self.why_no_cloud(s, catalog)
         pe, pn, heading = place_near(th.e, th.n, e, n, s.psi_deg)
         lat, lon = drift.to_ground(*frame.to_latlon(pe, pn))
         ground_m = self.clouds.sky.ground_m(lat, lon)

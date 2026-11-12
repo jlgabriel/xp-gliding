@@ -50,7 +50,7 @@ A FIRST FLIGHT
 1. Weather: fly by day, best from late morning to mid-afternoon, and turn
    off X-Plane's own cumulus clouds. The thermals follow the sun: weak and low
    in the morning, strongest around 1 pm solar time, none with the sun under 10
-   degrees, and the first clouds around solar noon, lower than later on. The plugin draws its own
+   degrees, and the first clouds late in the morning, lower than later on. The plugin draws its own
    clouds over its thermals, and X-Plane's clouds mark none of them. Wind is
    fine.
 2. Aircraft: the Laminar ASK 21. The plugin does nothing on aircraft with

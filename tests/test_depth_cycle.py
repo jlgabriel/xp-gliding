@@ -143,7 +143,7 @@ def test_the_first_clouds_stand_lower_than_the_afternoons():
     def bases(hour):
         field = field_at(hour)
         return [base_zzi * th.zi(ZI) for th in field.alive(solar(hour))
-                if carries_cloud(th, params) and not field.cycle.blue(th.lat, th.lon, th.birth, base_zzi)]
+                if carries_cloud(th, params) and not field.cycle.blue(th.lat, th.lon, th.birth)]
 
     early, late = bases(13.0), bases(15.5)
     assert early and late

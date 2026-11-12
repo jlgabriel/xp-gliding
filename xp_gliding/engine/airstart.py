@@ -59,6 +59,19 @@ def place_near(th_e, th_n, e, n, heading_deg, distance_m=DISTANCE_M):
     return pe, pn, heading
 
 
+def clouds_from(cycle, lat, lon, t, step_s=300.0, horizon_s=12 * 3600.0):
+    """When the morning's blue ends here: the first sky time from t on at which a thermal born
+    would carry a cloud (`daycycle.DailyCycle.blue`), or None if not within the horizon. t itself
+    if it is not blue now. To tell the pilot why there is no cloud yet."""
+    k = 0
+    while k * step_s <= horizon_s:
+        when = t + k * step_s
+        if not cycle.blue(lat, lon, when):
+            return when
+        k += 1
+    return None
+
+
 def start_height_m(ground_m, base_m, share=HEIGHT_SHARE, min_agl_m=MIN_AGL_M):
     """Height to start at (m MSL): share of the way from the ground up to the base."""
     return max(ground_m + share * (base_m - ground_m), ground_m + min_agl_m)

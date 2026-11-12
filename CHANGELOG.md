@@ -2,6 +2,11 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## Unreleased
+
+- **Clouds earlier in the day.** With *Daily cycle* on, the first cumulus now come between about 10 and 10:40 am solar time, low, instead of around noon, so a morning flight has clouds to read sooner. Solar time is often well behind the clock: at Santiago in November, they come around 11:30 local time.
+- ***Put me near a cloud* says why there is none** in the blue early morning, and from what local time the first clouds form.
+
 ## 0.7 — 2026-11-11
 
 - **Put me near a cloud.** *Plugins → XP-Gliding → Put me near a cloud* sets the glider flying 1.5 km from the nearest cloud that will last a few minutes more, heading for it, a little over halfway from the ground to the cloud's base. A first flight no longer needs a tow before there is anything to see.

@@ -87,8 +87,8 @@ def test_morning_is_blue_until_zi_reaches_the_base():
     lat, lon = HOBBS
     early = solar(lon, NOV_2, 9.0)
     late = solar(lon, NOV_2, 14.0)
-    assert cycle.blue(lat, lon, early, 0.75)
-    assert not cycle.blue(lat, lon, late, 0.75)
+    assert cycle.blue(lat, lon, early)
+    assert not cycle.blue(lat, lon, late)
 
 
 def test_no_thermals_when_the_sun_never_gets_high():

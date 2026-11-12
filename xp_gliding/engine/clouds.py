@@ -218,8 +218,7 @@ class CloudCatalog:
 
     def _blue(self, thermal):
         """Born too early in the day for a cloud?"""
-        return self.cycle is not None and self.cycle.blue(thermal.lat, thermal.lon, thermal.birth,
-                                                          self.config.sky.cloud_base_zzi)
+        return self.cycle is not None and self.cycle.blue(thermal.lat, thermal.lon, thermal.birth)
 
     def loaded_within_m(self, lat, lon):
         """How far from (lat, lon) every tile has loaded (m): no new thermal can turn up nearer."""

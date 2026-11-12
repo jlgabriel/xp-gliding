@@ -16,8 +16,11 @@ in for it, worked out from the date, time and place (`sun.py`):
 - The strength is (H / H_noon * zi / zi_peak)^(1/3), divided by its largest value that day, so
   it is 1 at the day's best moment (about 13:00 solar) and the pilot's w* is the day's peak.
 
-A thermal born before zi has grown to the cloud base is blue (`depth_share` below the sky's
-`cloud_base_zzi`), so the morning is blue and the first cumulus come around solar noon.
+A thermal born before zi has grown to `FIRST_CLOUDS_DEPTH` of the afternoon's is blue, so the
+morning is blue, and the first cumulus come between about 10:00 and 10:40 solar time, low, under a
+base that rises through the day. It was the sky's `cloud_base_zzi` (0.75), which held them until
+about noon solar; Juan Luis found that too late and dull (2026-11-11: "seamos un poco más
+generosos"), and real first cumulus come late in the morning.
 
 The day is worked out once per place and solar day on a table every `STEP_S` and kept; the place
 is taken to `CELL_DEG`, about 10 km, over which the sun moves by under half a minute of time.
@@ -30,6 +33,7 @@ from . import sun
 
 ONSET_DEG = sun.SUN_MIN_DEG  # H turns positive with the sun this high (first guess)
 DEPTH_CAP_SOLAR_H = 15.0  # zi stops growing at this solar hour
+FIRST_CLOUDS_DEPTH = 0.55  # thermals carry clouds once zi is this share of the afternoon's
 STEP_S = 300.0  # the table's step
 CELL_DEG = 0.1  # the table's place is rounded to this
 CACHE_DAYS = 8  # tables kept
@@ -123,6 +127,6 @@ class DayCycle:
         table = self._table(lat, lon, t)
         return table.at(table.depth, t)
 
-    def blue(self, lat, lon, birth, cloud_base_zzi):
-        """Is a thermal born here at `birth` too early for a cloud: zi still under the cloud base?"""
-        return self.depth_share(lat, lon, birth) < cloud_base_zzi
+    def blue(self, lat, lon, birth):
+        """Is a thermal born here at `birth` too early for a cloud: zi still shallow?"""
+        return self.depth_share(lat, lon, birth) < FIRST_CLOUDS_DEPTH

@@ -456,7 +456,7 @@ class Injector:
                 heights.blue = lambda th: True
             else:
                 heights.blue = (None if cycle is None
-                                else lambda th: cycle.blue(th.lat, th.lon, th.birth, base_zzi))
+                                else lambda th: cycle.blue(th.lat, th.lon, th.birth))
         if new_sky or changed:
             t0 = time.perf_counter()
             for th in self.field.thermals():
