@@ -104,3 +104,35 @@ v12 installed from this branch and flown by Juan Luis the same night: "me gustan
 - Not looked at with the new clouds: flying through one, dusk, wind, the far clouds at 15-35 km, a full sky drawn by the plugin itself (every cloud with its own heading and scale), and Juan Luis's own hand flight.
 - The outline is still firmer than X-Plane's own cumulus, and some small lobes on top stand apart.
 - The test pilot dropped twice when clouds were placed to fill fast, "no data from X-Plane for 1 s"; the captures then used a paused sim instead. Not looked into.
+
+## X-Plane 11 cloud add-ons, as reference
+
+2026-11-12. Juan Luis left seven X-Plane 11 cloud add-ons from artists and the community in a folder next to the repository, to study: CloudArt 3.3, *Clouds* (by alian2000), GoodMorningXP, Unique Clouds Variety Pack 1.5 (four sets), Vivid Sky 1.1, X-Pilot Realistic Clouds 1.2 and Y Clouds 4. Read for ideas only; nothing from them goes into the repository.
+
+**What they are.** None is a plugin. Each replaces X-Plane 11's cloud textures (`Resources/bitmaps/world/clouds/cloud_puff0-5.png`, some also `smoke_puff`, `cloud_puffs` and the sky colours) and most add a FlyWithLua script that sets X-Plane 11's art controls once (`sim/private/controls/clouds/*`: `plot_radius`, `first_res_3d`, `overdraw_control`, `ambient_gain`, `diffuse_gain`, `light_curve_ratio` and `light_curve_power` for a lit top and a dark base, the cloud shadows; plus sun, atmosphere, water and shadow controls). GoodMorningXP and Unique Clouds are textures only. X-Plane 12 draws its clouds another way, so neither the textures nor those controls apply to it as they are (not checked in the simulator; not worth a side measurement).
+
+**Their textures.** Every `cloud_puff` is an atlas of 4 x 4 cells, the layout of our `cumulus.png` (`TEX_CELLS_X 4`, `TEX_CELLS_Y 4`), at 512 to 4096 px a side, so 128 to 1024 px a cell; ours is 1024, 256 a cell. Y Clouds 4 reuses Vivid Sky's and CloudArt's files (same contents). Laid out on a blue sky:
+
+- **A whole cloud per cell.** Each cell is a complete small cumulus, a cumulus fragment, a stratus band or cirrus, often photographic, with crisp cauliflower edges and 16 different shapes per atlas. Ours are parts that the layers build a cloud from: bases, lobes, small lobes, wisps.
+- **Shading painted in.** Bright tops, a flat, greyer base, grey where lobes overlap; the art controls then add a lit top and dark base on top of that.
+- **The ones closest to a fair-weather cumulus with a flat base**: X-Pilot 1.2's `cloud_puff3-5` and alian2000's `cloud_puff3-5` (their lower rows). Unique Clouds' sets range from soft blobs to cotton-wool heaps; CloudArt's cells are small clouds in a mostly empty cell.
+- **Colour**: white with a faint blue in the grey, about (0.88, 0.90, 0.92) weighted by alpha; ours (0.90, 0.91, 0.94).
+- **Cost**: GoodMorningXP warns that its 2K textures cost frames under a dense sky.
+
+**Licences.** None is open. GoodMorningXP allows mixing it into other mods for non-commercial use with credit; Y Clouds says the rights stay with the original authors of what it gathers; the rest say nothing. This project is GPL-3.0-or-later, so their textures are a reference, like Alex Ferrer's code, never a source.
+
+**Cell by cell.** Four of their best cells (X-Pilot 1.2's `cloud_puff3` cell 5 and `cloud_puff4` cell 14, alian2000's `cloud_puff5` cell 14, Unique Clouds set 4's `cloud_puff3` cell 9) next to four of ours (cells 0, 5, 12, 14), all at one size on a blue sky:
+
+- Their soft lobe (Unique Clouds) has grey patches inside, as if its density varied; ours are evenly white from edge to edge. This is what X-Plane 12's own cumulus showed on 2026-11-07 (density that varies through the cloud).
+- Their base oval (alian2000) darkens towards its bottom; ours is pale, with a lighter rim, nearly the reverse. Part of the white belly from below.
+- X-Pilot's cumulus have cauliflower at several scales, small bubbles on the large ones, with a crisp outline. Our v12 edges are soft on purpose, so only the fine grain inside the lit part is the lesson, not the outline.
+- X-Pilot's cells are whole cumulus with a flat base, one cloud per cell.
+
+**For our cumulus**, to weigh with the rest of this note when the cloud looks come back, the first two most promising (cheap, generator only, and aimed at what was seen in flight):
+
+1. Grey inside the lobes: vary the density, and so the shading, inside `lobe` and `small`, without changing the layers.
+2. A base cell grey towards its bottom instead of pale with a light rim (painted grey, not a flat-bottomed layout: that one broke into stripes seen from below).
+3. Fine detail inside the silhouette, on the lit side, keeping v12's soft outline.
+4. Cells that read as a small cloud on their own, for the young and dying clouds (the popcorn above) or the far ones. The largest and least certain: close to the billboard weighed with ChatGPT's proposal, and switching kinds by distance without a visible jump is hard.
+
+Also: more distinct shapes (our lobes are eight cells of one kind), and 512 px a cell only if a closer look shows the cells soft, with its cost measured.
