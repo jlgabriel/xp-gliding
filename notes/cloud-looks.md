@@ -136,3 +136,37 @@ v12 installed from this branch and flown by Juan Luis the same night: "me gustan
 4. Cells that read as a small cloud on their own, for the young and dying clouds (the popcorn above) or the far ones. The largest and least certain: close to the billboard weighed with ChatGPT's proposal, and switching kinds by distance without a visible jump is hard.
 
 Also: more distinct shapes (our lobes are eight cells of one kind), and 512 px a cell only if a closer look shows the cells soft, with its cost measured.
+
+## Round 2: grey inside and underneath (v13)
+
+2026-11-12, a separate session again, looks only, on branch `claude/cloud-looks-2-234b04`. Aim: the white flat belly and the evenly white lobes left by v12, following the lessons of the XP11 add-ons above, without going grey overall (Juan Luis liked them "más claras").
+
+**Offline preview.** A new rough compositor in the session's scratch space (not kept, like the first): billboards in perspective, back to front, one rough light, the same particles for every version, four views: a row at 3 km from the side, one cloud from 1.8 km below the base, the belly from 150 m under the base, and young clouds with a quarter of the particles.
+
+All changes are in the texture only; layers, light, particle counts and v12's outline as before. The detail inside the cells draws from random streams of its own (`Detail`), so the shapes and outlines of the lobes are exactly v12's.
+
+| Try | What changed | Seen offline |
+| --- | --- | --- |
+| a | Lobes: self-shadow between bulges 0.08 → 0.18, grey pockets of thicker cloud (slow noise, 0.16) | Grey all over: the drift to grey he does not want. Dropped |
+| b | Self-shadow 0.10, pockets 0.14 and only in a lobe's lower and middle part (`SHADE`, `POCKETS`) | Grey patches inside, tops white |
+| c | Base cell grey towards its bottom and its core (0.72 at the bottom, 0.96 at the top) instead of pale with a light rim (`BASE_GREY`) | A grey belly from below and a natural darker base from the side; but a grey streak now stuck out past the body from below: the halo seen in flight, made visible |
+| d | Base ovals narrower in their cell (half width 0.88 → 0.72, `BASE_WIDTH`), bottom 0.75 | The streak mostly gone |
+| e | Fine cauliflower grain in the lit upper part of the lobes (billow at 12 cells, 0.10) | Too coarse: dents under the belly from close by |
+| f/g | Grain finer and fainter (24 cells, 0.07, `GRAIN`), on its own stream | Barely visible except near; the cell outline unchanged. v13 = g |
+| v13 + grey low layer | My own idea: the `low` layer tinted (0.91, 0.92, 0.95) instead of white | The lower third of the cloud a little greyer from every side, towers white; the belly grey more even. Risk: greyer overall |
+
+Not addressed: the popcorn of young and dying clouds. When the rate drops, particles die at random in every layer, so what is left is scattered puffs; changing that means changing how a cloud grows and dies, outside the looks.
+
+**In X-Plane.** CloudLab (`make_cloud.py --plugin`) at KHOB, noon, calm, clear, the plugin's own clouds off, the three in a row 4.5-5 km ahead with one heading (cu31 v12 from git, cu32 v13, cu33 v13 with the grey low layer). From 900 m under the base the differences were small: X-Plane's light flattens the grey inside, all three a similar blue-grey. From the side, v13's base was greyer. Juan Luis looked in the sim himself and chose **the left one, v12**, and added: "en las tres esa capa horizontal no me gusta mucho".
+
+The band: seen near the base's height, each cloud has a flat band under its body, sticking out sideways. It is the `base` layer (40 wide ovals emitted in a layer 30 m thick) and the `wisp` layer (16 horizontal fibres); edge on they add up to a sheet. v13's grey made it stand out more. The offline compositor barely shows it, so the choice was made in the sim, three new clouds 3.5 km ahead, the glider 60 m above their base:
+
+| Lab | What | Particles | Seen |
+| --- | --- | --- | --- |
+| cu31 | v12 | 311 | The flat translucent band under the body |
+| cu34 | v12 without `base` and `wisp` | 255 | No band; the bottom made by the low lobes, rounder |
+| cu35 | v12 with a base of grey lobes (40 lobe cells, 240 m, tint 0.90, 30-70 m, narrower than the body) instead of ovals and wisps | 295 | A darker, flatter bottom, but still read as a horizontal band |
+
+**Juan Luis: "la de al medio me gusta más, definitivamente no me gusta esa franja horizontal de las otras dos".** So **v14** = v12 without the base and wisp layers: v12's texture unchanged (the base and wisp cells stay in the atlas, unused), the emitter's height kept at 59 m, since the lowest low lobes reach about as far down as the base puffs did. Fewer particles (255 against 311), so no cost measured.
+
+What this leaves: the base puffs were also the halo seen from below in his v9 flight (a translucent disc wider than the body), so that should be gone; to check in his flight. The white belly from below stays as in v12 (v13's grey inside did not show enough in X-Plane to win), and the popcorn of young and dying clouds is untouched.

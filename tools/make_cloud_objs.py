@@ -6,9 +6,9 @@ Usage:
 All of it is authored here; nothing comes from another plugin's or simulator's assets. The
 output is committed, and a test checks that it matches this script.
 
-The cloud is a few layers of particles over an object with no geometry (see `LAYERS`): wide,
-flat grey puffs at the base, shaded lobes of several sizes for the body, small bright lobes on
-top, small puffs at the edges and torn wisps low down. Particles have no speed of their own
+The cloud is a few layers of particles over an object with no geometry (see `LAYERS`): shaded
+lobes of several sizes for the body and its bottom, small bright lobes on top and small puffs
+at the edges. Particles have no speed of their own
 and no gravity. With `DRAG` 1 XP12's wind carries them, and in calm air they stay where they
 were emitted: the emitter's random offsets (DX, DY, DZ) are the cloud's shape, and rate x
 life is the number alive. Two values come per instance, as datarefs of the instance
@@ -18,12 +18,12 @@ life is the number alive. Two values come per instance, as datarefs of the insta
 
 The texture bakes the light: billboards always face the camera, so each lobe is lit from
 above and shaded below and where one bulge hides another, and initial rotation stays small
-to keep that. Each layer has its own tint, so the cloud goes from white tops to a blue-grey
-base. Puffs fade out before the edge of their cell: a puff cut by the cell shows as a
+to keep that. Each layer can have its own tint. Puffs fade out before the edge of their cell: a puff cut by the cell shows as a
 straight line from close up (seen flying through the first version).
 
 The look follows X-Plane 12's own cumulus, by eye (notes/cloud-looks.md): soft, uneven
-edges, density that varies through the cloud, a flatter and greyer base, and wisps.
+edges and density that varies through the cloud. Its flatter, greyer base and wisps were
+tried as layers of their own and dropped: they showed as a flat band under the body.
 
 Found by trying in X-Plane 12.4.3 under Vulkan (notes/phase2.md, `tools/cloudlab/`):
 - An emitter's table can have a dataref of the instance as its slot, and it follows the
@@ -98,7 +98,7 @@ def _square(frac, y0, y1, cx=0.0, cz=0.0):
 # Shape at scale 1. The body is a few towers off the centre, so a cloud is uneven and differs
 # with the side it is seen from; the plugin turns each cloud by its own heading.
 # The order is the order they are drawn in, last on top: X-Plane does not sort the emitters of
-# one object by distance (notes/phase4.md), so the base and its wisps come last.
+# one object by distance (notes/phase4.md).
 LAYERS = (
     Layer("tower_a", 40, LOBE_CELLS, 270.0, (0.6, 1.4), _square(0.36, 180.0, 400.0, -120.0, 40.0),
           (1.00, 1.00, 1.00), 0.92),
@@ -112,11 +112,11 @@ LAYERS = (
           (1.00, 1.00, 1.00), 0.95),
     Layer("edge", 50, SMALL_CELLS, 120.0, (0.6, 1.4), _square(0.70, 40.0, 240.0),
           (1.00, 1.00, 1.00), 0.85),
-    Layer("wisp", 16, WISP_CELLS, 240.0, (0.7, 1.3), _square(0.66, 0.0, 120.0),
-          (0.96, 0.97, 1.00), 0.35),
-    Layer("base", 40, BASE_CELLS, 280.0, (0.7, 1.3), _square(0.52, 10.0, 40.0),
-          (0.94, 0.95, 0.98), 0.60),
 )
+# No flat base layer and no wisps since v14: seen edge on near the base's height, their thin
+# layer of wide puffs showed as a flat band sticking out under the body, grey or white, and
+# Juan Luis did not want it (notes/cloud-looks.md). The low lobes make the bottom. Their cells
+# stay in the atlas, unused.
 BY_NAME = {layer.name: layer for layer in LAYERS}
 # Sub-emitters per emitter. Eight in one emitter crashed X-Plane 12.4.3 (heap corruption) a few
 # seconds after the first cloud was placed (notes/cloud-looks.md); three were always fine.
@@ -130,8 +130,9 @@ SCALE_TOP = 2.0
 # The bottom of a base puff's image (from its centre, as a fraction of its half size).
 BASE_BOTTOM = 0.42
 # Raise the emitter so the bottom of the cloud, not the centre of the lowest puffs, is at the
-# height the instance is placed.
-EMITTER_Y_M = round(BY_NAME["base"].size_m * 0.5 * BASE_BOTTOM)
+# height the instance is placed. Kept at the height the base puffs needed (59 m): the lowest low
+# lobes now reach about as far down.
+EMITTER_Y_M = 59
 
 
 # --- texture -------------------------------------------------------------------------
