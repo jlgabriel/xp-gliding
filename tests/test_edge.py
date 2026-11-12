@@ -22,6 +22,18 @@ def test_the_ring_sinks_outside_the_thermal_and_leaves_the_inside_alone():
     assert u.updraft_velocity(2.0 * r2, z, ZI, WSTAR, ring=0.5) == u.updraft_velocity(2.0 * r2, z, ZI, WSTAR)
 
 
+def test_a_narrower_ring_is_deepest_halfway_across_and_ends_sooner():
+    z = 0.3 * ZI
+    _, r2 = u.core_radii(z, ZI)
+    wt = u.mean_updraft(z / ZI, WSTAR)
+    plain = u.updraft_velocity(1.25 * r2, z, ZI, WSTAR)
+    ringed = u.updraft_velocity(1.25 * r2, z, ZI, WSTAR, ring=0.3, ring_width=0.5)
+    assert ringed - plain == pytest.approx(-0.3 * wt, rel=1e-6)
+    for rr2 in (1.5, 1.7, 1.9):
+        assert (u.updraft_velocity(rr2 * r2, z, ZI, WSTAR, ring=0.3, ring_width=0.5)
+                == u.updraft_velocity(rr2 * r2, z, ZI, WSTAR))
+
+
 def test_the_kick_is_the_lift_of_the_angle_of_attack_change():
     # ASK 21: 541 kg, 17.75 m2, aspect ratio 16.7, at 97 km/h near sea level.
     cla = inj.lift_slope(16.7)

@@ -47,7 +47,7 @@ import time
 
 import xp
 
-LOGGER_VERSION = "0.11.0"
+LOGGER_VERSION = "0.12.0"
 FLUSH_EVERY_ROWS = 300
 
 # (column, dataref, type) read after the flight model
@@ -154,6 +154,12 @@ XPG_DATAREFS = (
     ("xpg_depth_share", "xp_gliding/day/depth_share", "f"),
     ("xpg_nearest_depth", "xp_gliding/nearest/depth", "f"),
     ("xpg_wind_at_clouds", "xp_gliding/wind_at_clouds", "i"),
+    # The sharper thermal edges (since 0.12.0): on or off, the kick's lift before its split
+    # into body axes (N), and the amplitude of the edge's bumps (m/s). The ring and the sink
+    # between thermals are already in the lift columns.
+    ("xpg_edge_enabled", "xp_gliding/edge_enabled", "i"),
+    ("xpg_kick_n", "xp_gliding/kick_n", "f"),
+    ("xpg_turbulence_ms", "xp_gliding/turbulence_ms", "f"),
     # The clouds, which rebuilding the sky cannot give: their height reads the ground
     # (tools/flightlog/read_flight.py). Updated every few seconds, not per frame.
     ("xpg_cloud_level_m", "xp_gliding/clouds/level_m", "f"),

@@ -133,7 +133,7 @@ def allen_density_per_m2(zi, zzi_ref=0.4):
 
 
 def updraft_velocity(r, z, zi, wstar, wgain=1.0, rgain=1.0, we=0.0,
-                     blend_shapes=True, stretch_everywhere=True, ring=0.0):
+                     blend_shapes=True, stretch_everywhere=True, ring=0.0, ring_width=1.0):
     """Vertical air velocity (m/s, positive up) at distance r (m) from one updraft.
 
     z is the height above ground (m). wgain and rgain are this updraft's
@@ -141,9 +141,10 @@ def updraft_velocity(r, z, zi, wstar, wgain=1.0, rgain=1.0, we=0.0,
     gains"). we is the environment sink (Eq. 21, <= 0), or 0 for none.
     Far from the updraft (beyond 2 r2) the result is we.
 
-    ring: a ring of sink between r2 and 2 r2 at every height, peaking at 1.5 r2 at ring times
-    the mean updraft: a deviation from the paper, whose ring is only above z/zi = 0.5 and weak
-    (`field.EDGE_RING`, the sharper thermal edges).
+    ring: a ring of sink from r2 out to (1 + ring_width) r2 at every height, deepest halfway
+    across at ring times the mean updraft: a deviation from the paper, whose ring is only above
+    z/zi = 0.5 and weak (`field.EDGE_RING`, the sharper thermal edges). ring_width is at most 1,
+    so the ring stays within the updraft's influence radius.
     """
     if zi <= 0.0 or z <= 0.0 or z >= zi:
         return 0.0
@@ -166,8 +167,8 @@ def updraft_velocity(r, z, zi, wstar, wgain=1.0, rgain=1.0, we=0.0,
         wd = swd * (math.pi / 6.0) * math.sin(math.pi * rr2)
         if wd > 0.0:
             wd = 0.0
-    if ring > 0.0 and 1.0 < rr2 < DOWNDRAFT_LIMIT_RR2:
-        wd -= ring * math.sin(math.pi * (rr2 - 1.0))
+    if ring > 0.0 and 1.0 < rr2 < 1.0 + ring_width:
+        wd -= ring * math.sin(math.pi * (rr2 - 1.0) / ring_width)
 
     w2 = ws * wc + wd * wt
     # Eq. 23: stretch so the profile blends into the environment sink.

@@ -80,11 +80,14 @@ WIDEN_FRACTION = 0.4  # radius gain RADIUS_START -> 1
 RADIUS_START = 0.6
 
 # Sharper thermal edges (stage 2, first guesses to judge by flying, with the kick in
-# engine/injection.py): a sink ring around every thermal, peaking at 1.5 r2 at this share of its
-# mean updraft, and the sink between thermals times EDGE_SINK_GAIN. Both depart from Allen's
-# conservation of mass, whose ring is weak and only high up, and whose sink between thermals is
-# -0.14 m/s in the wide sky (notes/SPEC.md, open questions).
-EDGE_RING = 0.5
+# engine/injection.py): a sink ring around every thermal, from r2 out to (1 + EDGE_RING_WIDTH) r2
+# and deepest halfway across at EDGE_RING times its mean updraft, and the sink between thermals
+# times EDGE_SINK_GAIN. Both depart from Allen's conservation of mass, whose ring is weak and only
+# high up, and whose sink between thermals is -0.14 m/s in the wide sky (notes/SPEC.md, open
+# questions). The ring was 0.5 and r2 wide until Juan Luis felt it pull down too long and too far
+# out on leaving a thermal (2026-11-12).
+EDGE_RING = 0.3
+EDGE_RING_WIDTH = 0.5
 EDGE_SINK_GAIN = 2.0
 
 # Clamp the per-thermal gains so a lognormal tail cannot make giants.
@@ -607,6 +610,7 @@ class ThermalField:
                         last_z, last_zi = zt, zit
                         last_we = updraft.environment_sink(zt, zit, wstar, self._flux_density)
                     w = updraft.updraft_velocity(r / th.stretch, zt, zit, wstar, th.wgain * th.gain,
-                                                 th.rgain * rf, last_we, ring=ring)
+                                                 th.rgain * rf, last_we, ring=ring,
+                                                 ring_width=EDGE_RING_WIDTH)
                     total += s * (w - last_we)
         return total
