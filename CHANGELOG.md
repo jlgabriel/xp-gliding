@@ -2,6 +2,11 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## Unreleased
+
+- **The climb in this thermal on the HUD.** `THM` gives the average climb since you began circling, as a glider's computer does. A few straight seconds to move the circle stay in the same thermal; after 20 s straight it is greyed, and it keeps the last thermal's figure until the next one has 10 s of circling. `AVG` is still the last 30 s.
+- ***X-Plane's audio vario* in the menu.** It turns X-Plane's own audio vario on and off, the same switch as the AUDIO on the ASK 21's panel, for gliders that have none. Its tick follows the panel's switch. It is X-Plane's setting, so the plugin does not save it.
+
 ## 0.9 — 2026-11-12
 
 - **Good and bad areas.** Over tens of kilometres the thermals are more numerous and stronger in some areas, under more and bigger clouds, and fewer and weaker in others, where some stretches have almost none. In the best areas there are about 1.6 times as many thermals as on average, a fifth stronger; in the worst about 0.4 times as many, a fifth weaker. The sky as a whole holds as many as before, so choosing where to fly by the look of the sky pays. Each date has its own map, and with wind the areas drift with it. *Plugins → XP-Gliding → Good and bad areas* turns them off, for the same sky everywhere.

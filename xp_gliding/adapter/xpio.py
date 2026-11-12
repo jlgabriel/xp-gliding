@@ -66,6 +66,9 @@ class XPlaneIO:
         self._cloud_type = xp.findDataRef("sim/weather/aircraft/cloud_type")
         self._cloud_cover = xp.findDataRef("sim/weather/aircraft/cloud_coverage_percent")
         self._rain = xp.findDataRef("sim/weather/region/rain_percent")
+        # X-Plane's own audio vario, on total energy, so it hears our lift (notes/phase4.md): the
+        # AUDIO switch on the ASK 21's panel. Gliders without one get it from the menu.
+        self._te_audio = xp.findDataRef("sim/cockpit2/switches/total_energy_audio")
 
     def frozen(self):
         """True while paused or in replay: no force is applied then."""
@@ -116,6 +119,14 @@ class XPlaneIO:
         xp.getDatavf(self._cloud_type, kinds, 0, CLOUD_LAYERS)
         xp.getDatavf(self._cloud_cover, covers, 0, CLOUD_LAYERS)
         return kinds, covers, xp.getDataf(self._rain)
+
+    def te_audio(self):
+        """X-Plane's audio vario: True on, False off, None where X-Plane has no such dataref."""
+        return None if self._te_audio is None else bool(xp.getDatai(self._te_audio))
+
+    def set_te_audio(self, on):
+        if self._te_audio is not None:
+            xp.setDatai(self._te_audio, 1 if on else 0)
 
     def engine_count(self):
         return xp.getDatai(self._engines)

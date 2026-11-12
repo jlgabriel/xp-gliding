@@ -13,6 +13,8 @@ agrees with it (within 0.03 m/s over 20 s, wings level; notes/hud.md).
 - `Vario`: total-energy rate, netto, and the true average over a time window.
 - `CentringAid`: which way the core lies, from netto against heading over the
   last turn, the way a pilot reads it from the vario.
+- `ThermalAverage`: the climb since the glider began circling in this thermal,
+  as a glider's computer gives it, kept after leaving it until the next.
 
 All of them expect samples about every `SAMPLE_PERIOD_S`, not every frame: a
 vario needs no more, and the sim clock's float precision makes single-frame
@@ -96,7 +98,8 @@ class Vario:
     AVERAGE_STEP_S = 1.0
 
     __slots__ = ("polar", "tau_s", "te_ms", "netto_ms", "average_ms", "has_netto", "valid",
-                 "_t", "_energy", "_ring_t", "_ring_e", "_ring_next", "_ring_len", "_ring_at")
+                 "energy_m", "_t", "_energy", "_ring_t", "_ring_e", "_ring_next", "_ring_len",
+                 "_ring_at")
 
     def __init__(self, polar=None, tau_s=1.0, average_s=30.0):
         self.polar = polar
@@ -111,6 +114,7 @@ class Vario:
         """Forget everything (paused, teleported, new flight)."""
         self.te_ms = self.netto_ms = self.average_ms = 0.0
         self.valid = False
+        self.energy_m = 0.0  # total energy as a height, m: the last accepted sample's
         self._t = None
         self._energy = 0.0
         self._ring_next = 0
@@ -131,6 +135,7 @@ class Vario:
             self.reset()
             return self.update(t, elevation_m, tas_ms, ias_kmh, bank_deg, mass_kg)
         self._t, self._energy = t, energy
+        self.energy_m = energy
         netto = rate
         if self.polar is not None:
             netto += self.polar.sink(ias_kmh, tas_ms, bank_deg, mass_kg)
@@ -254,3 +259,46 @@ class CentringAid:
         # so the glider sits at heading - 90 from the centre; left, at heading + 90.
         self.core_az_deg = (best_heading - 90.0 * self.turning) % 360.0
         self.valid = True
+
+
+class ThermalAverage:
+    """The climb since the glider began circling in this thermal (m/s), from total energy.
+
+    A thermal begins when the glider starts circling after flying straight for more than
+    `LEAVE_S`, so a few straight seconds to move the circle keep the same thermal and count
+    in its average. It ends after `LEAVE_S` straight, and its average is kept, as it was at
+    the last circle, until the next thermal has `MIN_S` of circling to show. `circling` is
+    `CentringAid.turning`, either way round.
+
+    Output: `valid` once there is a value to show, `average_ms`, `gain_m` and `seconds`
+    since the thermal began, and `active` while in it.
+    """
+
+    LEAVE_S = 20.0  # straight for longer than this: the glider left the thermal
+    MIN_S = 10.0  # the first seconds of a circle say little: the pull into the turn
+
+    __slots__ = ("valid", "active", "average_ms", "gain_m", "seconds",
+                 "_start_t", "_start_e", "_last_t")
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.valid = self.active = False
+        self.average_ms = self.gain_m = self.seconds = 0.0
+        self._start_t = self._start_e = 0.0
+        self._last_t = -1e9
+
+    def update(self, t, energy_m, circling):
+        if circling:
+            if not self.active or t - self._last_t > self.LEAVE_S:
+                self.active, self.valid = True, False
+                self._start_t, self._start_e = t, energy_m
+            self._last_t = t
+            span = t - self._start_t
+            if span >= self.MIN_S:
+                self.seconds, self.gain_m = span, energy_m - self._start_e
+                self.average_ms = self.gain_m / span
+                self.valid = True
+        elif self.active and t - self._last_t > self.LEAVE_S:
+            self.active = False

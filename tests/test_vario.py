@@ -4,8 +4,8 @@ import math
 
 import pytest
 
-from xp_gliding.adapter.vario import (ASK21_LAMINAR, G, SAMPLE_PERIOD_S, CentringAid, Vario,
-                                      height_to_top, polar_for)
+from xp_gliding.adapter.vario import (ASK21_LAMINAR, G, SAMPLE_PERIOD_S, CentringAid,
+                                      ThermalAverage, Vario, height_to_top, polar_for)
 from xp_gliding.engine import updraft
 
 DT = SAMPLE_PERIOD_S
@@ -152,6 +152,62 @@ def test_centring_aid_needs_a_whole_turn_and_a_turn():
     level.solve()
     assert level.turning == 0
     assert not level.valid
+
+
+class Flight:
+    """Total energy as a height, flown in stretches of a given climb, circling or straight."""
+
+    def __init__(self, t=0.0, energy=1000.0):
+        self.t, self.energy = t, energy
+        self.thermal = ThermalAverage()
+
+    def fly(self, seconds, climb_ms, circling):
+        for _ in range(round(seconds / DT)):
+            self.t += DT
+            self.energy += climb_ms * DT
+            self.thermal.update(self.t, self.energy, 1 if circling else 0)
+        return self.thermal
+
+
+def test_the_thermal_average_is_the_climb_since_circling_began():
+    flight = Flight()
+    flight.fly(30.0, -1.0, False)  # the glide in: not counted
+    thermal = flight.fly(5.0, 2.0, True)
+    assert not thermal.valid  # too early to say
+    thermal = flight.fly(55.0, 2.0, True)
+    assert thermal.valid and thermal.active
+    assert thermal.average_ms == pytest.approx(2.0, abs=0.01)
+    assert thermal.gain_m == pytest.approx(120.0, abs=0.5)
+    assert thermal.seconds == pytest.approx(60.0, abs=0.2)
+
+
+def test_a_few_straight_seconds_to_move_the_circle_stay_in_the_thermal():
+    flight = Flight()
+    flight.fly(60.0, 2.0, True)
+    flight.fly(10.0, -1.0, False)  # straightened to move the circle
+    thermal = flight.fly(30.0, 2.0, True)
+    assert thermal.active
+    assert thermal.average_ms == pytest.approx((120.0 - 10.0 + 60.0) / 100.0, abs=0.01)
+
+
+def test_leaving_keeps_the_last_average_until_the_next_thermal_has_one():
+    flight = Flight()
+    flight.fly(60.0, 2.0, True)
+    thermal = flight.fly(60.0, -1.0, False)  # the glide out
+    assert not thermal.active and thermal.valid
+    assert thermal.average_ms == pytest.approx(2.0, abs=0.01)  # as at the last circle
+    thermal = flight.fly(5.0, 1.0, True)  # the next thermal: nothing yet
+    assert thermal.active and not thermal.valid
+    thermal = flight.fly(25.0, 1.0, True)
+    assert thermal.valid and thermal.average_ms == pytest.approx(1.0, abs=0.01)
+
+
+def test_turning_the_other_way_is_the_same_thermal():
+    thermal = ThermalAverage()
+    for i in range(1, 301):
+        thermal.update(i * DT, 1000.0 + 1.5 * i * DT, 1 if i < 150 else -1)
+    assert thermal.average_ms == pytest.approx(1.5, abs=0.01)
+    assert thermal.seconds == pytest.approx(29.9, abs=0.01)
 
 
 def test_height_to_top_matches_where_the_engine_stops_the_mean_updraft():

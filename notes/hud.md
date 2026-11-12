@@ -117,11 +117,23 @@ TOP is now the nearest drawn cloud's base less the height MSL, or the sky's leve
 - Feet are rounded to 10: the last digit would turn over with every 30 cm. Neither unit shows "-0".
 - In X-Plane 12.4.3 by the test pilot: an air start of the ASK 21 over Hobbs, `config.json` set to aviation before launch. The panel read `-5.9`, `NET -2.8`, `AVG -4.7`, `TOP +4670 ft`, `WIND calm`, the tape with 21 marks and the arrows where the values put them. HUD sample 30 µs, draw 276 µs (the big number's TrueType, as before). No traceback. - A switch in flight from the menu, by Juan Luis the same morning, with two screenshots: Hobbs in the morning, the daily cycle on (status line "zi 808 m, 3794 m by mid-afternoon"), the ASK 21 diving unflown. Metric read `-16.5`, `TOP -350 m`; aviation, a few seconds later, `-24.5`, `TOP -400 ft`, the tape drawn again with a mark per knot. `TOP` is negative because the glider was over the morning's low top of the lift. Two-digit readings fit the panel.
 
+## The thermal's average
+
+2026-11-12, stage 2's block 4. `THM` under `AVG`: the climb since the glider began circling in this thermal, from total energy, as a glider's computer gives it (`vario.ThermalAverage`). The circling is the centring aid's (`CentringAid.turning`: bank 15° or more and a turn of 5°/s or more, smoothed over 2 s), either way round. A thermal begins at the first circle after more than `LEAVE_S` = 20 s straight, so a few straight seconds to move the circle stay in it and count in its average; it ends after 20 s straight, and `THM` turns grey and keeps the figure of its last circle until the next thermal has `MIN_S` = 10 s of circling, the pull into the first turn saying little. It starts over with the other instruments on a jump, a new aircraft or a replay. Dataref `xp_gliding/hud/thermal_ms`. Both numbers are first guesses; tested offline (`tests/test_vario.py`, `tests/test_plugin_smoke.py`).
+
+In X-Plane 12.4.3 (test pilot, 2026-11-12, ASK 21 over Hobbs): `THM` turned white with a figure about 10 s into a circle and kept updating (the glider was in a spiral dive, so it read -15 to -20 m/s, beside `AVG` -14 to -23), and the dataref read the same. The grey `THM --` was nearly invisible: X-Plane draws text colours about squared, as with gamma 2.2 (0.65 came out 97/255, about 0.38; `GREEN`'s 0.3 comes out 20/255), so the grey is now 0.82, which should show as about 0.65.
+
+## The audio vario in the menu
+
+2026-11-12, stage 2's block 4. *X-Plane's audio vario* in the menu, after the switches, and the command `xp_gliding/audio_vario/toggle`, flip `sim/cockpit2/switches/total_energy_audio`, the AUDIO switch on the ASK 21's panel, for gliders that have none on theirs. The tick reads the dataref once a second with the rest of the menu, so it follows the panel. It is X-Plane's setting and the plugin does not save it; Greyed out where X-Plane has no such dataref.
+
+In X-Plane 12.4.3 (test pilot, 2026-11-12, ASK 21 over Hobbs): the command turned the dataref from 0 to 1 and the plugin said so in its log. A new flight (Flight Initialization API, the same aircraft) set it back to 0: X-Plane does not keep it across flights, so a pilot without the switch on the panel ticks it again each flight; the plugin leaves it so (Juan Luis, 2026-11-12). Whether it is heard, and the tick in the menu, are left to a hand flight.
+
 ## Still open
 
 For when the air works well (Juan Luis, 2026-11-04):
 
 - Readability, position and size in detail, and whether the arrow helps a hand-flown circle. His first flight only said that it looks good.
-- **Audio vario.** X-Plane has a native switch, `sim/cockpit2/switches/total_energy_audio`, and its TE is right, so the first thing to try is switching it on and listening. Only a netto tone would need a sound of our own (FMOD through XPPython3).
+- **Audio vario.** X-Plane's own, kept (2026-11-07), and in the menu since 2026-11-12 (above). Only a netto tone would need a sound of our own (FMOD through XPPython3).
 - Settings from the menu, and a position to move the panel to. VR is untested.
-- A thermal's average since entry, instead of the fixed window, if he misses it.
+- A thermal's average since entry: built 2026-11-12 (above), beside the 30 s window.

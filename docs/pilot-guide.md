@@ -29,7 +29,7 @@ The plugin comes ready to fly: no file to edit, and nothing to set in X-Plane's 
 4. **Get airborne,** by tow, winch or an air start, and fly towards a cloud. Or choose *Plugins → XP-Gliding → Put me near a cloud*: the glider is set flying 1.5 km from a cloud, heading for it, a little over halfway from the ground to the cloud's base.
 5. **Check that the airbrakes are closed.** The ASK 21 can start with them open, which feels like a heavy glider and reads as strong sink.
 6. **Circle where the lift is.** When the vario goes up, turn. A bank of 28–35° at 90–95 km/h has worked in the ASK 21, flown by hand in X-Plane 12.4.3. Steeper turns cost a lot of climb in this glider.
-7. **Listen, if you like.** The AUDIO switch on the ASK 21's panel turns on X-Plane's own audio vario, which hears the plugin's thermals.
+7. **Listen, if you like.** The AUDIO switch on the ASK 21's panel turns on X-Plane's own audio vario, which hears the plugin's thermals. In a glider with no such switch, choose *Plugins → XP-Gliding → X-Plane's audio vario*.
 
 In calm air the sky is the same every time for the same place, date, time and seed, so a good thermal can be found again. With wind the sky drifts from where it stood when the flight began, so the same thermal turns up over different ground.
 
@@ -56,6 +56,7 @@ A small panel on the left of the screen. The vario readings and the centring arr
 | Large amber number, and the tape | Total energy rate, m/s, or knots with aviation units (the tape then spans ±10 kt) |
 | `NET` | Netto: the air's own motion, from total energy and the glider's sink. Only the Laminar ASK 21 has a measured polar, and any other glider shows `NET --` |
 | `AVG` | The average climb over the last 30 s, m/s or knots |
+| `THM` | The average climb since you began circling in this thermal, after 10 s of circling. A few straight seconds to move the circle stay in the same thermal. After 20 s straight it turns grey and keeps the last thermal's figure until the next |
 | `TOP` | Height up to the nearest thermal's cloud, m, or feet to the nearest 10 with aviation units. It can jump when the nearest cloud changes |
 | `WIND` | The wind at the glider, in knots with either units, with an arrow pointing where it goes, relative to the nose |
 | Centring arrow | Which way the core lies, when the lift changes enough around the circle to tell. It is most useful 60–100 m off centre, and says little closer in |
@@ -78,6 +79,7 @@ Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next
 | Cumulus clouds | The plugin's clouds | `xp_gliding/clouds/toggle` |
 | Soaring HUD | The panel above | `xp_gliding/hud/toggle` |
 | Cloud base from X-Plane's weather (experiment) | The clouds' height from the temperature and dew point of the weather you fly, kept between 1000 m and 3500 m above the ground, in place of the depth below, which is greyed out. A cumulus layer set in X-Plane's weather moves it too, though our clouds can sit a few hundred metres off that layer. Off by default | `xp_gliding/day/weather/toggle` |
+| X-Plane's audio vario | X-Plane's own audio vario on or off: the same switch as the AUDIO on the ASK 21's panel, for gliders without one. The tick follows the panel's switch. X-Plane's setting, not saved by the plugin | `xp_gliding/audio_vario/toggle` |
 | Treat this aircraft as a glider | For a motor glider: the plugin acts on the aircraft loaded, with its engine running or not, and remembers it by its file. Ticked and greyed out for a glider | `xp_gliding/aircraft/glider/toggle` |
 | Put me near a cloud | Sets the glider flying 1.5 km from the nearest cloud that will last a few minutes more, on the side you were on, heading for it, a little over halfway from the ground to the cloud's base. Needs *Cumulus clouds* on, and the clouds take a few seconds to form after a flight starts | `xp_gliding/airstart/near_cloud` |
 | Day | A whole day at once, setting the four items below it: *Easy* (wide, strong thermals), *Typical* (the default), *Demanding* (narrower, stronger and higher), *Weak and low*, and *Blue*, a day with the same thermals and no clouds to read. The day you are on is ticked; change one of the items below and none is. With *Cloud base from X-Plane's weather* on, the weather sets the depth instead | |

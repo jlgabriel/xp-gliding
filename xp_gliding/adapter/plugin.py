@@ -36,6 +36,8 @@ Commands (also in the menu):
   xp_gliding/hud/toggle        soaring HUD on / off
   xp_gliding/day/weather/toggle  zi from the cloud base in X-Plane's weather, not the menu's
                                (off by default; greys out the zi submenu)
+  xp_gliding/audio_vario/toggle  X-Plane's own audio vario on / off, for gliders with no switch
+                               for it on the panel; X-Plane's setting, not saved by the plugin
   xp_gliding/aircraft/glider/toggle  treat this aircraft as a glider, for a motor glider; saved
                                by its .acf name in `also_gliders`
   xp_gliding/airstart/near_cloud  put the glider in the air near a cloud worth flying to
@@ -73,6 +75,7 @@ TAG = "[xp-gliding]"
 MAX_RESTARTS = 3  # errors in the flight loop after which it is not started again
 PLACED_GRACE_S = 15.0  # after putting the glider near a cloud, a new flight's message keeps the sky
 ENABLED_LABEL = "Enabled"
+AUDIO_LABEL = "X-Plane's audio vario"
 FAILED_LABEL = "Enabled: stopped by an error, see XPPython3Log.txt"
 
 # (name under xp_gliding/, holder, attribute, type, writable). holder names an
@@ -138,6 +141,7 @@ DATAREFS = (
     ("hud/te_ms", "hud", "vario.te_ms", "f", 0),
     ("hud/netto_ms", "hud", "vario.netto_ms", "f", 0),
     ("hud/average_ms", "hud", "vario.average_ms", "f", 0),
+    ("hud/thermal_ms", "hud", "thermal.average_ms", "f", 0),  # since circling began (THM)
     ("hud/aid_valid", "hud", "aid.valid", "i", 0),
     ("hud/aid_core_az_deg", "hud", "aid.core_az_deg", "f", 0),
     ("hud/aid_amp_ms", "hud", "aid.amp_ms", "f", 0),
@@ -334,6 +338,10 @@ class PythonInterface:
         for cmd, handler, attr, label in self.commands:
             xp.registerCommandHandler(cmd, handler, 1, attr)
             xp.appendMenuItemWithCommand(self.menu, label, cmd)
+        self.audio_cmd = xp.createCommand("xp_gliding/audio_vario/toggle",
+                                          "XP-Gliding: X-Plane's audio vario on/off (total energy)")
+        xp.registerCommandHandler(self.audio_cmd, self.on_audio_toggle, 1, None)
+        self.audio_item = xp.appendMenuItemWithCommand(self.menu, AUDIO_LABEL, self.audio_cmd)
         self.glider_cmd = xp.createCommand("xp_gliding/aircraft/glider/toggle",
                                            "XP-Gliding: treat this aircraft as a glider (motor gliders)")
         xp.registerCommandHandler(self.glider_cmd, self.on_glider_toggle, 1, None)
@@ -372,6 +380,7 @@ class PythonInterface:
         self.hud.stop()
         for cmd, handler, attr, _ in self.commands:
             xp.unregisterCommandHandler(cmd, handler, 1, attr)
+        xp.unregisterCommandHandler(self.audio_cmd, self.on_audio_toggle, 1, None)
         xp.unregisterCommandHandler(self.glider_cmd, self.on_glider_toggle, 1, None)
         xp.unregisterCommandHandler(self.near_cloud_cmd, self.on_near_cloud, 1, None)
         for submenu, _, _ in self.submenus:
@@ -476,6 +485,17 @@ class PythonInterface:
             self.refresh_menu()
             print(f"{TAG} {attr} = {getattr(self.settings, attr)}")
             self.save()
+        return 1
+
+    def on_audio_toggle(self, commandRef, phase, refcon):
+        """X-Plane's own audio vario, on or off: the same switch as the AUDIO on the ASK 21's panel.
+        It is X-Plane's, so the plugin does not save it; the menu's tick follows the panel."""
+        if phase == xp.CommandBegin:
+            on = self.io.te_audio()
+            if on is not None:
+                self.io.set_te_audio(not on)
+                self.refresh_menu()
+                print(f"{TAG} X-Plane's audio vario {'off' if on else 'on'}")
         return 1
 
     def on_glider_toggle(self, commandRef, phase, refcon):
@@ -637,7 +657,7 @@ class PythonInterface:
         st = self.settings
         state = (tuple(getattr(st, attr) for _, _, attr, _ in self.commands),
                  tuple(self.chosen(attr) for _, attr, _ in self.submenus),
-                 self.acf, self.native_glider, st.treated_as_glider(self.acf))
+                 self.acf, self.native_glider, st.treated_as_glider(self.acf), self.io.te_audio())
         if state == self._menu_state:
             return
         self._menu_state = state
@@ -648,6 +668,9 @@ class PythonInterface:
             current = self.chosen(attr)
             for index, value in enumerate(values):
                 xp.checkMenuItem(submenu, index, xp.Menu_Checked if value == current else xp.Menu_Unchecked)
+        audio = state[-1]
+        xp.checkMenuItem(self.menu, self.audio_item, xp.Menu_Checked if audio else xp.Menu_Unchecked)
+        xp.enableMenuItem(self.menu, self.audio_item, int(audio is not None))
         # Checked for any glider; only an aircraft with engines that is not filed as a glider can change it.
         glider = self.native_glider or self.settings.treated_as_glider(self.acf)
         xp.checkMenuItem(self.menu, self.glider_item, xp.Menu_Checked if glider else xp.Menu_Unchecked)

@@ -62,6 +62,7 @@ DATA = {
     "sim/weather/aircraft/cloud_type": [0.0] * 3,
     "sim/weather/aircraft/cloud_coverage_percent": [0.0] * 3,
     "sim/weather/region/rain_percent": 0.0,
+    "sim/cockpit2/switches/total_energy_audio": 0,
 }
 
 
@@ -82,6 +83,7 @@ def make_fake_xp(tmp_path, data):
     xp.getDataf = xp.getDatad = lambda ref: float(data[ref])
     xp.getDatai = lambda ref: int(data[ref])
     xp.setDataf = lambda ref, v: data.__setitem__(ref, v)
+    xp.setDatai = lambda ref, v: data.__setitem__(ref, int(v))
 
     def get_vector(ref, values, offset, count):
         values.extend(data[ref][offset:offset + count])
@@ -741,6 +743,41 @@ def test_hud_reads_the_energy_and_only_when_wanted(plugin):
     pi.settings.enabled = False
     hud.tick()
     assert shown == [0]
+
+
+def test_the_hud_gives_the_climb_since_circling_began_and_greys_it_after(plugin):
+    pi, xp, data = plugin
+    hud = pi.hud
+    hud._load_drawing = lambda: setattr(hud, "window", "window")
+    xp.setWindowIsVisible = lambda window, visible: None
+    xp.destroyWindow = lambda window: None
+    pi.settings.hud_enabled = True
+
+    def fly(seconds, climb_ms, bank_deg, turn_dps):
+        for _ in range(round(seconds / 0.1)):
+            data["sim/time/total_running_time_sec"] += 0.1
+            data["sim/flightmodel/position/elevation"] += climb_ms * 0.1
+            data["sim/flightmodel/position/phi"] = bank_deg
+            data["sim/flightmodel/position/psi"] = (data["sim/flightmodel/position/psi"] + turn_dps * 0.1) % 360.0
+            hud.tick()
+
+    fly(10.0, -1.0, 0.0, 0.0)
+    assert hud._thermal_text == "THM --"
+    fly(60.0, 2.0, 35.0, 18.0)
+    assert hud._thermal_text == "THM +2.0" and hud._thermal_color == (1.0, 1.0, 1.0)
+    assert dataref(xp, "hud/thermal_ms") == pytest.approx(2.0, abs=0.05)
+    fly(30.0, -1.0, 0.0, 0.0)
+    assert hud._thermal_text == "THM +2.0" and hud._thermal_color != (1.0, 1.0, 1.0)
+    pi.settings.hud_units = "aviation"
+    fly(0.1, -1.0, 0.0, 0.0)
+    assert hud._thermal_text == "THM +3.9"  # knots
+    hud.reset_instruments()  # a jump the plugin saw
+    fly(1.0, -1.0, 0.0, 0.0)
+    assert hud._thermal_text == "THM --"
+    fly(60.0, 2.0, 35.0, 18.0)
+    data["sim/flightmodel/position/elevation"] += 3000.0  # one the vario saw itself, while circling
+    fly(15.0, 2.0, 35.0, 18.0)
+    assert hud.thermal.seconds < 15.0 and hud.thermal.average_ms == pytest.approx(2.0, abs=0.05)
 
 
 def test_a_failing_draw_stops_the_hud_and_nothing_else(plugin):
@@ -1565,7 +1602,8 @@ MENU_SUBMENUS = (
 def test_the_menu_is_in_the_order_of_the_pilot_guide(plugin):
     pi, xp, data = plugin
     labels = [name for name, _ in xp.menus["XP-Gliding"]["items"]]
-    assert labels[:-1] == ([label for label, _, _ in MENU_SWITCHES] + ["Treat this aircraft as a glider",
+    assert labels[:-1] == ([label for label, _, _ in MENU_SWITCHES] + ["X-Plane's audio vario",
+                                                                     "Treat this aircraft as a glider",
                                                                      "Put me near a cloud"]
                            + ["Day"] + [title for title, _, _ in MENU_SUBMENUS])
     assert labels[-1] == status_line(xp)  # the status line closes it
@@ -1586,6 +1624,23 @@ def test_every_switch_changes_its_own_setting_and_ticks_its_own_item(plugin):
         handler(cmd, xp.CommandBegin, refcon)
         assert getattr(pi.settings, attr) == before[attr]
         assert (label in checked(xp, "XP-Gliding")) == before[attr]
+
+
+def test_the_audio_vario_is_x_planes_own_switch_and_the_tick_follows_the_panel(plugin):
+    pi, xp, data = plugin
+    label, audio = "X-Plane's audio vario", "sim/cockpit2/switches/total_energy_audio"
+    cmd = dict(xp.menus["XP-Gliding"]["items"])[label]
+    handler, refcon = xp.handlers[cmd]
+    assert label not in checked(xp, "XP-Gliding")
+    handler(cmd, xp.CommandBegin, refcon)
+    assert data[audio] == 1 and label in checked(xp, "XP-Gliding")
+    data[audio] = 0  # the AUDIO switch on the panel
+    pi.refresh_menu()
+    assert label not in checked(xp, "XP-Gliding")
+    handler(cmd, xp.CommandBegin, refcon)
+    assert data[audio] == 1
+    pi.save()
+    assert not any("audio" in key for key in saved(pi))  # X-Plane's setting, not the plugin's
 
 
 def test_every_choice_sets_the_value_its_label_says_and_ticks_only_itself(plugin):

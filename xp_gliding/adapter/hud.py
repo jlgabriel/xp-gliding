@@ -17,6 +17,8 @@ Units: the menu's *Units on the HUD* (`hud_units`) gives the vario in m/s and TO
 knots and feet, as glider varios read where altitudes are in feet (Juan Luis, 2026-11-11). The
 wind is in knots either way, as in X-Plane's weather settings. Only the text and the tape change:
 everything is worked out in SI, and the datarefs stay in m/s.
+AVG is the climb over the last 30 s; THM the climb since the glider began circling in this thermal,
+greyed once it has left, until the next (`vario.ThermalAverage`).
 TOP is how far the clouds are, up from the glider: to the nearest one drawn, or to the sky's level.
 Plugins > XP-Gliding > Soaring HUD toggles it, as does the command `xp_gliding/hud/toggle`.
 """
@@ -28,7 +30,7 @@ import traceback
 import xp
 
 from ..engine.field import sky_named
-from .vario import SAMPLE_PERIOD_S, CentringAid, Vario, height_to_top, polar_for
+from .vario import SAMPLE_PERIOD_S, CentringAid, ThermalAverage, Vario, height_to_top, polar_for
 
 WIDTH, HEIGHT = 170, 300
 MARGIN_LEFT, MARGIN_BOTTOM = 20, 300  # clear of the ASK 21's panel in the default view
@@ -79,6 +81,9 @@ WHITE = (1.0, 1.0, 1.0)
 AMBER = (1.0, 0.75, 0.1)
 GREEN = (0.3, 1.0, 0.45)
 CYAN = (0.3, 0.85, 1.0)
+# X-Plane draws text colours about squared (gamma 2.2: 0.65 showed as 0.38, so
+# GREEN's 0.3 shows as 0.08): 0.82 shows as a mid grey, about 0.65.
+GREY = (0.82, 0.82, 0.82)  # the last thermal's average, once the glider has left it
 
 
 def tape_y(value, tape):
@@ -109,6 +114,7 @@ class Hud:
         self.log = log
         self.vario = Vario()
         self.aid = CentringAid(lag_s=self.vario.tau_s)
+        self.thermal = ThermalAverage()
         self.eligible = False
         self.sample_us = 0.0
         self.draw_us = 0.0
@@ -125,6 +131,8 @@ class Hud:
         self._wind_arrow = None
         self._te_text = self._netto_text = self._average_text = self._top_text = ""
         self._wind_text = ""
+        self._thermal_text = "THM --"
+        self._thermal_color = WHITE
         self.top_msl_m = None  # where the clouds are, from the plugin's slow path
         self.zi_m = settings.zi_m  # the zi in use, from the plugin's slow path: maybe the weather's
         ref = xp.findDataRef
@@ -165,8 +173,7 @@ class Hud:
         self.eligible = eligible
         self.vario.polar = polar_for(path)
         self.vario.has_netto = self.vario.polar is not None
-        self.vario.reset()
-        self.aid.reset()
+        self.reset_instruments()
         self.top_msl_m = None
 
     def reset_instruments(self):
@@ -174,6 +181,7 @@ class Hud:
         about now. Seen 2026-11-07: a placement on the map left AVG at an impossible -7.7 m/s."""
         self.vario.reset()
         self.aid.reset()
+        self.thermal.reset()
 
     def _load_drawing(self):
         # Only in the simulator: tests have no OpenGL, and fonts need X-Plane.
@@ -220,8 +228,7 @@ class Hud:
         if not wanted:
             return
         if xp.getDatai(self._replay):
-            self.vario.reset()
-            self.aid.reset()
+            self.reset_instruments()
             return
         if xp.getDatai(self._paused):
             return
@@ -239,8 +246,12 @@ class Hud:
         msl_m = xp.getDatad(self._elevation)
         if not vario.update(t, msl_m, getf(self._tas),
                             getf(self._ias) * KT_TO_KMH, bank, getf(self._mass)):
+            if not vario.valid:  # it started over (a jump the vario saw itself): so does the thermal
+                self.thermal.reset()
             return
         self.aid.update(t, psi, bank, vario.netto_ms)
+        thermal = self.thermal
+        thermal.update(t, vario.energy_m, self.aid.turning)
         self._samples += 1
         if self._samples >= SOLVE_EVERY:
             self._samples = 0
@@ -256,6 +267,8 @@ class Hud:
         self._te_text = f"{te:+.1f}"
         self._netto_text = f"NET {netto:+.1f}" if vario.has_netto else "NET --"
         self._average_text = f"AVG {average:+.1f}"
+        self._thermal_text = f"THM {thermal.average_ms * per_ms:+.1f}" if thermal.valid else "THM --"
+        self._thermal_color = WHITE if thermal.active else GREY
         if self.top_msl_m is not None:
             top_m = self.top_msl_m - msl_m
         else:
@@ -308,8 +321,9 @@ class Hud:
         y = bottom + HEIGHT
         xp.drawString(GREEN, x, y - 70, self._netto_text, None, xp.Font_Proportional)
         xp.drawString(WHITE, x, y - 90, self._average_text, None, xp.Font_Proportional)
-        xp.drawString(WHITE, x, y - 110, self._top_text, None, xp.Font_Proportional)
-        xp.drawString(WHITE, x, y - 130, self._wind_text, None, xp.Font_Proportional)
+        xp.drawString(self._thermal_color, x, y - 110, self._thermal_text, None, xp.Font_Proportional)
+        xp.drawString(WHITE, x, y - 130, self._top_text, None, xp.Font_Proportional)
+        xp.drawString(WHITE, x, y - 150, self._wind_text, None, xp.Font_Proportional)  # just above its arrow
 
     def draw_static(self):
         GL = self.GL
