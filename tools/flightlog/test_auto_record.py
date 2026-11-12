@@ -121,3 +121,35 @@ def test_the_plugin_records_a_flight_by_itself(logger, tmp_path):
     for _ in range(25):
         pi.auto_step(1.0, 0.0, 0, None)
     assert pi.file is None
+
+
+def test_rows_are_rounded_and_none_written_while_paused(logger, tmp_path):
+    module, fake = logger
+    fake.getSystemPath.return_value = str(tmp_path)
+    fake.getNthAircraftModel.return_value = ("ASK21.acf", "path")
+    fake.getVersions.return_value = (12431, 430, 0)
+    data = {"sim/time/paused": 0, "sim/time/is_in_replay": 0,
+            "sim/time/total_running_time_sec": 2011.628662109375,
+            "sim/flightmodel/position/latitude": 43.63000329256785,
+            "sim/flightmodel/position/elevation": 2171.285453229408}
+    fake.findDataRef.side_effect = lambda name: name
+    for getter in (fake.getDatai, fake.getDataf, fake.getDatad):
+        getter.side_effect = lambda ref: data.get(ref, 0.123456789)
+    module._alex_world = lambda: None
+    pi = module.PythonInterface()
+    pi.XPluginStart()
+    pi.start_recording()
+    pi.after_fm(0.0, 0.0, 0, None)
+    data["sim/time/paused"] = 1
+    pi.after_fm(0.0, 0.0, 0, None)
+    data["sim/time/paused"], data["sim/time/is_in_replay"] = 0, 1
+    pi.after_fm(0.0, 0.0, 0, None)
+    pi.stop_recording()
+    (log,) = (tmp_path / "Output" / "xp-gliding" / "flightlogs").iterdir()
+    lines = [line for line in log.read_text().splitlines() if not line.startswith("#")]
+    assert len(lines) == 2  # the header and the one frame flown
+    row = dict(zip(lines[0].split(","), lines[1].split(",")))
+    assert row["t_run_s"] == "2011.629"
+    assert row["lat_deg"] == "43.6300033"
+    assert row["elev_m"] == "2171.29"
+    assert row["tas_ms"] == "0.123457"

@@ -12,8 +12,9 @@ Commands (bind them to joystick buttons in X-Plane):
 
 Since 0.5.0 it also records by itself (`AutoRecord`), because the best flights were the
 ones nobody remembered to record: a glider in the air starts a log, and landing or loading
-a new flight ends it. Stopping a log by hand holds this off until the next flight. It costs
-about 150 MB per hour of flight. `xp_gliding/flightlog/recording` says whether it is
+a new flight ends it. Stopping a log by hand holds this off until the next flight. Since
+0.11.0 it writes no row while paused or in replay, and rounds its numbers: about 110 MB per
+hour of flight at 60 frames a second (before, about 180, and a paused sim kept writing). `xp_gliding/flightlog/recording` says whether it is
 recording, and writing 0 to `xp_gliding/flightlog/auto` turns the automatic part off until
 X-Plane restarts, which the test pilot does so that its own start and stop stay its own.
 
@@ -46,7 +47,7 @@ import time
 
 import xp
 
-LOGGER_VERSION = "0.10.0"
+LOGGER_VERSION = "0.11.0"
 FLUSH_EVERY_ROWS = 300
 
 # (column, dataref, type) read after the flight model
@@ -206,13 +207,24 @@ def _write_alex_float(attr, value):
         setattr(world, attr, int(round(value)) if isinstance(old, int) else float(value))
 
 
-def _fmt(value):
+# Since 0.11.0 numbers are written to what they can tell, not to 17 digits: degrees to
+# 7 decimals (about 1 cm), clocks to the millisecond, the rest to 6 significant digits.
+# That halves a row.
+DEGREES = {"lat_deg", "lon_deg", "xpg_dlat_deg", "xpg_dlon_deg"}
+CLOCKS = {"t_run_s", "t_zulu_s", "t_local_s"}
+
+
+def _spec(column):
+    return ".7f" if column in DEGREES else ".3f" if column in CLOCKS else ".6g"
+
+
+def _fmt(value, spec=".6g"):
     if isinstance(value, bool):
         return "1" if value else "0"
     if isinstance(value, int):
         return str(value)
     if isinstance(value, float):
-        return repr(value)
+        return format(value, spec)
     return ""
 
 
@@ -275,7 +287,10 @@ class PythonInterface:
         self.Desc = "Per-frame CSV flight logger for xp-gliding measurements."
 
         getters = {"f": xp.getDataf, "d": xp.getDatad, "i": xp.getDatai}
-        self.state_refs = [(getters[kind], xp.findDataRef(name)) for _, name, kind in STATE_DATAREFS]
+        self.state_refs = [(getters[kind], xp.findDataRef(name), _spec(column))
+                           for column, name, kind in STATE_DATAREFS]
+        self.paused_ref = xp.findDataRef("sim/time/paused")
+        self.replay_ref = xp.findDataRef("sim/time/is_in_replay")
         self.force_refs = [xp.findDataRef(name) for _, name in FORCE_DATAREFS]
         self.pre_forces = [0.0] * len(self.force_refs)
 
@@ -408,7 +423,8 @@ class PythonInterface:
         self.file.write(f"# aircraft_path={acf_path}\n")
         self.file.write(f"# alex_plugin_loaded={int(_alex_world() is not None)}\n")
         # Looked up here, not at start: the xp-gliding plugin may load after this one.
-        self.xpg_refs = [(self.getters[kind], xp.findDataRef(name)) for _, name, kind in XPG_DATAREFS]
+        self.xpg_refs = [(self.getters[kind], xp.findDataRef(name), _spec(column))
+                         for column, name, kind in XPG_DATAREFS]
         self.file.write(f"# xp_gliding_loaded={int(self.xpg_refs[0][1] is not None)}\n")
         self.file.write(",".join(COLUMNS) + "\n")
         xp.scheduleFlightLoop(self.pre_loop, -1, 1)
@@ -440,7 +456,11 @@ class PythonInterface:
         return -1
 
     def after_fm(self, sinceLast, elapsedTime, counter, refCon):
-        values = [_fmt(get(ref)) for get, ref in self.state_refs]
+        # Paused or in replay, a row says nothing the tools keep (they drop such rows), and a
+        # paused sim left open filled more than half of some logs.
+        if xp.getDatai(self.paused_ref) or xp.getDatai(self.replay_ref):
+            return -1
+        values = [_fmt(get(ref), spec) for get, ref, spec in self.state_refs]
         values += [_fmt(v) for v in self.pre_forces]
         values += [_fmt(xp.getDataf(ref)) for ref in self.force_refs]
         values.append(str(self.mark))
@@ -449,7 +469,7 @@ class PythonInterface:
             values += [""] * len(ALEX_FIELDS)
         else:
             values += [_fmt(getattr(world, attr, None)) for _, attr in ALEX_FIELDS]
-        values += [_fmt(get(ref)) if ref is not None else "" for get, ref in self.xpg_refs]
+        values += [_fmt(get(ref), spec) if ref is not None else "" for get, ref, spec in self.xpg_refs]
         self.buffer.append(",".join(values) + "\n")
         if len(self.buffer) >= FLUSH_EVERY_ROWS:
             self.flush()
