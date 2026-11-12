@@ -49,7 +49,7 @@ It is not a simulation of the atmosphere. The thermals start from a published mo
 
 ## Dedication
 
-To the Vitacura aerodrome, in Santiago, Chile, and its glider pilots.
+To the Vitacura aerodrome (SCLC), in Santiago, Chile, and its glider pilots.
 
 ## Acknowledgements
 
