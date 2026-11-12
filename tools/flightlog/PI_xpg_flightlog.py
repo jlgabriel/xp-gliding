@@ -47,7 +47,7 @@ import time
 
 import xp
 
-LOGGER_VERSION = "0.13.0"
+LOGGER_VERSION = "0.14.0"
 FLUSH_EVERY_ROWS = 300
 
 # (column, dataref, type) read after the flight model
@@ -166,6 +166,12 @@ XPG_DATAREFS = (
     ("xpg_shade_target", "xp_gliding/day/shade_target", "f"),
     ("xpg_sky_cover", "xp_gliding/day/sky_cover", "f"),
     ("xpg_rain", "xp_gliding/day/rain", "f"),
+    # Good and bad areas (since 0.14.0): on or off, the area's quality at the glider, and the
+    # thermals' number and strength there, times the sky's (engine/areas.py).
+    ("xpg_areas_enabled", "xp_gliding/areas_enabled", "i"),
+    ("xpg_area_quality", "xp_gliding/day/area_quality", "f"),
+    ("xpg_area_density", "xp_gliding/day/area_density", "f"),
+    ("xpg_area_strength", "xp_gliding/day/area_strength", "f"),
     # The clouds, which rebuilding the sky cannot give: their height reads the ground
     # (tools/flightlog/read_flight.py). Updated every few seconds, not per frame.
     ("xpg_cloud_level_m", "xp_gliding/clouds/level_m", "f"),

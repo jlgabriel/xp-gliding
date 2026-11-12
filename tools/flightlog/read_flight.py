@@ -189,7 +189,7 @@ class Climb:
                  "over_ground", "phase", "z_from", "floor", "floor_from")
 
 
-def read_climb(log, sky_t, e, n, frame, a, b, seed, day, sky, wstar, zi, cycle=False):
+def read_climb(log, sky_t, e, n, frame, a, b, seed, day, sky, wstar, zi, cycle=False, areas=False):
     """One circling, from row a to row b, against the thermal it belongs to (or none)."""
     c = Climb()
     t, elev, agl = log["t_run_s"], log["elev_m"], log["agl_m"]
@@ -212,9 +212,11 @@ def read_climb(log, sky_t, e, n, frame, a, b, seed, day, sky, wstar, zi, cycle=F
 
     lat, lon = frame.to_latlon(e[rows].mean(), n[rows].mean())
     mid = 0.5 * (sky_t[a] + sky_t[b])
-    # With the daily cycle (logged since 0.10.0), the sun and each thermal's depth, as the plugin.
+    # With the daily cycle (logged since 0.10.0), the sun and each thermal's depth, as the plugin;
+    # with the good and bad areas (since 0.14.0), the number and strength of the thermals there.
     field = ThermalField(FieldConfig(seed=seed, day=day, range_m=SEARCH_M + 2000.0, zi_m=zi, sky=sky,
-                                     sun_min_deg=SUN_MIN_DEG if cycle else None, depth_cycle=cycle), frame)
+                                     sun_min_deg=SUN_MIN_DEG if cycle else None, depth_cycle=cycle,
+                                     areas=areas), frame)
     field.update(mid, lat, lon)
     floors = log.get("xpg_nearest_floor_m")
     has_floors = floors is not None and len(floors) == len(t)
@@ -396,9 +398,15 @@ def main(argv=None):
     cycle = sun_on is not None and len(sun_on) == n_rows and sun_on[-1] > 0
     if cycle:
         print("The daily cycle was on: each thermal as deep as the day at its birth.")
+    # Since logger 0.14.0 the log says whether the good and bad areas were on.
+    areas_on = log.get("xpg_areas_enabled")
+    areas = areas_on is not None and len(areas_on) == n_rows and areas_on[-1] > 0
+    if areas:
+        q = log["xpg_area_quality"]
+        print(f"Good and bad areas were on: quality at the glider {q.min():+.2f} to {q.max():+.2f}.")
     climbs = [read_climb(log, sky_t, air[:, 0], air[:, 1], frame, keep[a], keep[b], seed, day, SKIES[sky_name],
                          float(np.median(log["xpg_wstar_ms"][keep[a]:keep[b] + 1])) if per_row else wstar, zi,
-                         cycle)
+                         cycle, areas)
               for a, b in circlings]
     print(f"{len(climbs)} circling(s) of at least one turn.")
     report_climbs(climbs)

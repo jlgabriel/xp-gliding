@@ -31,6 +31,7 @@ DEFAULTS = {
     "lean_enabled": False,  # thermals lean with the wind's layers (a first guess, not flown)
     "wind_at_clouds": False,  # the sky moves with the wind at the clouds, not at the glider
     "sun_enabled": True,  # the daily cycle: none born with the sun low, w* follows the day (engine/daycycle.py)
+    "areas_enabled": True,  # good and bad areas: the thermals' number and strength vary over tens of km
     "roll_enabled": True,  # gust roll moment from the spanwise lift gradient
     "helix_enabled": True,  # cancel the climbing-turn overbanking of the energy force
     "markers_enabled": False,  # training mode: draw a ring and a column over nearby thermals

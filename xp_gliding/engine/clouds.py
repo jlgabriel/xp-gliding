@@ -173,7 +173,8 @@ class CloudCatalog:
                                   wgain_sigma=config.wgain_sigma, rgain_sigma=config.rgain_sigma,
                                   range_m=self.params.keep_range_m, cell_m=config.cell_m,
                                   sky=config.sky, sun_min_deg=config.sun_min_deg,
-                                  depth_cycle=config.depth_cycle)
+                                  depth_cycle=config.depth_cycle,
+                                  areas=config.areas is not None)
         self.frame = frame
         self.accept = accept
         # With the sun on, a thermal born before zi has grown to the cloud base has no cloud:

@@ -90,6 +90,12 @@ DATAREFS = (
     ("day/strength_share", "injector", "day_share", "f", 0),  # the daily cycle's share of the peak
     ("day/depth_share", "injector", "depth_share", "f", 0),  # zi now over the afternoon's, at the glider
     ("day/zi_now_m", "injector", "zi_now_m", "f", 0),  # day/zi_m times day/depth_share
+    # Good and bad areas (engine/areas.py): on or off, and at the glider the area's quality and the
+    # thermals' number and strength there, times the sky's.
+    ("areas_enabled", "settings", "areas_enabled", "i", 1),
+    ("day/area_quality", "injector", "area_quality", "f", 0),
+    ("day/area_density", "injector", "area_density", "f", 0),
+    ("day/area_strength", "injector", "area_strength", "f", 0),
     ("wind/e_ms", "injector", "drift.wind_e_ms", "f", 0),  # the wind that carries the sky
     ("wind/n_ms", "injector", "drift.wind_n_ms", "f", 0),
     ("wind/dlat_deg", "injector", "drift.dlat_deg", "f", 0),  # the sky's offset from the ground
@@ -303,6 +309,9 @@ class PythonInterface:
             (xp.createCommand("xp_gliding/day/cycle/toggle",
                               "XP-Gliding: daily cycle on/off (off: the same strength all day, sun or not)"),
              self.on_toggle, "sun_enabled", "Daily cycle"),
+            (xp.createCommand("xp_gliding/day/areas/toggle",
+                              "XP-Gliding: good and bad areas on/off (off: the same sky everywhere)"),
+             self.on_toggle, "areas_enabled", "Good and bad areas"),
             (xp.createCommand("xp_gliding/wind/toggle", "XP-Gliding: thermals follow the wind on/off"),
              self.on_toggle, "wind_enabled", "Thermals follow the wind"),
             (xp.createCommand("xp_gliding/lean/toggle", "XP-Gliding: thermals lean with the wind on/off"),

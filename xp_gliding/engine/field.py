@@ -61,6 +61,11 @@ Allen's for the zi of the moment at the glider (`ThermalField.depth_share`). The
 thermals stays the one drawn for the field's zi: a morning sky holds as many as the afternoon's,
 narrower, so less of it rises and less sinks (notes/phase5.md, *Step B*).
 
+Good and bad areas (`FieldConfig.areas`, `areas.py`): a smooth map over tens of kilometres, from
+the seed and the date, raises the number of thermals a tile draws and their strength in good areas,
+and lowers both in bad ones; the sky as a whole keeps as many. Off in a `FieldConfig` by default, so
+the tools and tests that give none get the sky as before.
+
 Not modeled yet: terrain triggers (stage 3). Ground where no
 thermal is born (the adapter: water) is excluded with an optional `accept(lat, lon, birth)`
 predicate, which never shifts the random stream; nor does the sun.
@@ -69,6 +74,7 @@ predicate, which never shifts the random stream; nor does the sun.
 import math
 
 from . import sun, updraft
+from .areas import MEAN_FLUX as AREAS_MEAN_FLUX, Areas
 from .daycycle import DayCycle
 from .geo import radii_of_curvature
 from .rng import SplitMix64, hash_key
@@ -244,17 +250,18 @@ class FieldConfig:
 
     zi_m is the day's depth the field is for, which sets its density; ask `lift_at` with the
     same zi. density_per_km2, if given, replaces that. With depth_cycle (and the sun on), zi_m
-    is the afternoon's, and each thermal is as deep as the day was at its birth.
+    is the afternoon's, and each thermal is as deep as the day was at its birth. With areas, the
+    good and bad areas of `areas.py` for this seed and day (`areas` is then an `Areas`, else None).
     """
 
     __slots__ = ("seed", "day", "tile_deg", "zi_m", "density_per_km2", "lifetime_min_s",
                  "lifetime_max_s", "wgain_sigma", "rgain_sigma", "range_m", "cell_m", "sky",
-                 "sun_min_deg", "depth_cycle")
+                 "sun_min_deg", "depth_cycle", "areas")
 
     def __init__(self, seed=0, day=0, tile_deg=0.02, density_per_km2=None,
                  lifetime_min_s=300.0, lifetime_max_s=1800.0, wgain_sigma=0.3,
                  rgain_sigma=0.2, range_m=10000.0, cell_m=400.0, zi_m=ZI_TUNED_M, sky=None,
-                 sun_min_deg=None, depth_cycle=False):
+                 sun_min_deg=None, depth_cycle=False, areas=False):
         self.seed = int(seed)
         # Days since 1 January (X-Plane's local date). With sun_min_deg it places the sun.
         self.day = int(day)
@@ -274,6 +281,8 @@ class FieldConfig:
         self.sun_min_deg = None if sun_min_deg is None else float(sun_min_deg)
         # Each thermal as deep as the day at its birth (daily cycle, step B). Only with the sun.
         self.depth_cycle = bool(depth_cycle) and self.sun_min_deg is not None
+        # Good and bad areas: the thermals' number and strength vary over tens of km.
+        self.areas = Areas(self.seed, self.day) if areas else None
 
     def cycle(self):
         """The daily cycle of this sky (`daycycle.DayCycle`), or None with the sun off."""
@@ -371,6 +380,10 @@ def generate_tile(config, i, j, slot, accept=None, cycle=None):
     rng = SplitMix64(hash_key(config.seed, config.day, i, j, slot))
     area_km2 = tile_area_m2(i, j, config.tile_deg) * 1e-6
     lam = config.density_per_km2 * area_km2 * config.slot_s / config.mean_lifetime_s
+    area_strength = 1.0
+    if config.areas is not None:
+        area_density, area_strength = config.areas.at_tile(i, j, config.tile_deg)
+        lam *= area_density
     count = rng.poisson(lam)
     lat0 = i * config.tile_deg
     lon0 = j * config.tile_deg
@@ -395,6 +408,7 @@ def generate_tile(config, i, j, slot, accept=None, cycle=None):
             if thin is not None and thin.uniform() >= sky.blue_keep:
                 continue
             gain, stretch = sky.blue_gain, sky.blue_stretch
+        gain *= area_strength
         if config.sun_min_deg is not None and not sun.sunlit(lat, lon, config.day, birth,
                                                               config.sun_min_deg):
             continue
@@ -420,8 +434,10 @@ class ThermalField:
         self._grid = {}  # (cx, cy) -> list of Thermal
         # Effective full-size updrafts per m2 for the environment sink (Eq. 21):
         # life-cycle average of strength * radius^2 times the mean flux of a thermal.
+        # With areas, more thermals are stronger too, so the mean flux is higher (`areas.MEAN_FLUX`).
         self._flux_density = (config.density_per_km2 * 1e-6 * MEAN_LIFE_FLUX
-                              * mean_flux_gain(config))
+                              * mean_flux_gain(config)
+                              * (AREAS_MEAN_FLUX if config.areas is not None else 1.0))
         self._max_stretch = config.sky.max_stretch
         # The share of a full day's thermals alive, which scales the sink between them. 1 with
         # no sun; with it, set by `update`.

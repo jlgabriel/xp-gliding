@@ -5,6 +5,7 @@ Modules:
   rng          portable deterministic random numbers (splitmix64)
   updraft      Allen (2006) updraft model for a single thermal
   field        deterministic thermal field with life cycle and spatial grid
+  areas        good and bad areas: the thermals' number and strength over tens of km
   injection    energy-based lift force, sample geometry and gust roll moment
   wind         the sky carried by the wind, and thermals leaning with it
   sun          the sun's elevation: no sun, no thermals

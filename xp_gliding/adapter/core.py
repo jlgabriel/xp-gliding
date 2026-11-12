@@ -47,6 +47,8 @@ The daily cycle (`engine/daycycle.py`, unless `sun_enabled` is off): no thermal 
 low, and the w* in use is the menu's times the share of the day's peak at this hour (`Injector.wstar_ms`)
 for the lift, the markers and the lean. X-Plane's cloud layers at the aircraft take a share of it,
 and rain all of it, over a few minutes (`engine/shade.py`, always on: a clear sky changes nothing).
+Good and bad areas (`engine/areas.py`, setting `areas_enabled`, on by default) vary the number and
+strength of the thermals over tens of kilometres, from the seed and the date.
 Each thermal is also as deep as the day was at its birth
 (`FieldConfig.depth_cycle`, step B): zi above is the afternoon's, and `Injector.zi_now_m` the moment's. None is born over
 water (`Injector.accept_thermal`). A thermal keeps its place in the air,
@@ -70,6 +72,7 @@ import time
 
 from ..engine import injection as inj
 from ..engine.day import weather_base_m
+from ..engine.areas import factors as area_factors
 from ..engine.shade import Shade, sky_cover, strength_share
 from ..engine.edge import EdgeTurbulence, bumps
 from ..engine.field import (EDGE_RING, EDGE_SINK_GAIN, SKY_NAMES, FieldConfig, ThermalField, sky_index,
@@ -284,6 +287,10 @@ class Injector:
         self.shade = Shade()  # less lift under X-Plane's clouds, none in rain
         self.sky_cover = 0.0  # the share of the sun X-Plane's layers stop, at the aircraft
         self.rain = 0.0  # X-Plane's rain_percent
+        # The good or bad area at the aircraft (engine/areas.py), in the air's frame: its quality
+        # and the thermals' number and strength there, times. 0, 1, 1 with the areas off.
+        self.area_quality = 0.0
+        self.area_density = self.area_strength = 1.0
         self.weather = WeatherBase()
         self.jumped = False  # the last slow update found a jump: a new flight, the map, the clock
         # The tail's sample feeds only a dataref the flight logger reads (pitch is not modelled),
@@ -409,14 +416,15 @@ class Injector:
         """
         st = self.settings
         lat, lon = self.drift.to_air(s.lat, s.lon)
-        key = (st.seed, s.day, st.range_m, st.sky, self.zi_m, st.sun_enabled, st.blue_day)
+        key = (st.seed, s.day, st.range_m, st.sky, self.zi_m, st.sun_enabled, st.blue_day,
+               st.areas_enabled)
         new_sky = self.jumped = self._jumped(s)
         if self.field is None or key != self._field_key:
             new_sky = True
             self.frame = LocalFrame(lat, lon)
             config = FieldConfig(seed=st.seed, day=s.day, range_m=st.range_m, zi_m=self.zi_m,
                                  sky=sky_named(st.sky), sun_min_deg=SUN_MIN_DEG if st.sun_enabled else None,
-                                 depth_cycle=st.sun_enabled)
+                                 depth_cycle=st.sun_enabled, areas=st.areas_enabled)
             self.field = ThermalField(config, self.frame, self.accept_thermal if self.is_wet else None)
             self._field_key = key
         elif self.frame.distance_to_origin(lat, lon) > st.recentre_m:
@@ -438,6 +446,9 @@ class Injector:
         cycle = self.field.cycle
         self.day_share = 1.0 if cycle is None else cycle.strength_share(lat, lon, s.sky_t_s)
         self.depth_share = self.field.depth_share
+        areas = self.field.config.areas
+        self.area_quality = 0.0 if areas is None else areas.quality(lat, lon)
+        self.area_density, self.area_strength = area_factors(self.area_quality)
         if self.heights is not None:
             self._set_floors(s, new_sky, changed)
 

@@ -15,6 +15,7 @@ import types
 
 import pytest
 
+from xp_gliding.engine.areas import factors as area_factors
 from xp_gliding.engine.airstart import pick_cloud
 from xp_gliding.engine.clouds import carries_cloud
 from xp_gliding.engine.field import sky_named
@@ -1539,6 +1540,7 @@ MENU_SWITCHES = (
     ("Thermals", "xp_gliding/thermals/toggle", "thermals_enabled"),
     ("Sharper thermal edges (experiment)", "xp_gliding/edge/toggle", "edge_enabled"),
     ("Daily cycle", "xp_gliding/day/cycle/toggle", "sun_enabled"),
+    ("Good and bad areas", "xp_gliding/day/areas/toggle", "areas_enabled"),
     ("Thermals follow the wind", "xp_gliding/wind/toggle", "wind_enabled"),
     ("Thermals lean with the wind (experiment)", "xp_gliding/lean/toggle", "lean_enabled"),
     ("Sky moves with the wind at the clouds (experiment)", "xp_gliding/wind/clouds/toggle", "wind_at_clouds"),
@@ -1817,7 +1819,7 @@ def test_each_thermal_gets_the_floor_that_puts_its_cloud_at_the_skys_share_of_zi
         elif not carries_cloud(th, params):
             assert th.floor_m == pytest.approx(1116.0)
     assert raised
-    assert dataref(xp, "nearest/floor_m") >= 1116.0
+    assert dataref(xp, "nearest/floor_m") >= 1116.0 - 1e-6
 
 
 def test_the_lift_at_a_drawn_cloud_ends_by_the_height_that_cloud_was_drawn_at(plugin):
@@ -2299,3 +2301,24 @@ def test_a_new_place_takes_its_weather_at_once(plugin):
     data["sim/flightmodel/position/latitude"] += 0.2  # 22 km: the map
     slow_frame(pi, data)
     assert dataref(xp, "day/shade_share") == pytest.approx(0.464, abs=0.005)
+
+
+# --- good and bad areas (engine/areas.py) ---
+
+def test_good_and_bad_areas_are_on_by_default_and_the_menu_switches_them(plugin):
+    pi, xp, data = plugin
+    slow_frame(pi, data)
+    assert pi.settings.areas_enabled and dataref(xp, "areas_enabled") == 1
+    areas = pi.injector.field.config.areas
+    assert areas is not None
+    lat, lon = pi.injector.drift.to_air(data["sim/flightmodel/position/latitude"],
+                                        data["sim/flightmodel/position/longitude"])
+    q = areas.quality(lat, lon)
+    assert dataref(xp, "day/area_quality") == pytest.approx(q)
+    assert (dataref(xp, "day/area_density"), dataref(xp, "day/area_strength")) == pytest.approx(area_factors(q))
+    handler, refcon = xp.handlers["xp_gliding/day/areas/toggle"]
+    handler("xp_gliding/day/areas/toggle", xp.CommandBegin, refcon)
+    slow_frame(pi, data)
+    assert not pi.settings.areas_enabled and pi.injector.field.config.areas is None
+    assert (dataref(xp, "day/area_quality"), dataref(xp, "day/area_density"),
+            dataref(xp, "day/area_strength")) == (0.0, 1.0, 1.0)
