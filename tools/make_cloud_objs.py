@@ -7,8 +7,7 @@ All of it is authored here; nothing comes from another plugin's or simulator's a
 output is committed, and a test checks that it matches this script.
 
 The cloud is a few layers of particles over an object with no geometry (see `LAYERS`): shaded
-lobes of several sizes for the body and its bottom, small bright lobes on top and small puffs
-at the edges. Particles have no speed of their own
+lobes of several sizes for the body, its bottom and its top. Particles have no speed of their own
 and no gravity. With `DRAG` 1 XP12's wind carries them, and in calm air they stay where they
 were emitted: the emitter's random offsets (DX, DY, DZ) are the cloud's shape, and rate x
 life is the number alive. Two values come per instance, as datarefs of the instance
@@ -106,16 +105,16 @@ LAYERS = (
           (1.00, 1.00, 1.00), 0.92),
     Layer("tower_c", 20, LOBE_CELLS, 220.0, (0.6, 1.4), _square(0.26, 150.0, 300.0, 50.0, -190.0),
           (1.00, 1.00, 1.00), 0.92),
-    Layer("top", 25, SMALL_CELLS, 160.0, (0.6, 1.4), _square(0.30, 380.0, 480.0, -100.0, 30.0),
+    Layer("top", 18, LOBE_CELLS, 220.0, (0.8, 1.2), _square(0.30, 360.0, 450.0, -100.0, 30.0),
           (1.00, 1.00, 1.00), 0.88),
     Layer("low", 75, LOBE_CELLS, 290.0, (0.6, 1.4), _square(0.78, 40.0, 200.0),
           (1.00, 1.00, 1.00), 0.95),
-    Layer("edge", 50, SMALL_CELLS, 120.0, (0.6, 1.4), _square(0.70, 40.0, 240.0),
-          (1.00, 1.00, 1.00), 0.85),
 )
 # No flat base layer and no wisps since v14: seen edge on near the base's height, their thin
 # layer of wide puffs showed as a flat band sticking out under the body, grey or white, and
-# Juan Luis did not want it (notes/cloud-looks.md). The low lobes make the bottom. Their cells
+# Juan Luis did not want it (notes/cloud-looks.md). The low lobes make the bottom. Since v15
+# also no small edge puffs, and the top is a few large lobes instead of many small ones: the
+# small puffs made the outline a puffy chain ("menos pomposas"). The base, small and wisp cells
 # stay in the atlas, unused.
 BY_NAME = {layer.name: layer for layer in LAYERS}
 # Sub-emitters per emitter. Eight in one emitter crashed X-Plane 12.4.3 (heap corruption) a few

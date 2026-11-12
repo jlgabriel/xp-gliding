@@ -170,3 +170,14 @@ The band: seen near the base's height, each cloud has a flat band under its body
 **Juan Luis: "la de al medio me gusta más, definitivamente no me gusta esa franja horizontal de las otras dos".** So **v14** = v12 without the base and wisp layers: v12's texture unchanged (the base and wisp cells stay in the atlas, unused), the emitter's height kept at 59 m, since the lowest low lobes reach about as far down as the base puffs did. Fewer particles (255 against 311), so no cost measured.
 
 What this leaves: the base puffs were also the halo seen from below in his v9 flight (a translucent disc wider than the body), so that should be gone; to check in his flight. The white belly from below stays as in v12 (v13's grey inside did not show enough in X-Plane to win), and the popcorn of young and dying clouds is untouched.
+
+**Less puffy (v15).** Juan Luis asked for variations of v14 "menos pomposas" without losing it. Three, next to v14 in the lab, 4 km ahead, 60 m above their base:
+
+| Lab | What | Particles |
+| --- | --- | --- |
+| cu34 | v14 | 255 |
+| cu36 | Smoother lobe texture: the small bulges on each lobe fainter (0.68 → 0.50), the puffy noise inside weaker (density 0.80 + 0.35 billow → 0.88 + 0.18, shading 0.10 → 0.05) | 255 |
+| cu37 | v14's texture; no `edge` layer (50 small puffs of 120 m), the `top` 18 lobes of 220 m instead of 25 small ones of 160 m | 183 |
+| cu38 | Both | 183 |
+
+Juan Luis hesitated between the last two, leaning to cu37; my reading the same: the small puffs were what made the outline a puffy chain, and cu37 keeps the texture already flown, while the smoother texture leans towards v11's fog. **Chosen: cu37 as v15** (2026-11-12). Fewer particles, so no cost measured. Installed for his hand flight.
