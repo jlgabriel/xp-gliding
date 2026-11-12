@@ -91,8 +91,9 @@ RADIUS_START = 0.6
 # times EDGE_SINK_GAIN. Both depart from Allen's conservation of mass, whose ring is weak and only
 # high up, and whose sink between thermals is -0.14 m/s in the wide sky (notes/SPEC.md, open
 # questions). The ring was 0.5 and r2 wide until Juan Luis felt it pull down too long and too far
-# out on leaving a thermal (2026-11-12).
-EDGE_RING = 0.3
+# out on leaving a thermal (2026-11-12), and 0.3 until it competed with a narrow thermal's lift
+# for a glider circling wide in it, on his hand flights the same day (0.2 is his).
+EDGE_RING = 0.2
 EDGE_RING_WIDTH = 0.5
 EDGE_SINK_GAIN = 2.0
 

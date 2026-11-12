@@ -63,6 +63,7 @@ from .config import DAYS, MENU_CHOICES, day_index, load_settings, save_settings
 from .core import AircraftState, Injection, Injector, NativeThermalGuard
 from ..engine.airstart import SPEED_MS, clouds_from, pick_cloud, place_near, start_height_m
 from ..engine.sun import SUN_MIN_DEG
+from ..engine.shade import RAIN_OFF
 from .clouds import CumulusClouds
 from .hud import Hud
 from .markers import TrainingMarkers
@@ -76,6 +77,9 @@ MAX_RESTARTS = 3  # errors in the flight loop after which it is not started agai
 PLACED_GRACE_S = 15.0  # after putting the glider near a cloud, a new flight's message keeps the sky
 ENABLED_LABEL = "Enabled"
 AUDIO_LABEL = "X-Plane's audio vario"
+# Said when a day is chosen while the cloud base comes from X-Plane's weather, which sets its zi.
+DAY_WEATHER_NOTE = ("the cloud base comes from X-Plane's weather, so the day's height is not used; "
+                    "untick that to fly it")
 FAILED_LABEL = "Enabled: stopped by an error, see XPPython3Log.txt"
 
 # (name under xp_gliding/, holder, attribute, type, writable). holder names an
@@ -530,7 +534,10 @@ class PythonInterface:
 
     def why_no_cloud(self, s, catalog):
         """What to tell the pilot when no cloud is worth flying to. In the morning the daily cycle
-        is blue, so say from when there will be clouds, in the sim's local time."""
+        is blue, so say from when there will be clouds, in the sim's local time. In rain there are
+        no thermals, so no cumulus."""
+        if self.injector.rain > RAIN_OFF:
+            return "it is raining here: no thermals and no clouds"
         cycle = catalog.cycle
         if cycle is not None:
             when = clouds_from(cycle, s.lat, s.lon, s.sky_t_s)
@@ -559,7 +566,7 @@ class PythonInterface:
             return "the clouds are still forming, try again in a few seconds"
         drift, t = self.injector.drift, s.sky_t_s
         e, n = frame.to_enu(*drift.to_air(s.lat, s.lon))
-        th, r = pick_cloud(catalog.thermals(), e, n, t, self.clouds.planner.params)
+        th, r = pick_cloud(self.clouds.thermals(), e, n, t, self.clouds.planner.params)
         if th is None:
             return self.why_no_cloud(s, catalog)
         pe, pn, heading = place_near(th.e, th.n, e, n, s.psi_deg)
@@ -594,6 +601,10 @@ class PythonInterface:
                 label, values = DAYS[value]
                 self.settings.update(values)
                 print(f"{TAG} day: {label} ({', '.join(f'{k} = {v}' for k, v in values.items())})")
+                if self.settings.weather_base_enabled:
+                    # The day's zi is overridden: say so, or a day feels like another (2026-11-12).
+                    print(f"{TAG} day: {DAY_WEATHER_NOTE}")
+                    xp.speakString(f"XP-Gliding: {DAY_WEATHER_NOTE}")
             else:
                 self.settings.update({attr: value})
                 print(f"{TAG} {attr} = {getattr(self.settings, attr)}")
@@ -761,7 +772,7 @@ class PythonInterface:
         elif clouds and now >= self.next_clouds and self.injector.field is not None:
             self.next_clouds = now + CLOUDS_PERIOD_S
             self.clouds.update(self.injector.field, self.injector.frame, s, s.msl_m, self.sky_zi_m, now,
-                               self.injector.drift)
+                               self.injector.drift, self.injector.shade.share)
         elif markers and now >= self.next_markers and self.injector.field is not None:
             self.next_markers = now + SLOW_PERIOD_S
             self.markers.update(self.injector.field, self.injector.frame, s, s.msl_m,

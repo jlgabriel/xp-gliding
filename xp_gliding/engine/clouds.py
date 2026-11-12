@@ -35,6 +35,11 @@ How high (`ground_points`, `cloud_base_m`). Real bases are level, and a particle
 was emitted, so a cloud keeps one height for life: the higher of a level for the area and the
 highest ground under it and along its drift, plus a margin (notes/SPEC.md "Generation").
 
+Under X-Plane's clouds (`shade.py`, SPEC stage 2, block 3): where its layers leave a share of the
+clear sky's w*, that share of the clouds keep their cumulus, the same ones for everyone (`shade_keeps`),
+and they are drawn that much smaller (`shaded_scale`). In rain the share is 0: no cumulus. A clear
+sky changes nothing.
+
 Pure Python: no `xp`. `CloudPlanner.step` returns what to do, the adapter does it.
 """
 
@@ -42,6 +47,7 @@ import math
 
 from .field import CARRIER_MIN_FLUX, CARRIER_MIN_LIFE_S, DECAY_FRACTION, FieldConfig, generate_tile
 from .geo import radii_of_curvature
+from .rng import hash_key
 
 TOP_ZZI = 1.0 / 1.1  # the lift ends at this z/zi (Allen Eq. 11), the same as the markers' top
 CREATE, RATE, DESTROY = 0, 1, 2  # actions of CloudPlanner.step
@@ -53,6 +59,7 @@ SCALE_RANGE = (0.6, 1.4)
 BASE_MARGIN_M = 300.0
 GROUND_STEP_M = 1000.0  # the ground is read this far apart along a cloud's drift
 CLOUD_HALF_WIDTH_M = 500.0  # at scale 1, as `tools/make_cloud_objs.py` draws it
+SHADE_MIN_SCALE = 0.3  # the smallest a shaded cloud is drawn, against the object's size
 
 
 class CloudParams:
@@ -102,6 +109,29 @@ def cloud_scale(thermal):
     """
     size = thermal.wgain * thermal.gain * thermal.rgain / SCALE_WR
     return min(max(size, SCALE_RANGE[0]), SCALE_RANGE[1])
+
+
+def shade_draw(thermal):
+    """A fixed number in [0, 1) for this thermal, from its place and birth: the same for everyone."""
+    key = hash_key(round(thermal.lat * 1e7), round(thermal.lon * 1e7), round(thermal.birth))
+    return (key >> 11) * (1.0 / (1 << 53))
+
+
+def shade_keeps(thermal, share):
+    """Does this cloud form under X-Plane's clouds, where they leave `share` of the clear sky's w*?
+
+    Fewer cumulus by as much as the thermals weaken (Juan Luis, 2026-11-12, after flying under a
+    closed deck): as the share falls, the clouds whose own draw is above it go,
+    the same ones always, so no cloud comes and goes as the share wavers. None in rain.
+    """
+    return share >= 1.0 or shade_draw(thermal) < share
+
+
+def shaded_scale(thermal, share):
+    """The cloud's size under X-Plane's clouds: smaller by as much as the thermals weaken."""
+    if share >= 1.0:
+        return cloud_scale(thermal)
+    return cloud_scale(thermal) * max(share, SHADE_MIN_SCALE)
 
 
 def feeding_window(thermal, params):

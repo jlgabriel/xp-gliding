@@ -34,7 +34,8 @@ import time
 
 from ..engine.cloud_order import FAR, RING_SIZES, RingPool, ring_of
 from ..engine.clouds import (CLOUD_HALF_WIDTH_M, CREATE, DESTROY, RATE, CloudCatalog, CloudPlanner,
-                             carries_cloud, cloud_base_m, cloud_scale, cloud_seconds_left, ground_points)
+                             carries_cloud, cloud_base_m, cloud_scale, cloud_seconds_left, ground_points,
+                             shade_keeps, shaded_scale)
 
 OBJECT = "cumulus"
 PLAN_PERIOD_S = 5.0  # choosing the clouds, once the sky is complete
@@ -43,6 +44,7 @@ JUMP_S = 120.0  # a larger jump of the sim's clock than this: time was changed, 
 MOVE_SLICES = 4  # in wind, updates to move every cloud once
 MAX_BASES = 5000  # past this many clouds' heights start over: those in use are worked out again
 DATAREFS = ("xp_gliding/clouds/rate", "xp_gliding/clouds/scale")
+SHARE_STEP = 0.02  # a change of the shade's share that resizes the drawn clouds
 # Drawing order (engine/cloud_order.py).
 ORDER_PERIOD_S = 2.0
 ORDER_LOADING_PERIOD_S = 10.0  # while tiles load, which takes about 5 min: less often, to load them
@@ -182,6 +184,15 @@ class CumulusClouds:
         self._to_move = []  # clouds still to move in this round
         self._move_slice = 1
         self._moved_at = (0.0, 0.0)  # the wind's offset at the start of this round
+        self.share = 1.0  # what X-Plane's clouds leave of w* (`engine/shade.py`): fewer, smaller cumulus
+        self._sized_share = 1.0  # the share the drawn clouds were last resized for
+
+    def thermals(self):
+        """The catalog's thermals whose cloud forms under X-Plane's clouds now: all under a clear sky."""
+        if self.share >= 1.0:
+            return self.catalog.thermals()
+        share = self.share
+        return (th for th in self.catalog.thermals() if shade_keeps(th, share))
 
     @property
     def holding(self):
@@ -213,9 +224,16 @@ class CumulusClouds:
 
     # --- a few times a second ---------------------------------------------------------
 
-    def update(self, field, frame, s, msl_m, zi, now, drift):
-        """Bring the clouds up to date for the aircraft state s, at msl_m metres MSL."""
+    def update(self, field, frame, s, msl_m, zi, now, drift, share=1.0):
+        """Bring the clouds up to date for the aircraft state s, at msl_m metres MSL. share: what
+        X-Plane's clouds leave of the clear sky's w*, 0 in rain."""
         self.closed = False
+        self.share = share
+        if abs(share - self._sized_share) > SHARE_STEP or (share >= 1.0) != (self._sized_share >= 1.0):
+            # A new size for the drawn clouds too, for the particles they emit from now on: one
+            # round of moves sets it, as the wind's does.
+            self._sized_share = share
+            self._moved_at = None
         if self.failed or not self._ready():
             return
         t0 = time.perf_counter()
@@ -242,7 +260,7 @@ class CumulusClouds:
             self._make_rings()
         elif self.catalog.started and now >= self._next_plan:
             e, n = frame.to_enu(lat, lon)
-            actions = self.planner.step(self.catalog.thermals(), e, n, t, self.catalog.loaded_within_m(lat, lon))
+            actions = self.planner.step(self.thermals(), e, n, t, self.catalog.loaded_within_m(lat, lon))
             self._apply(actions, msl_m - s.agl_m, zi, drift, t, e, n)
             self.more = self.planner.more_waiting
             soon = self.catalog.missing or self.more
@@ -275,11 +293,11 @@ class CumulusClouds:
         else:
             st.nearest_m = math.hypot(th.e - e, th.n - n)
             st.nearest_base_m = self.instances[th][1]
-            st.nearest_scale = cloud_scale(th)
+            st.nearest_scale = shaded_scale(th, self.share)
 
     def _set(self, instance, th, base_m, rate, drift):
         x, y, z = self.sky.world_to_local(*drift.to_ground(th.lat, th.lon), base_m)
-        self.sky.set_position(instance, x, y, z, (rate, cloud_scale(th)), heading=cloud_heading(th))
+        self.sky.set_position(instance, x, y, z, (rate, shaded_scale(th, self.share)), heading=cloud_heading(th))
 
     def _move_some(self, drift):
         """Move a slice of the clouds with the wind. In calm air the offset stays, and nothing moves."""

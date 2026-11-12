@@ -6,6 +6,9 @@ What changes for a pilot in each version. Each release on [GitHub](https://githu
 
 - **The climb in this thermal on the HUD.** `THM` gives the average climb since you began circling, as a glider's computer does. A few straight seconds to move the circle stay in the same thermal; after 20 s straight it is greyed, and it keeps the last thermal's figure until the next one has 10 s of circling. `AVG` is still the last 30 s.
 - ***X-Plane's audio vario* in the menu.** It turns X-Plane's own audio vario on and off, the same switch as the AUDIO on the ASK 21's panel, for gliders that have none. Its tick follows the panel's switch. It is X-Plane's setting, so the plugin does not save it.
+- **Fewer, smaller cumulus under X-Plane's clouds, none in rain.** Where X-Plane's cloud layers weaken the thermals, fewer of our cumulus form, and smaller, by as much: under a closed overcast about half of them, half the size. In rain they drain away over a few minutes, and *Put me near a cloud* says it is raining. A clear sky changes nothing.
+- ***Sharper thermal edges (experiment)*: a weaker ring of sink.** Circling wide in a narrow thermal, the ring took away much of the climb. It is now two thirds as deep (0.2 of the thermal's mean lift, from 0.3).
+- **A day chosen under *Cloud base from X-Plane's weather*** now says that its height is not used, since the weather sets the cloud base. Its strength and sky still apply.
 
 ## 0.9 — 2026-11-12
 

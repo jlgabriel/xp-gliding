@@ -17,7 +17,7 @@ import pytest
 
 from xp_gliding.engine.areas import factors as area_factors
 from xp_gliding.engine.airstart import pick_cloud
-from xp_gliding.engine.clouds import carries_cloud
+from xp_gliding.engine.clouds import SCALE_RANGE, carries_cloud, shade_keeps
 from xp_gliding.engine.field import sky_named
 
 DATA = {
@@ -2357,6 +2357,63 @@ def test_a_new_place_takes_its_weather_at_once(plugin):
     slow_frame(pi, data)
     assert dataref(xp, "day/shade_share") == pytest.approx(0.464, abs=0.005)
 
+
+
+def test_under_a_closed_deck_fewer_and_smaller_clouds_and_none_in_rain(plugin):
+    pi, xp, data = plugin
+    pi.settings.sun_enabled = False
+    spoken = []
+    xp.speakString = spoken.append
+    fill_sky(pi, data)
+    clear = len(pi.clouds.instances)
+    assert pi.clouds.share == 1.0 and clear > 40
+
+    def fed():
+        return [th for th, item in pi.clouds.planner.shown.items() if item.stopped_at is None]
+
+    def drawn_scales():
+        refs = {inst for th, (inst, _, _) in pi.clouds.instances.items() if th in set(fed())}
+        return [values[1] for ref, (_, _, values, _) in xp.instances.items() if ref in refs]
+
+    data["sim/weather/aircraft/cloud_type"] = [1.0, 0.0, 0.0]  # a closed stratus deck
+    data["sim/weather/aircraft/cloud_coverage_percent"] = [1.0, 0.0, 0.0]
+    for _ in range(15):
+        slow_frame(pi, data, 60.0)
+        clouds_tick(pi, data)
+    share = pi.clouds.share
+    assert share == pytest.approx(dataref(xp, "day/shade_share"), abs=0.02) and 0.46 < share < 0.5
+    # Fewer, always the same ones, and drawn smaller.
+    assert fed() and all(shade_keeps(th, share) for th in fed())
+    assert 0.25 * clear < len(fed()) < 0.7 * clear
+    assert max(drawn_scales()) <= SCALE_RANGE[1] * (share + 0.05)  # resized in steps as it falls
+    # Rain: the cumulus fade, and none is offered to fly to.
+    data["sim/weather/region/rain_percent"] = 0.3
+    for _ in range(25):
+        slow_frame(pi, data, 60.0)
+        clouds_tick(pi, data)
+    assert not fed() and not pi.clouds.instances
+    near_cloud(xp)
+    assert "raining" in spoken[-1]
+    # A clear sky again: the clouds return at their full size.
+    data["sim/weather/region/rain_percent"] = 0.0
+    data["sim/weather/aircraft/cloud_coverage_percent"] = [0.0, 0.0, 0.0]
+    data["sim/flightmodel/position/latitude"] += 0.2  # a new place: its weather at once
+    slow_frame(pi, data)
+    first_clouds(pi, data)
+    assert pi.clouds.share == 1.0 and min(drawn_scales()) >= SCALE_RANGE[0]
+
+
+def test_a_day_chosen_under_the_weathers_base_says_its_height_is_not_used(plugin):
+    pi, xp, data = plugin
+    spoken = []
+    xp.speakString = spoken.append
+    choose(xp, "Day", "Weak and low")
+    assert not spoken
+    handler, refcon = xp.handlers["xp_gliding/day/weather/toggle"]
+    handler("xp_gliding/day/weather/toggle", xp.CommandBegin, refcon)
+    choose(xp, "Day", "Demanding: narrower, stronger, higher")
+    assert len(spoken) == 1 and "weather" in spoken[0] and "height is not used" in spoken[0]
+    assert pi.settings.zi_m == 2500.0  # still set, for when the weather's base is off
 
 # --- good and bad areas (engine/areas.py) ---
 

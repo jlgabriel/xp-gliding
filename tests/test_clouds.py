@@ -468,3 +468,21 @@ def test_a_cloud_lasts_one_particle_life_after_its_thermal():
     assert cl.cloud_seconds_left(make_thermal(birth=0.0, life=1000.0), 100.0, p) == 1116.0
     assert cl.cloud_seconds_left(make_thermal(birth=0.0, life=500.0), 600.0, p) == 116.0
     assert cl.cloud_seconds_left(make_thermal(birth=0.0, life=500.0), 800.0, p) == 0.0
+
+
+def test_under_x_planes_clouds_a_share_of_the_clouds_keep_and_always_the_same_ones():
+    c, p = config(), cl.CloudParams()
+    carriers = [th for i in range(1630, 1640) for j in range(-5165, -5155)
+                for th in generate_tile(c, i, j, math.floor(NOON / c.slot_s)) if cl.carries_cloud(th, p)]
+    assert len(carriers) > 100
+    assert all(cl.shade_keeps(th, 1.0) for th in carriers)
+    assert not any(cl.shade_keeps(th, 0.0) for th in carriers)  # rain
+    kept = {share: {id(th) for th in carriers if cl.shade_keeps(th, share)} for share in (0.3, 0.5, 0.8)}
+    for share, ids in kept.items():
+        assert len(ids) / len(carriers) == pytest.approx(share, abs=0.12)
+    assert kept[0.3] <= kept[0.5] <= kept[0.8]  # as the share falls, the same ones go first
+    th = carriers[0]
+    assert cl.shade_draw(th) == cl.shade_draw(th)
+    assert cl.shaded_scale(th, 1.0) == cl.cloud_scale(th)
+    assert cl.shaded_scale(th, 0.5) == pytest.approx(0.5 * cl.cloud_scale(th))
+    assert cl.shaded_scale(th, 0.1) == pytest.approx(cl.SHADE_MIN_SCALE * cl.cloud_scale(th))
