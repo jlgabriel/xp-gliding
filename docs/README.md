@@ -1,6 +1,6 @@
 # XP-Gliding documentation
 
-XP-Gliding's current version is 0.7. This documentation is growing with it, and describes what is true today.
+XP-Gliding's current version is 0.8. This documentation is growing with it, and describes what is true today.
 
 ## Flying it
 

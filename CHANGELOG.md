@@ -2,8 +2,9 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
-## Unreleased
+## 0.8 — 2026-11-11
 
+- **New cumulus.** The clouds are drawn anew: lighter, with lobes of several sizes shaded where one hides another, towers that rise off the centre, a light grey base and soft edges that fade out instead of a firm outline of round puffs. Each cloud is turned its own way, so no two look alike. Their size, place, life and lift are unchanged, and they cost no more to draw.
 - **Clouds earlier in the day.** With *Daily cycle* on, the first cumulus now come between about 10 and 10:40 am solar time, low, instead of around noon, so a morning flight has clouds to read sooner. Solar time is often well behind the clock: at Santiago in November, they come around 11:30 local time.
 - ***Put me near a cloud* says why there is none** in the blue early morning, and from what local time the first clouds form.
 
