@@ -4,6 +4,7 @@ Usage:
     python tools/cloudlab/fly_cloud.py install [--version 1]
     python tools/cloudlab/fly_cloud.py gen --version 2     (a new look, no restart needed)
     python tools/cloudlab/fly_cloud.py gen --version 3 --order   (the objects of make_order.py)
+    python tools/cloudlab/fly_cloud.py gen --version 4 --plugin [--rev REV]   (the plugin's own)
     python tools/cloudlab/fly_cloud.py fly [--msl 2400] [--heading 90] [--seconds 1800]
     python tools/cloudlab/fly_cloud.py do [name=value ...] [--view forward] [--shot] [--sample 30]
 
@@ -97,6 +98,8 @@ def main(argv=None):
     p = sub.add_parser("gen")
     p.add_argument("--version", type=int, required=True)
     p.add_argument("--order", action="store_true", help="write make_order.py's objects")
+    p.add_argument("--plugin", action="store_true", help="the plugin's own cumulus (kind 11)")
+    p.add_argument("--rev", help="with --plugin: the git revision to take it from")
     p = sub.add_parser("fly")
     p.add_argument("--msl", type=float, default=2400.0)
     p.add_argument("--heading", type=float, default=90.0)
@@ -113,7 +116,10 @@ def main(argv=None):
         writer = make_order if args.order else make_cloud
         if args.what == "install":
             shutil.copy(os.path.join(HERE, "PI_xpg_cloudlab.py"), PLUGINS)
-        print("wrote", writer.write_all(LAB_DIR, args.version), "in", LAB_DIR)
+        if getattr(args, "plugin", False):
+            print("wrote", make_cloud.write_plugin(LAB_DIR, args.version, args.rev), "in", LAB_DIR)
+        else:
+            print("wrote", writer.write_all(LAB_DIR, args.version), "in", LAB_DIR)
     elif args.what == "fly":
         api = XPlaneWebAPI(timeout=30.0)
         air_start(api, args.msl, args.kmh, args.heading)

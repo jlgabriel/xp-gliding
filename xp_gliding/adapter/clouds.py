@@ -51,6 +51,12 @@ MAX_HANDOVERS = 16  # clouds handed over to another ring per pass: four SDK call
 RING_BATCH = 30
 
 
+def cloud_heading(thermal):
+    """A heading (deg) of the cloud's own, so clouds drawn from one object differ: the object
+    is uneven (`tools/make_cloud_objs.py`). Fixed for a thermal, the same for every pilot."""
+    return (thermal.lat * 7919.0 + thermal.lon * 6007.0 + thermal.birth * 0.137) % 1.0 * 360.0
+
+
 class CloudStatus:
     """Published as datarefs."""
 
@@ -273,7 +279,7 @@ class CumulusClouds:
 
     def _set(self, instance, th, base_m, rate, drift):
         x, y, z = self.sky.world_to_local(*drift.to_ground(th.lat, th.lon), base_m)
-        self.sky.set_position(instance, x, y, z, (rate, cloud_scale(th)))
+        self.sky.set_position(instance, x, y, z, (rate, cloud_scale(th)), heading=cloud_heading(th))
 
     def _move_some(self, drift):
         """Move a slice of the clouds with the wind. In calm air the offset stays, and nothing moves."""

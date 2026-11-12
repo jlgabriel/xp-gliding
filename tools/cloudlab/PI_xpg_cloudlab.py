@@ -7,10 +7,16 @@ output of `make_cloud.py` to `PythonPlugins/`; restart X-Plane, then drive it wi
   load        write a version n: load cu<n>_{global,inst,fast}.obj in the background
   rate        the rate dataref cu_global's emitter reads (1: a steady cloud)
   i_rate      exists so the per-instance dataref can be found; instances carry their own
-  kind        0 global, 1 per instance, 2 fast: the object of the next place; 3 and up
+  kind        0 global, 1 per instance, 2 fast: the object of the next place; 3 to 10
               the objects of `make_order.py` (white, red, blue, red1, blue1, pair, pairrev,
-              whitepair), when the version loaded was written by it
+              whitepair), when the version loaded was written by it; 11 the plugin's own
+              cumulus as `make_cloud.py --plugin` copies it, driven by the plugin's rate and
+              scale datarefs (xp_gliding must be running), with `value` as rate and `scale`
   value       the per-instance value of the next place
+  ver         the version whose objects the next place uses; 0: the last loaded. Loading a
+              version keeps the others loaded, so two looks can stand side by side
+  scale       the plugin cumulus's scale (kind 11)
+  heading_deg the plugin cumulus's heading; below 0, a random one per cloud
   count, spacing_m, dist_m, bearing_deg, dy_m, grid
               the next place, relative to the aircraft: `count` clouds in a line across the
               view at dist_m, or a square grid centred on the aircraft when grid is 1
@@ -30,29 +36,32 @@ License: GPL-3.0-or-later.
 
 import math
 import os
+import random
 import traceback
 
 import xp
 
 LAB = "xpg_cloudlab"
 KINDS = ("global", "inst", "fast", "white", "red", "blue", "red1", "blue1", "pair", "pairrev",
-         "whitepair")
+         "whitepair", "plugin")
 FLOATS = ("rate", "i_rate", "kind", "value", "count", "spacing_m", "dist_m", "bearing_deg",
-          "dy_m", "grid")
+          "dy_m", "grid", "ver", "scale", "heading_deg")
 I_RATE = (f"{LAB}/i_rate",)
+PLUGIN_REFS = ("xp_gliding/clouds/rate", "xp_gliding/clouds/scale")
 
 
 class Lab:
     def __init__(self):
         self.values = {"rate": 1.0, "i_rate": 0.0, "kind": 0.0, "value": 1.0, "count": 1.0,
                        "spacing_m": 2000.0, "dist_m": 5000.0, "bearing_deg": 0.0, "dy_m": 300.0,
-                       "grid": 0.0}
+                       "grid": 0.0, "ver": 0.0, "scale": 1.0, "heading_deg": -1.0}
         self.folder = os.path.relpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), LAB),
                                       xp.getSystemPath()).replace(os.sep, "/")
         self.objects = {}
         self.expected = []
         self.version = 0
-        self.instances = []  # (instance, kind, position)
+        self.last = 0
+        self.instances = []  # (instance, (version, kind), position)
         self.errors = 0
         self.refs = []
         self.pending = []
@@ -91,10 +100,12 @@ class Lab:
 
     def load(self, n):
         self.version = 0
-        self.clear(0)
-        for obj in self.objects.values():
-            xp.unloadObject(obj)
-        self.objects = {}
+        for k, (inst, (n_ver, kind), pos) in enumerate(self.instances):
+            if inst is not None and n_ver == n:
+                xp.destroyInstance(inst)
+                self.instances[k] = (None, (n_ver, kind), pos)
+        for key in [key for key in self.objects if key[0] == n]:
+            xp.unloadObject(self.objects.pop(key))
         root = os.path.join(xp.getSystemPath(), self.folder)
         self.expected = [kind for kind in KINDS if os.path.exists(os.path.join(root, f"cu{n}_{kind}.obj"))]
         for kind in self.expected:
@@ -106,14 +117,16 @@ class Lab:
             xp.log(f"cloudlab: could not load cu{n}_{kind}")
             self.errors += 1
             return
-        self.objects[kind] = obj
-        if len(self.objects) == len(self.expected):
+        self.objects[(n, kind)] = obj
+        if all((n, k) in self.objects for k in self.expected):
+            self.last = n
             self.version = n
             xp.log(f"cloudlab: cu{n} loaded")
 
     def place(self, _):
         v = self.values
         kind = KINDS[int(v["kind"])]
+        n_ver = int(v["ver"]) or self.last
         ax, ay, az = xp.getDataf(self.lx), xp.getDataf(self.ly), xp.getDataf(self.lz)
         psi = math.radians(xp.getDataf(self.psi) + v["bearing_deg"])
         fx, fz = math.sin(psi), -math.cos(psi)  # forward, in local x (east), z (south)
@@ -129,22 +142,33 @@ class Lab:
             # Turned to the bearing, so an object's -z points away from the aircraft (pairs).
             pos = (ax + rx * across + fx * along, ay + v["dy_m"], az + rz * across + fz * along,
                    0.0, math.degrees(psi) % 360.0, 0.0)
-            per_instance = kind == "inst"
-            inst = xp.createInstance(self.objects[kind], I_RATE if per_instance else None)
-            xp.instanceSetPosition(inst, pos, (v["value"],) if per_instance else None)
+            if kind == "plugin":
+                heading = v["heading_deg"] if v["heading_deg"] >= 0.0 else random.uniform(0.0, 360.0)
+                pos = pos[:4] + (heading, 0.0)
+            refs, data = self._data(kind)
+            inst = xp.createInstance(self.objects[(n_ver, kind)], refs)
+            xp.instanceSetPosition(inst, pos, data)
             xp.instanceSetAutoShift(inst)
-            self.instances.append((inst, kind, pos))
-        xp.log(f"cloudlab: placed {n} {kind}; total {len(self.instances)}")
+            self.instances.append((inst, (n_ver, kind), pos))
+        xp.log(f"cloudlab: placed {n} cu{n_ver} {kind}; total {len(self.instances)}")
+
+    def _data(self, kind):
+        """The datarefs of an instance of this kind, and their values now."""
+        if kind == "inst":
+            return I_RATE, (self.values["value"],)
+        if kind == "plugin":
+            return PLUGIN_REFS, (self.values["value"], self.values["scale"])
+        return None, None
 
     def set_value(self, _):
-        for inst, kind, pos in self.instances:
-            if inst is not None and kind == "inst":
-                xp.instanceSetPosition(inst, pos, (self.values["value"],))
+        for inst, (_n, kind), pos in self.instances:
+            if inst is not None and kind in ("inst", "plugin"):
+                xp.instanceSetPosition(inst, pos, self._data(kind)[1])
 
     def touch(self, k):
-        inst, kind, pos = self.instances[k]
+        inst, (_n, kind), pos = self.instances[k]
         if inst is not None:
-            xp.instanceSetPosition(inst, pos, (self.values["value"],) if kind == "inst" else None)
+            xp.instanceSetPosition(inst, pos, self._data(kind)[1])
             xp.log(f"cloudlab: touched {k}")
 
     def destroy_at(self, k):
@@ -156,12 +180,12 @@ class Lab:
 
     def recreate(self, k):
         self.destroy_at(k)
-        _, kind, pos = self.instances[k]
-        per_instance = kind == "inst"
-        inst = xp.createInstance(self.objects[kind], I_RATE if per_instance else None)
-        xp.instanceSetPosition(inst, pos, (self.values["value"],) if per_instance else None)
+        _, (n, kind), pos = self.instances[k]
+        refs, data = self._data(kind)
+        inst = xp.createInstance(self.objects[(n, kind)], refs)
+        xp.instanceSetPosition(inst, pos, data)
         xp.instanceSetAutoShift(inst)
-        self.instances[k] = (inst, kind, pos)
+        self.instances[k] = (inst, (n, kind), pos)
         xp.log(f"cloudlab: recreated {k}")
 
     def clear(self, _):
