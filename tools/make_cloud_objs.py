@@ -199,7 +199,7 @@ def blobs(rng, size, n, reach, low, high, sigma):
         for _ in range(int(rng.integers(2, 4))):
             a = np.radians(90.0 + rng.uniform(-110.0, 110.0))
             k = rng.uniform(0.9, 1.4) * s
-            add(cx + k * np.cos(a), cy + k * np.sin(a), s * rng.uniform(0.35, 0.55), 0.95)
+            add(cx + k * np.cos(a), cy + k * np.sin(a), s * rng.uniform(0.42, 0.62), 0.68)
     return d
 
 
@@ -230,12 +230,14 @@ def billow(rng, size, base=4, octaves=5):
 
 
 def cloud_cell(rng, size, density, edge, soft, belly):
-    """RGBA from a density field in [0, 1]: torn soft edge, lit from above, darker below."""
+    """RGBA from a density field in [0, 1]: lit from above, darker below, and an edge that
+    fades out slowly over the density's outer tail, so no puff shows as a disc (a firm edge
+    made the cloud's outline a chain of round bubbles, notes/cloud-looks.md)."""
     xs, ys = _grid(size)
     bill = billow(rng, size, base=4)
     fine = noise2(rng, size, octaves=4, base=16)
     d = density * (0.80 + 0.35 * bill)
-    alpha = _smooth((d - edge - 0.30 * (fine - 0.5)) / soft) * (0.92 + 0.08 * fine)
+    alpha = _smooth((d - edge - 0.25 * (fine - 0.5)) / soft) * (0.92 + 0.08 * fine)
     lum = 0.92 + 0.08 * lit(d, size)
     lum = lum * (1.0 - belly * _smooth((0.1 - ys) / 0.9)) * (0.95 + 0.10 * (bill - 0.5))
     return _rgba(lum, alpha * _border(xs, ys), blue=0.04)
@@ -243,14 +245,14 @@ def cloud_cell(rng, size, density, edge, soft, belly):
 
 def lobe(rng, size):
     """A cauliflower lobe: bulges of several sizes, lit from above, a soft uneven edge."""
-    d = blobs(rng, size, int(rng.integers(4, 7)), 0.42, -0.40, 0.28, (0.17, 0.25))
-    return cloud_cell(rng, size, d, 0.30, 0.35, 0.06)
+    d = blobs(rng, size, int(rng.integers(4, 7)), 0.40, -0.36, 0.22, (0.20, 0.28))
+    return cloud_cell(rng, size, d, 0.10, 0.60, 0.06)
 
 
 def small(rng, size):
     """A small round lobe for edges and tops: a few bulges."""
-    d = blobs(rng, size, int(rng.integers(3, 5)), 0.36, -0.32, 0.24, (0.16, 0.24))
-    return cloud_cell(rng, size, d, 0.30, 0.35, 0.05)
+    d = blobs(rng, size, int(rng.integers(3, 5)), 0.34, -0.28, 0.18, (0.19, 0.26))
+    return cloud_cell(rng, size, d, 0.10, 0.60, 0.05)
 
 
 def base(rng, size):

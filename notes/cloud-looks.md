@@ -72,6 +72,32 @@ Juan Luis watched these on the screen and took his own screenshots as they ran. 
 
 The GPU estimate does not move; the main thread takes about 50-65 ms/s more with clouds, as in phase 2, and the new ones 3-16 ms/s more than the old, within the noise. Paused, so the frame period read nothing; graphics as the menu stood.
 
+## His first flight with v9
+
+2026-11-11, late evening, Juan Luis by hand, installed from this branch (20ce233), an aerotow over mountains, the plugin drawing the full sky. His words: "interesante, pero hay que seguir trabajando"; "igual tienen algo que las veo como más reales"; and, comparing with 0.7's, those looked like many cotton balls or cauliflower, these look more like cloud. So the direction holds.
+
+What his screenshots show, my reading: the irregular outline, the towers and the lighter tone work, and the middle-sized clouds look good from afar. Left to do:
+
+- Seen from below, a soft translucent disc sticks out past the body on one side of the big clouds: the base puffs, wider from below than the body.
+- The outline is a chain of round bubbles of about one size, too crisp: the particles show as circles.
+- From below in sunlight the belly is white and flat, with no grey.
+- Young or dying clouds, a few tiny puffs, look like popcorn rather than small cumulus.
+
+He showed a screenshot of an X-Plane 11 cloud add-on's page as a reference, for inspiration only: very white clouds with body from soft grey where lobes overlap, and edges that dissolve into transparency with no sprite showing. That points at the puff texture (softer, larger, an edge that fades out slowly) more than at the layout.
+
+## Softer edges (v12)
+
+Juan Luis chose to work on the edges first. Only the lobe texture changed (`cloud_cell`, `lobe`, `small`): an edge that fades out over the density's outer tail instead of a short ramp, lobes filling more of their cell, and the small bulges on each lobe's upper side fainter, since they were what drew the bubble chain. Layout, light and tints as v9.
+
+| Version | Edge (threshold, ramp) | Small bulges (weight) | Seen |
+| --- | --- | --- | --- |
+| v11 | 0.04, 0.90 | 0.55 | Offline: no bubbles left, but the lobes lose their shape and the cloud goes towards fog. Not shown in X-Plane |
+| v12 | 0.10, 0.60 | 0.68 | Offline and in X-Plane, from 1.8 km below the base next to v9: a soft outline with no chain of round bubbles, still a cumulus. **Juan Luis: "v12 mejor, vamos bien"**, from the offline preview of v9, v12 and v11 |
+
+On the X-Plane capture (left v9, right v12, 1.8 km below the base), **Juan Luis: "ganó la de la derecha"**: v12. To watch: the lower part of the base should not turn to haze; its lower left already looks a little foggy there.
+
+v12 installed from this branch and flown by Juan Luis the same night: "me gustan mucho más, pasémoslas a producción". **Chosen: v12**, for `main`.
+
 ## Left open
 
 - **The clouds' width against zi**, not tried yet: in CloudLab first, by placing clouds at scale × zi / 2000; the adapter only once Juan Luis chooses.
