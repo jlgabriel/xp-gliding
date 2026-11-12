@@ -36,7 +36,7 @@ In calm air the sky is the same every time for the same place, date, time and se
 ## Reading the sky
 
 - **A cloud means a thermal.** Each of the plugin's clouds sits over a thermal. A few thermals have no cloud, and they are weaker.
-- **Clouds are born and die with their thermal.** A thermal lives between 5 and 30 minutes, growing and then fading, and never vanishes at once. A cloud that is fading has a thermal that is weakening.
+- **Clouds are born with their thermal and outlive it.** A thermal lives between 5 and 30 minutes, growing and then fading, and never vanishes at once. A full cloud has a thermal at its best. A cloud that thins has a thermal that is weakening, and it stays a few minutes after its thermal has died, fading. A thin cloud may have nothing left under it.
 - **A bigger cloud usually means a stronger thermal.** This holds on average when the two are compared offline, and in the three thermals flown by hand to check it, which is too few to rely on.
 - **Everything moves with the wind.** Thermals and clouds drift with X-Plane's wind, as the glider does, so a circle needs no correction for it, even while the ground passes underneath. In strong wind a thermal can carry you towards high ground.
 - **A climb ends near its cloud.** The lift fades towards the cloud's base, and usually stops some way under it.

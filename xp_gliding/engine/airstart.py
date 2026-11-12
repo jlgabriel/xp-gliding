@@ -5,8 +5,9 @@ item and the glider is set in level flight `DISTANCE_M` from a cloud's thermal, 
 was already on, heading for it, at `HEIGHT_SHARE` of the way from the ground to the cloud's
 base. Near, not in it: the pilot still reads the cloud and flies to it.
 
-Which cloud: the nearest whose thermal has reached full strength and will feed its cloud for at
-least `MIN_LEFT_S` more, so that it is still worth climbing when the glider gets there.
+Which cloud: the nearest whose thermal has reached full strength and has at least `MIN_LEFT_S`
+before it starts to decay (and its cloud to thin), so that it is still worth climbing when the
+glider gets there.
 
 Everything here is in the air's frame (`engine/wind.py`): thermals keep their place in it, and
 the adapter turns the answer into a place over the ground.
@@ -16,13 +17,13 @@ Pure Python: no `xp`.
 
 import math
 
-from .clouds import feeding_window
+from .clouds import thinning_from
 from .field import RISE_FRACTION
 
 DISTANCE_M = 1500.0  # from the thermal's centre: about a minute's glide
 HEIGHT_SHARE = 0.6  # of the way from the ground to the cloud's base
 MIN_AGL_M = 300.0
-MIN_LEFT_S = 300.0  # the cloud fed at least this much longer
+MIN_LEFT_S = 300.0  # at full strength at least this much longer
 SPEED_MS = 27.0  # about 97 km/h, the ASK 21's speed between thermals
 
 
@@ -34,8 +35,7 @@ def pick_cloud(thermals, e, n, t, params, min_left_s=MIN_LEFT_S):
     best, best_r = None, math.inf
     for th in thermals:
         life = th.death - th.birth
-        _, stop = feeding_window(th, params)
-        if t < th.birth + RISE_FRACTION * life or stop - t < min_left_s:
+        if t < th.birth + RISE_FRACTION * life or thinning_from(th, params) - t < min_left_s:
             continue
         r = math.hypot(th.e - e, th.n - n)
         if r < best_r:

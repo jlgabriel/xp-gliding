@@ -47,10 +47,11 @@ def test_a_cloud_depends_only_on_the_thermal():
 
 
 def test_density_is_a_cumulus_sky():
-    """About one every 3 km: the number notes/phase2.md gives."""
+    """About one full cloud every 3 km: the number notes/phase2.md gives. The thinning ones,
+    over decaying or dead thermals, come on top: about half as many again."""
     c = config()
     p = cl.CloudParams()
-    area, count = 0.0, 0
+    area, count, thin = 0.0, 0, 0
     for i in range(1630, 1640):
         for j in range(-5165, -5155):
             area += tile_area_m2(i, j, c.tile_deg) * 1e-6
@@ -59,8 +60,10 @@ def test_density_is_a_cumulus_sky():
                     if not cl.carries_cloud(th, p):
                         continue
                     start, stop = cl.feeding_window(th, p)
-                    count += start <= NOON < stop
+                    count += start <= NOON < cl.thinning_from(th, p)
+                    thin += cl.thinning_from(th, p) <= NOON < stop + p.ttl_s
     assert 0.07 < count / area < 0.2
+    assert 0.3 < thin / count < 0.8
 
 
 def test_catalog_has_the_same_thermals_as_the_field():
@@ -186,7 +189,7 @@ def test_a_fading_cloud_is_not_refilled():
     th = make_thermal(birth=0.0, life=1000.0)
     planner = cl.CloudPlanner(p)
     run(planner, [th], 0.0, 0.0, 500.0)
-    run(planner, [th], 0.0, 0.0, 700.0)  # past fade_tau: stopped
+    run(planner, [th], 0.0, 0.0, 1000.0)  # its thermal dead: stopped
     assert planner.shown[th].stopped_at is not None
     assert planner.refill(th, 701.0) == 0.0
     assert planner.shown[th].fast_until < 701.0
@@ -230,29 +233,42 @@ def test_a_partly_formed_cloud_fills_only_as_far_as_it_should():
     assert planner.shown[th].fast_until == pytest.approx(t + 0.5 * p.mean_ttl_s / p.prewarm)
 
 
-def test_a_cloud_fades_with_its_thermal_and_goes_when_nothing_is_left():
+def test_a_cloud_thins_as_its_thermal_decays_and_outlives_it():
     p = cl.CloudParams()
     th = make_thermal(birth=0.0, life=1000.0)
     planner = cl.CloudPlanner(p)
     run(planner, [th], 0.0, 0.0, 100.0)
     assert run(planner, [th], 0.0, 0.0, 699.0) == []
-    assert run(planner, [th], 0.0, 0.0, 700.0) == [(cl.RATE, th, 0.0)]
-    assert run(planner, [th], 0.0, 0.0, 700.0 + p.ttl_s - 1.0) == []
-    assert run(planner, [th], 0.0, 0.0, 700.0 + p.ttl_s) == [(cl.DESTROY, th, 0.0)]
+    assert run(planner, [th], 0.0, 0.0, 700.0) == [(cl.RATE, th, p.thin_level)]  # the decay starts
+    assert run(planner, [th], 0.0, 0.0, 999.0) == []
+    assert run(planner, [th], 0.0, 0.0, 1000.0) == [(cl.RATE, th, 0.0)]  # the thermal dies
+    assert run(planner, [th], 0.0, 0.0, 1000.0 + p.ttl_s - 1.0) == []
+    assert run(planner, [th], 0.0, 0.0, 1000.0 + p.ttl_s) == [(cl.DESTROY, th, 0.0)]
     assert not planner.shown
 
 
-def test_a_thermal_past_its_feeding_gets_no_new_cloud():
-    th = make_thermal(birth=0.0, life=1000.0)
-    assert run(cl.CloudPlanner(), [th], 0.0, 0.0, 750.0) == []
-
-
-def test_the_fade_ends_before_or_about_when_the_thermal_does():
-    """The shortest life a cloud can have still fits its fade in the thermal's decay."""
+def test_a_thinning_cloud_holds_about_its_share_and_lingers_past_its_thermal():
     p = cl.CloudParams()
-    th = make_thermal(birth=0.0, life=p.min_life_s)
-    _, stop = cl.feeding_window(th, p)
-    assert stop + p.ttl_s == pytest.approx(th.death)
+    th = make_thermal(birth=0.0, life=1500.0)
+    curve = dict(alive_particles(th, cl.CloudPlanner(p), 300.0, 1800.0))
+    assert curve[1000.0] == pytest.approx(1.0, abs=0.05)  # mature
+    assert curve[1450.0] == pytest.approx(p.thin_level, abs=0.05)  # decaying
+    # Dead: its oldest particles go first, so it drains over about one particle life.
+    assert 0.2 < curve[1500.0 + 0.5 * p.mean_ttl_s] < 0.3
+    assert curve[1500.0 + 1.25 * p.mean_ttl_s] == 0.0
+
+
+def test_a_decaying_thermal_coming_into_range_gets_a_thin_cloud():
+    p = cl.CloudParams()
+    th = make_thermal(birth=0.0, life=1000.0)
+    planner = cl.CloudPlanner(p)
+    assert run(planner, [th], 0.0, 0.0, 750.0)[0][:2] == (cl.CREATE, th)
+    assert planner.shown[th].level == p.thin_level
+
+
+def test_a_dead_thermal_gets_no_new_cloud():
+    th = make_thermal(birth=0.0, life=1000.0)
+    assert run(cl.CloudPlanner(), [th], 0.0, 0.0, 1000.0) == []
 
 
 # --- range ---------------------------------------------------------------------------
@@ -447,8 +463,8 @@ def test_ground_that_cannot_be_read_is_left_out():
     assert cl.cloud_base_m(2000.0, [None, None]) == 2000.0
 
 
-def test_a_cloud_lasts_one_particle_life_after_it_stops_being_fed_but_not_past_its_thermal():
-    p = cl.CloudParams(fade_tau=0.7, ttl_s=216.0)
-    assert cl.cloud_seconds_left(make_thermal(birth=0.0, life=1000.0), 100.0, p) == 816.0
-    assert cl.cloud_seconds_left(make_thermal(birth=0.0, life=500.0), 100.0, p) == 400.0
-    assert cl.cloud_seconds_left(make_thermal(birth=0.0, life=500.0), 600.0, p) == 0.0
+def test_a_cloud_lasts_one_particle_life_after_its_thermal():
+    p = cl.CloudParams(ttl_s=216.0)
+    assert cl.cloud_seconds_left(make_thermal(birth=0.0, life=1000.0), 100.0, p) == 1116.0
+    assert cl.cloud_seconds_left(make_thermal(birth=0.0, life=500.0), 600.0, p) == 116.0
+    assert cl.cloud_seconds_left(make_thermal(birth=0.0, life=500.0), 800.0, p) == 0.0

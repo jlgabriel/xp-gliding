@@ -18,8 +18,13 @@ controlled is the rate new ones appear, per instance, and destroying the instanc
 which removes its particles at once (flown 2026-11-04). So:
 - A cloud forms by emitting at the steady rate from `form_tau` of its thermal's life:
   it builds up over one particle life.
-- It fades by stopping the emission at `fade_tau`, when the thermal starts to decay;
-  the instance goes one particle life later, once nothing is left to see.
+- It thins as its thermal decays: from `thin_tau`, where the field's decay starts, it is fed
+  at `thin_level` of the steady rate, so it holds fewer particles about a particle life later.
+- It outlives its thermal: it is fed until the thermal dies (`fade_tau` = 1), and its particles,
+  oldest first, go over one more life (144-216 s): a thin cloud fading over air that no longer
+  rises, half gone after about a minute and a half and all of it after three and a half, as a
+  real one lingers after its lift has gone. The instance goes once nothing is left to see. So a full cloud is a mature thermal, a thinning one a weakening
+  thermal, and a thin one may be dead (notes/SPEC.md, stage 2, block 3).
 - A cloud that comes into range, or the first sky of a flight, should already look as
   old as it is, so it emits fast for a moment (`prewarm`), and then rests.
 - Far clouds use fewer particles. At 15 km a third of them looks the same (flown), and
@@ -35,7 +40,7 @@ Pure Python: no `xp`. `CloudPlanner.step` returns what to do, the adapter does i
 
 import math
 
-from .field import CARRIER_MIN_FLUX, CARRIER_MIN_LIFE_S, FieldConfig, generate_tile
+from .field import CARRIER_MIN_FLUX, CARRIER_MIN_LIFE_S, DECAY_FRACTION, FieldConfig, generate_tile
 from .geo import radii_of_curvature
 
 TOP_ZZI = 1.0 / 1.1  # the lift ends at this z/zi (Allen Eq. 11), the same as the markers' top
@@ -51,18 +56,22 @@ CLOUD_HALF_WIDTH_M = 500.0  # at scale 1, as `tools/make_cloud_objs.py` draws it
 
 
 class CloudParams:
-    __slots__ = ("min_flux", "min_life_s", "form_tau", "fade_tau", "range_m", "keep_range_m",
+    __slots__ = ("min_flux", "min_life_s", "form_tau", "thin_tau", "thin_level", "fade_tau",
+                 "range_m", "keep_range_m",
                  "near_m", "near_keep_m", "far_rate", "ttl_s", "mean_ttl_s", "prewarm",
                  "rest_fraction", "refill_factor", "min_fast_s", "tiles_per_update", "max_new")
 
-    def __init__(self, min_flux=CARRIER_MIN_FLUX, min_life_s=CARRIER_MIN_LIFE_S, form_tau=0.1, fade_tau=0.7,
+    def __init__(self, min_flux=CARRIER_MIN_FLUX, min_life_s=CARRIER_MIN_LIFE_S, form_tau=0.1,
+                 thin_tau=1.0 - DECAY_FRACTION, thin_level=0.5, fade_tau=1.0,
                  range_m=20000.0, keep_range_m=21000.0, near_m=8000.0, near_keep_m=9000.0,
                  far_rate=0.3, ttl_s=216.0, mean_ttl_s=180.0, prewarm=20.0, rest_fraction=0.4,
                  refill_factor=5.0, min_fast_s=2.0, tiles_per_update=2, max_new=8):
         self.min_flux = min_flux
         self.min_life_s = min_life_s
         self.form_tau = form_tau  # life fraction where the cloud starts to form
-        self.fade_tau = fade_tau  # and where it stops being fed: the field's decay starts here
+        self.thin_tau = thin_tau  # where it thins: the field's decay starts here
+        self.thin_level = thin_level  # its share of the steady rate from then on (first guess)
+        self.fade_tau = fade_tau  # and where it stops being fed: at its thermal's death
         self.range_m = range_m  # clouds are drawn this far from the glider
         self.keep_range_m = keep_range_m  # a drawn cloud is fed until this far
         self.near_m = near_m  # all of a cloud's particles within this distance
@@ -101,11 +110,16 @@ def feeding_window(thermal, params):
     return thermal.birth + params.form_tau * life, thermal.birth + params.fade_tau * life
 
 
+def thinning_from(thermal, params):
+    """When the cloud starts to thin, as its thermal starts to decay."""
+    return thermal.birth + params.thin_tau * (thermal.death - thermal.birth)
+
+
 def cloud_seconds_left(thermal, t, params):
     """How long something of this cloud will be in the sky: it is fed until `stop`, then lasts
-    one particle life, and is never left after its thermal."""
+    one particle life, past its thermal's death."""
     _, stop = feeding_window(thermal, params)
-    return max(min(thermal.death, stop + params.ttl_s) - t, 0.0)
+    return max(stop + params.ttl_s - t, 0.0)
 
 
 def ground_points(lat, lon, half_width_m, wind_e_ms, wind_n_ms, seconds, step_m=GROUND_STEP_M):
@@ -246,13 +260,14 @@ class CloudCatalog:
 
 
 class _Shown:
-    __slots__ = ("thermal", "rate", "level", "fast_rate", "fast_until", "rest_until", "stopped_at",
-                 "level_at_stop")
+    __slots__ = ("thermal", "rate", "level", "near", "fast_rate", "fast_until", "rest_until",
+                 "stopped_at", "level_at_stop")
 
     def __init__(self, thermal):
         self.thermal = thermal
         self.rate = 0.0  # what the emitter was last told
         self.level = 0.0  # the steady rate it is at, or going to
+        self.near = False  # fed with all its particles (within near_m), not far_rate
         self.fast_rate = 0.0
         self.fast_until = 0.0  # emitting at fast_rate until this time
         self.rest_until = 0.0  # and then nothing until this time
@@ -269,10 +284,13 @@ class CloudPlanner:
         self.more_waiting = False  # the last step left new clouds for the next one
         self.next_change = math.inf  # the next time a rate must change, between steps
 
-    def _steady(self, item, r):
+    def _steady(self, item, r, t):
+        """The steady rate for a cloud r m away at t: fewer particles far away, and as its
+        thermal decays."""
         p = self.params
-        near = p.near_keep_m if item.level == 1.0 else p.near_m
-        return 1.0 if r <= near else p.far_rate
+        item.near = r <= (p.near_keep_m if item.near else p.near_m)
+        rate = 1.0 if item.near else p.far_rate
+        return rate * p.thin_level if t >= thinning_from(item.thermal, p) else rate
 
     def _plan_new(self, thermal, r, t):
         """A new cloud, emitting for what it should have formed by now.
@@ -283,7 +301,7 @@ class CloudPlanner:
         twice that number (found in review).
         """
         item = _Shown(thermal)
-        item.level = self._steady(item, r)
+        item.level = self._steady(item, r, t)
         self._fill(item, t)
         return item
 
@@ -335,9 +353,9 @@ class CloudPlanner:
         self.more_waiting = False
         self.next_change = math.inf
         for th in thermals:
-            # Most of the catalog is not alive now: not worth any work. A shown cloud has
-            # gone before its thermal does (test_the_fade_ends_...).
-            if t < th.birth or t >= th.death:
+            # Most of the catalog is not alive now: not worth any work. A shown cloud outlives
+            # its thermal by a particle life, and fades meanwhile.
+            if t < th.birth or (t >= th.death and th not in self.shown):
                 continue
             start, stop = feeding_window(th, p)
             r = math.hypot(th.e - e, th.n - n)
@@ -378,6 +396,7 @@ class CloudPlanner:
             item.stopped_at = t
             item.level_at_stop = item.level
             item.level = item.rate = item.fast_until = item.rest_until = 0.0
+            item.near = False
             actions.append((RATE, item.thermal, 0.0))
         elif t - item.stopped_at >= self.params.ttl_s:
             del self.shown[item.thermal]
@@ -397,14 +416,14 @@ class CloudPlanner:
             have = item.level_at_stop * left
             item.stopped_at = None
             item.level = 0.0
-            self._raise_level(item, self._steady(item, r), have, t)
+            self._raise_level(item, self._steady(item, r, t), have, t)
             item.rate = self._rate_now(item, t)
             actions.append((RATE, th, item.rate))
             return
         if not feeding or r > p.keep_range_m:
             self._fade(item, t, actions)
             return
-        steady = self._steady(item, r)
+        steady = self._steady(item, r, t)
         if steady > item.level:
             self._raise_level(item, steady, item.level, t)
         else:

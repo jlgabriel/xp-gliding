@@ -12,7 +12,7 @@ It is an independent take on thermals, offered as another option for soaring in 
 
 - **Thermals** with a life cycle: they grow, peak and fade, and never vanish abruptly. In calm air, the same seed, date, place and time give the same sky.
 - **A daily cycle.** The thermals follow the sun: weak and low in the morning, strongest in the early afternoon, gone around sunset. The early morning is blue, and the first cumulus come late in the morning, low, under a base that rises through the day.
-- **Cumulus** drawn by the plugin over the thermals that carry one. Each forms and fades with its thermal, so a cloud means something. Clouds keep to a level for the area, and stand higher where the ground under them and along their drift would reach them.
+- **Cumulus** drawn by the plugin over the thermals that carry one. Each forms with its thermal, thins as it weakens and lingers a few minutes after it dies, so a cloud means something and an old one can deceive. Clouds keep to a level for the area, and stand higher where the ground under them and along their drift would reach them.
 - **Lift that ends with its cloud,** over any ground, rather than following the ground under the glider. No thermal is born over water.
 - **Lift with no per-aircraft calibration.** It is applied as the energy rising air would give the glider, and measured within 0.01 m/s of the intended climb at different speeds, banks and frame rates. The reference glider is the Laminar ASK 21. Other gliders get the lift, and no netto on the HUD. A motor glider gets it once treated as a glider from the menu.
 - **Thermals and clouds that follow the wind.** The wind is X-Plane's, real or set by hand: the plugin reads it and has no wind of its own.
