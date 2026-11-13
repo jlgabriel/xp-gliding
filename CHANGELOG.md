@@ -2,6 +2,10 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## 0.9.2 — 2026-11-13
+
+- **Smaller cumulus.** Every cloud is drawn at 70 % of its former size: a typical one is now about 850 m wide and 420 m tall, from about 1.2 km and 600 m, and the largest no bigger than a typical one was. A cloud is closer to the width of the lift under it, and there is more blue sky between clouds, so neighbours run together less. Their look, number, place, life and lift are unchanged.
+
 ## 0.9.1 — 2026-11-13
 
 - **Lighter cumulus.** The flat grey layer along a cloud's base and the wisps under it are gone: seen from near the base's height they drew a horizontal band. The outline is no longer a chain of small round puffs, and the top is made of fewer, larger lobes. The texture, and the clouds' size, place, life and lift are unchanged, and there are fewer particles to draw (183 per cloud, from 311).
