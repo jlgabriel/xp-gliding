@@ -26,7 +26,7 @@ Commands (also in the menu):
   xp_gliding/toggle            plugin effect on / off
   xp_gliding/thermals/toggle   our thermals on / off, the plugin stays loaded (issue #30)
   xp_gliding/edge/toggle       sharper thermal edges: a kick on entry and exit, a sink ring and
-                               more sink between thermals (off by default, to judge by flying)
+                               more sink between thermals (on by default since 0.9.1)
   xp_gliding/wind/toggle       XP12's wind carries the thermals, or they stay where they are
   xp_gliding/lean/toggle       thermals lean with the wind (off by default, a first guess)
   xp_gliding/wind/clouds/toggle  the sky moves with the wind at the clouds, not at the glider

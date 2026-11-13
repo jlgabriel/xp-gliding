@@ -2291,10 +2291,9 @@ def test_with_the_daily_cycle_off_every_thermal_is_as_deep_as_the_day(plugin):
 def test_the_sharper_edges_kick_on_a_change_of_lift_and_do_no_work(plugin):
     pi, xp, data = plugin
     frame(pi, data)
-    assert dataref(xp, "kick_n") == 0.0  # off by default
+    assert pi.settings.edge_enabled  # on by default since 0.9.1
+    assert dataref(xp, "kick_n") == 0.0  # no change of lift yet
     handler, refcon = xp.handlers["xp_gliding/edge/toggle"]
-    handler("xp_gliding/edge/toggle", xp.CommandBegin, refcon)
-    assert pi.settings.edge_enabled
     frame(pi, data)
     dataref(xp, "debug/uniform_ms", 2.0)  # into 2 m/s of lift at once
     frame(pi, data)

@@ -2,8 +2,10 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
-## Unreleased
+## 0.9.1 — 2026-11-13
 
+- **Lighter cumulus.** The flat grey layer along a cloud's base and the wisps under it are gone: seen from near the base's height they drew a horizontal band. The outline is no longer a chain of small round puffs, and the top is made of fewer, larger lobes. The texture, and the clouds' size, place, life and lift are unchanged, and there are fewer particles to draw (183 per cloud, from 311).
+- ***Sharper thermal edges* on by default.** The jolt into and out of lift, the bumps at the edge, the ring of sink and the sink between thermals are now part of a first flight. Untick the item to fly without them. If you have flown an earlier version, your settings file keeps the choice you had: tick it in the menu once.
 - **The climb in this thermal on the HUD.** `THM` gives the average climb since you began circling, as a glider's computer does. A few straight seconds to move the circle stay in the same thermal; after 20 s straight it is greyed, and it keeps the last thermal's figure until the next one has 10 s of circling. `AVG` is still the last 30 s.
 - ***X-Plane's audio vario* in the menu.** It turns X-Plane's own audio vario on and off, the same switch as the AUDIO on the ASK 21's panel, for gliders that have none. Its tick follows the panel's switch. It is X-Plane's setting, so the plugin does not save it.
 - **Fewer, smaller cumulus under X-Plane's clouds, none in rain.** Where X-Plane's cloud layers weaken the thermals, fewer of our cumulus form, and smaller, by as much: under a closed overcast about half of them, half the size. In rain they drain away over a few minutes, and *Put me near a cloud* says it is raining. A clear sky changes nothing.

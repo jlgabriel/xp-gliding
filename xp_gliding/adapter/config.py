@@ -26,7 +26,7 @@ from ..engine.field import SKIES
 DEFAULTS = {
     "enabled": True,  # plugin effect on at start
     "thermals_enabled": True,  # our thermals (issue #30: off keeps the plugin loaded)
-    "edge_enabled": False,  # sharper thermal edges: a kick on entry and exit, a sink ring, more sink
+    "edge_enabled": True,  # sharper thermal edges: a kick on entry and exit, a sink ring, more sink
     "wind_enabled": True,  # XP12's wind carries the thermals, clouds and markers
     "lean_enabled": False,  # thermals lean with the wind's layers (a first guess, not flown)
     "wind_at_clouds": False,  # the sky moves with the wind at the clouds, not at the glider

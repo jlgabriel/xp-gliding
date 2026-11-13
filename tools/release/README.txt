@@ -79,7 +79,7 @@ THE MENU (Plugins > XP-Gliding)
   the same strength and depth all day.
 - Training markers: show where the thermals are.
 - Sharper thermal edges (experiment): a jolt into and out of lift, bumps at
-  the edge, a ring of sink, more sink between thermals.
+  the edge, a ring of sink, more sink between thermals. On by default.
 - Cumulus clouds, Soaring HUD: turn each off if you like.
 - Treat this aircraft as a glider: for a motor glider, remembered by its file.
 - Put me near a cloud: start flying 1.5 km from a cloud, heading for it.

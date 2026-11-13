@@ -1,6 +1,6 @@
 # Pilot guide
 
-How to install XP-Gliding, make a first flight and read its sky. This guide is for version 0.9. Its known limits are listed at the end.
+How to install XP-Gliding, make a first flight and read its sky. This guide is for version 0.9.1. Its known limits are listed at the end.
 
 ## What you need
 
@@ -10,7 +10,7 @@ How to install XP-Gliding, make a first flight and read its sky. This guide is f
 
 ## Installing
 
-1. Download `xp-gliding-0.9.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
+1. Download `xp-gliding-0.9.1.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
 2. Close X-Plane.
 3. From the unzipped folder, copy `PI_xp_gliding.py` and the whole `xp_gliding` folder into `X-Plane 12/Resources/plugins/PythonPlugins/`. The two must sit side by side there. `README.txt` and `LICENSE` do not need to be copied.
 4. Start X-Plane. *Plugins → XP-Gliding* appears in the menu.
@@ -69,7 +69,7 @@ Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next
 | --- | --- | --- |
 | Enabled | The plugin's whole effect, the HUD included | `xp_gliding/toggle` |
 | Thermals | The lift, keeping the clouds and the rest | `xp_gliding/thermals/toggle` |
-| Sharper thermal edges (experiment) | A jolt when you fly into lift and out of it, bumps at a thermal's edge (more low down), a ring of sink around each thermal, and twice the sink between thermals. Gliding between clouds costs more, and the edge tells you where the lift is. The climb in the thermal is the same. Off by default; tick it in flight to compare | `xp_gliding/edge/toggle` |
+| Sharper thermal edges (experiment) | A jolt when you fly into lift and out of it, bumps at a thermal's edge (more low down), a ring of sink around each thermal, and twice the sink between thermals. Gliding between clouds costs more, and the edge tells you where the lift is. The climb in the thermal is the same. On by default; untick it in flight to compare | `xp_gliding/edge/toggle` |
 | Daily cycle | The thermals follow the sun. None is born with the sun under 10°. They start weak and low a little after sunrise and grow stronger and deeper through the morning; the strength of the day below is reached around 1 pm solar time, and they weaken through the afternoon. Each thermal keeps the depth of the hour it was born: around 10 am solar time they end at less than half the afternoon's height, and they reach it by mid-afternoon. The early morning is blue: the first cumulus come between about 10 and 10:40 am solar time, at about half the afternoon's base, and the base rises to it by mid-afternoon. Solar time is not your clock: at Santiago in November, solar noon is at 13:26 local time, so the first clouds come around 11:30. Off: the same strength and depth all day and night, as in 0.1. On by default | `xp_gliding/day/cycle/toggle` |
 | Good and bad areas | The thermals' number and strength vary over tens of kilometres: in the best areas about 1.6 times as many as on average and a fifth stronger, in the worst about 0.4 times as many and a fifth weaker. The sky as a whole holds as many thermals as with it off. Each date has its own map. Off: the same sky everywhere. On by default | `xp_gliding/day/areas/toggle` |
 | Thermals follow the wind | The wind carries thermals, clouds and markers. On by default | `xp_gliding/wind/toggle` |
