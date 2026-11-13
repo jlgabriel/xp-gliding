@@ -8,13 +8,14 @@ A cloud style sets how XP-Gliding's cumulus look, the way a livery sets how an a
 
 A style is a folder. Put it in `X-Plane 12/Resources/plugins/PythonPlugins/xp-gliding-cloud-styles/`, beside the plugin's `xp_gliding` folder. The plugin's zip brings that folder, and the plugin makes it if it is missing. Updating the plugin replaces only `xp_gliding` and `PI_xp_gliding.py`, so your styles survive updates. Restart X-Plane, and the style is in the menu.
 
-The plugin comes with three styles, in `xp_gliding/assets/clouds/`:
+The plugin comes with four styles, in `xp_gliding/assets/clouds/`:
 
 - *Standard*, the default: lobes of several sizes, soft edges, no layer under the base.
 - *Cotton (soft edges)*: the cumulus of version 0.8, softer and fuller, with a light layer of flat puffs and wisps under the base.
 - *Cauliflower (crisp, bright lobes)*: a whiter cloud of round lobes with firm outlines, with the same layer under the base.
+- *Popcorn (round white puffs)*: *Standard* with another texture, drawn with ChatGPT: rounder, whiter puffs. It shows how far a new texture alone goes.
 
-All three are drawn at the same size over the same thermals. A style of your own with the same folder name as one of the plugin's is left out.
+All four are drawn at the same size over the same thermals. A style of your own with the same folder name as one of the plugin's is left out.
 
 If a style cannot be loaded, the clouds are drawn with *Standard* and the log, `XPPython3Log.txt`, says why. The menu then ticks *Standard*. Your choice stays saved, for when the style is mended. The log also lists the styles found at start, and any folder left out.
 

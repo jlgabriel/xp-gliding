@@ -88,7 +88,7 @@ Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next
 | Depth of the thermal layer (zi) | How high they go, and so the height of the clouds: in the afternoon, with *Daily cycle* on. 2000 m by default | |
 | Seed of the sky | Another arrangement of thermals | |
 | Units on the HUD | Metric (m/s and m, the default) or aviation (knots and feet). The wind is in knots with both | |
-| Cloud style | How the cumulus look, as a livery for the sky: *Standard* (the default), *Cotton* and *Cauliflower*, and any style you install. Only the look changes, never where the clouds are or what they say about their thermals. See [Cloud styles](cloud-styles.md). The command, not in the menu, steps to the next style, for a key to compare them | `xp_gliding/clouds/style/next` |
+| Cloud style | How the cumulus look, as a livery for the sky: *Standard* (the default), *Cotton*, *Cauliflower* and *Popcorn*, and any style you install. Only the look changes, never where the clouds are or what they say about their thermals. See [Cloud styles](cloud-styles.md). The command, not in the menu, steps to the next style, for a key to compare them | `xp_gliding/clouds/style/next` |
 
 Markers appear for up to 20 thermals within 3 km with at least 1.5 m/s at the core. The colour shows the lift at the core at your height: pale below 2 m/s, yellow from 2, orange from 3, and red from 4.
 

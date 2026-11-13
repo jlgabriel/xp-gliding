@@ -29,8 +29,9 @@ INFO_FILE = "style.txt"
 DEFAULT_STYLE = "standard"
 # The plugin's styles in the menu's order; one not named here comes after them, by name.
 # cotton is v12 (0.8's cumulus, soft edges) and cauliflower v9 (crisp, bright lobes), both
-# from 2026-11-11, with the base and wisp layers that Standard dropped since.
-BUNDLED_ORDER = (DEFAULT_STYLE, "cotton", "cauliflower")
+# from 2026-11-11, with the base and wisp layers that Standard dropped since; popcorn is Standard
+# with a texture drawn with ChatGPT.
+BUNDLED_ORDER = (DEFAULT_STYLE, "cotton", "cauliflower", "popcorn")
 OWN_FOLDER = "xp-gliding-cloud-styles"  # beside the xp_gliding package
 MAX_STYLES = 40  # more than a menu can show well; the rest are left out, and the log says so
 MAX_LABEL = 60

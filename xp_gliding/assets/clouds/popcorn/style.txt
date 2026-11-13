@@ -1,0 +1,3 @@
+# The texture was drawn with ChatGPT; the object and particle system are Standard's.
+name: Popcorn (round white puffs)
+license: GPL-3.0-or-later

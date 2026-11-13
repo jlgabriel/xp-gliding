@@ -2467,7 +2467,8 @@ def drawn_from(xp):
 
 def test_the_standard_style_is_drawn_and_ticked_and_its_folder_for_the_pilot_is_made(plugin):
     pi, xp, data = plugin
-    assert [name for name, _ in xp.menus["Cloud style"]["items"]] == ["Standard", "Cotton (soft edges)", "Cauliflower (crisp, bright lobes)"]
+    assert [name for name, _ in xp.menus["Cloud style"]["items"]] == ["Standard", "Cotton (soft edges)", "Cauliflower (crisp, bright lobes)",
+                                                                  "Popcorn (round white puffs)"]
     assert checked(xp, "Cloud style") == ["Standard"]
     first_clouds(pi, data)
     assert all(p.endswith("xp_gliding/assets/clouds/standard") for p in drawn_from(xp))
@@ -2477,7 +2478,7 @@ def test_the_standard_style_is_drawn_and_ticked_and_its_folder_for_the_pilot_is_
 def test_a_pilots_style_is_listed_drawn_ticked_and_saved_and_back(styled):
     pi, xp, data = styled
     assert [name for name, _ in xp.menus["Cloud style"]["items"]] == [
-        "Standard", "Cotton (soft edges)", "Cauliflower (crisp, bright lobes)", "Broken",
+        "Standard", "Cotton (soft edges)", "Cauliflower (crisp, bright lobes)", "Popcorn (round white puffs)", "Broken",
         "Soft cumulus, by Ana Perez"]
     first_clouds(pi, data)
     standard = {instance for instance in xp.instances}
@@ -2543,8 +2544,8 @@ def test_the_next_style_command_goes_round_the_styles_and_saves(styled):
         handler("xp_gliding/clouds/style/next", xp.CommandBegin, refcon)
         seen.append(checked(xp, "Cloud style")[0])
         assert saved(pi)["cloud_style"] == pi.settings.cloud_style
-    assert seen == ["Cotton (soft edges)", "Cauliflower (crisp, bright lobes)", "Broken",
-                    "Soft cumulus, by Ana Perez"]
+    assert seen == ["Cotton (soft edges)", "Cauliflower (crisp, bright lobes)", "Popcorn (round white puffs)",
+                    "Broken"]
 
 
 def test_the_next_style_after_one_that_failed_is_the_one_after_it(styled):
