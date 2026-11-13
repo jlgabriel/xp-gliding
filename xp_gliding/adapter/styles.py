@@ -8,8 +8,10 @@ particle system and texture it names beside it, and an optional `style.txt`:
     license: CC-BY-4.0
 
 The styles that come with the plugin are in `xp_gliding/assets/clouds/`, `standard` first, made
-by `tools/make_cloud_objs.py`. The pilot's own go in `Output/xp-gliding/cloud-styles/` under
-X-Plane's folder, which a new version of the plugin does not replace. A style only changes how
+by `tools/make_cloud_objs.py`. The pilot's own go in `xp-gliding-cloud-styles/`, beside the
+plugin in `Resources/plugins/PythonPlugins/`, which a new version of the plugin does not replace:
+updating deletes the `xp_gliding` folder first. XPPython3 loads only the `PI_*.py` files there,
+so the folder is only ever read by this plugin. A style only changes how
 the clouds look: where they are, how big, how high and how long they live stay the engine's,
 through the instance's rate and scale datarefs (`clouds.py`). How to make one is in
 `docs/cloud-styles.md`.
@@ -25,7 +27,7 @@ import unicodedata
 OBJECT_FILE = "cumulus.obj"
 INFO_FILE = "style.txt"
 DEFAULT_STYLE = "standard"
-OWN_FOLDER = "cloud-styles"  # under Output/xp-gliding/
+OWN_FOLDER = "xp-gliding-cloud-styles"  # beside the xp_gliding package
 MAX_STYLES = 40  # more than a menu can show well; the rest are left out, and the log says so
 MAX_LABEL = 60
 MAX_INFO_BYTES = 4096
@@ -39,7 +41,7 @@ class CloudStyle:
     def __init__(self, key, folder, own, name=None, author="", license=""):
         self.key = key
         self.folder = folder
-        self.own = own  # the pilot's, from Output/xp-gliding/cloud-styles/
+        self.own = own  # the pilot's, from xp-gliding-cloud-styles/
         self.name = name or key
         self.author = author
         self.license = license

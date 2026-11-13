@@ -25,10 +25,11 @@ INSTALLING
 ----------
 
 1. Close X-Plane.
-2. From this folder, copy these two items:
+2. From this folder, copy these three items:
 
        PI_xp_gliding.py
-       xp_gliding          (the whole folder)
+       xp_gliding                (the whole folder)
+       xp-gliding-cloud-styles   (the folder for cloud styles of your own)
 
    into:
 
@@ -38,10 +39,12 @@ INSTALLING
 3. Start X-Plane. The menu Plugins > XP-Gliding should be there.
 
 Updating from an earlier version: delete the old xp_gliding folder first,
-then copy the new one. Your settings are kept.
+then copy the new one. Your settings are kept. Leave xp-gliding-cloud-styles
+as it is, or copy the new one over it: your styles in it are kept.
 
-Removing: delete PI_xp_gliding.py and the xp_gliding folder. Your settings are
-in X-Plane 12/Output/xp-gliding/config.json, which can be deleted too.
+Removing: delete PI_xp_gliding.py, the xp_gliding folder and the
+xp-gliding-cloud-styles folder. Your settings are in
+X-Plane 12/Output/xp-gliding/config.json, which can be deleted too.
 
 
 A FIRST FLIGHT

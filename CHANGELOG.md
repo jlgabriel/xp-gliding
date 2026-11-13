@@ -4,7 +4,7 @@ What changes for a pilot in each version. Each release on [GitHub](https://githu
 
 ## Unreleased
 
-- **Cloud styles.** *Plugins → XP-Gliding → Cloud style* chooses how the cumulus look, as a livery does for an aircraft. The plugin comes with *Standard*, today's clouds. Styles of your own go in `X-Plane 12/Output/xp-gliding/cloud-styles/`, which a new version of the plugin leaves alone, and show in the menu after a restart. A style changes only the look: where the clouds are, how big, how high and how long they live, and so what they say about their thermals, are the same with every style. A style that cannot be loaded gives *Standard*. How to make one, starting from a new texture: [Cloud styles](docs/cloud-styles.md).
+- **Cloud styles.** *Plugins → XP-Gliding → Cloud style* chooses how the cumulus look, as a livery does for an aircraft. The plugin comes with *Standard*, today's clouds. Styles of your own go in `xp-gliding-cloud-styles`, a folder the zip now brings, to copy beside the plugin in `Resources/plugins/PythonPlugins/`; a new version of the plugin leaves it alone, and they show in the menu after a restart. A style changes only the look: where the clouds are, how big, how high and how long they live, and so what they say about their thermals, are the same with every style. A style that cannot be loaded gives *Standard*. How to make one, starting from a new texture: [Cloud styles](docs/cloud-styles.md).
 
 ## 0.9.2 — 2026-11-13
 

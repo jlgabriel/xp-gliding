@@ -68,6 +68,7 @@ DATA = {
 }
 
 
+OWN_STYLES = "xp-gliding-cloud-styles"  # in the fake X-Plane's folder, for the pilot's cloud styles
 ADAPTER_MODULES = ("xp_gliding.adapter.xpio", "xp_gliding.adapter.hud", "xp_gliding.adapter.styles",
                    "xp_gliding.adapter.plugin")
 
@@ -227,6 +228,8 @@ def run_plugin(tmp_path, monkeypatch):
     for mod in ADAPTER_MODULES:
         sys.modules.pop(mod, None)
     plugin_mod = importlib.import_module("xp_gliding.adapter.plugin")
+    # Beside the package would be the repository: the pilot's styles go under X-Plane's fake folder.
+    plugin_mod.OWN_STYLES = str(tmp_path / OWN_STYLES)
     pi = plugin_mod.PythonInterface()
     pi.XPluginStart()
     pi.XPluginEnable()
@@ -2444,14 +2447,13 @@ def test_good_and_bad_areas_are_on_by_default_and_the_menu_switches_them(plugin)
 # --- cloud styles --------------------------------------------------------------------------
 
 STANDARD = os.path.join(os.path.dirname(os.path.dirname(__file__)), "xp_gliding", "assets", "clouds", "standard")
-OWN_STYLES = ("Output", "xp-gliding", "cloud-styles")
 
 
 @pytest.fixture
 def styled(tmp_path, monkeypatch):
     """The plugin with two styles of the pilot's: soft, a copy of the standard one, and broken,
     which X-Plane will not load."""
-    own = tmp_path.joinpath(*OWN_STYLES)
+    own = tmp_path / OWN_STYLES
     for key, lines in (("soft", ["name: Soft cumulus", "author: Ana Pérez"]), ("broken", ["name: Broken"])):
         shutil.copytree(STANDARD, own / key)
         (own / key / "style.txt").write_text("".join(line + chr(10) for line in lines), encoding="utf-8")
@@ -2469,7 +2471,7 @@ def test_the_standard_style_is_drawn_and_ticked_and_its_folder_for_the_pilot_is_
     assert checked(xp, "Cloud style") == ["Standard"]
     first_clouds(pi, data)
     assert all(p.endswith("xp_gliding/assets/clouds/standard") for p in drawn_from(xp))
-    assert os.path.isdir(os.path.join(xp.getSystemPath(), *OWN_STYLES))
+    assert os.path.isdir(os.path.join(xp.getSystemPath(), OWN_STYLES))
 
 
 def test_a_pilots_style_is_listed_drawn_ticked_and_saved_and_back(styled):
@@ -2482,7 +2484,7 @@ def test_a_pilots_style_is_listed_drawn_ticked_and_saved_and_back(styled):
     assert not xp.instances and not xp.objects  # the old clouds and their object went at once
     assert saved(pi)["cloud_style"] == "soft"
     first_clouds(pi, data)
-    assert drawn_from(xp) == {"Output/xp-gliding/cloud-styles/soft"}
+    assert drawn_from(xp) == {"xp-gliding-cloud-styles/soft"}
     assert checked(xp, "Cloud style") == ["Soft cumulus, by Ana Perez"]
     assert not standard & set(xp.instances)
     choose(xp, "Cloud style", "Standard")
@@ -2516,7 +2518,7 @@ def test_a_style_chosen_while_another_loads_is_the_one_drawn(styled):
     xp.deliveries.pop()()
     xp.deliveries = None
     first_clouds(pi, data)
-    assert drawn_from(xp) == {"Output/xp-gliding/cloud-styles/soft"}
+    assert drawn_from(xp) == {"xp-gliding-cloud-styles/soft"}
 
 
 def test_a_chosen_style_that_is_gone_draws_the_standard_one_and_is_kept(tmp_path, monkeypatch, capsys):
@@ -2555,4 +2557,4 @@ def test_the_next_style_after_one_that_failed_is_the_one_after_it(styled):
     handler("xp_gliding/clouds/style/next", xp.CommandBegin, refcon)
     first_clouds(pi, data)
     assert pi.settings.cloud_style == "soft"
-    assert drawn_from(xp) == {"Output/xp-gliding/cloud-styles/soft"}
+    assert drawn_from(xp) == {"xp-gliding-cloud-styles/soft"}

@@ -6,7 +6,7 @@ A cloud style sets how XP-Gliding's cumulus look, the way a livery sets how an a
 
 ## Installing a style
 
-A style is a folder. Put it in `X-Plane 12/Output/xp-gliding/cloud-styles/`. The plugin makes that folder the first time it starts. A new version of the plugin does not touch that folder, so your styles survive updates. Restart X-Plane, and the style is in the menu.
+A style is a folder. Put it in `X-Plane 12/Resources/plugins/PythonPlugins/xp-gliding-cloud-styles/`, beside the plugin's `xp_gliding` folder. The plugin's zip brings that folder, and the plugin makes it if it is missing. Updating the plugin replaces only `xp_gliding` and `PI_xp_gliding.py`, so your styles survive updates. Restart X-Plane, and the style is in the menu.
 
 The styles that come with the plugin are in `xp_gliding/assets/clouds/`. *Standard* is the default. A style of your own with the same folder name as one of the plugin's is left out.
 
@@ -15,7 +15,7 @@ If a style cannot be loaded, the clouds are drawn with *Standard* and the log, `
 ## What a style holds
 
 ```
-cloud-styles/
+xp-gliding-cloud-styles/
   my-style/
     cumulus.obj    the object each cloud is an instance of (required)
     cumulus.pss    its particle system, named in cumulus.obj
@@ -37,7 +37,7 @@ The menu shows "Soft cumulus, by Your name". Without the file, it shows the fold
 
 The simplest style is a copy of *Standard* with a new texture, the way a livery is a new paint on the same model.
 
-1. Copy `xp_gliding/assets/clouds/standard/` to `Output/xp-gliding/cloud-styles/my-style/`.
+1. Copy `xp_gliding/assets/clouds/standard/` to `xp-gliding-cloud-styles/my-style/`, both in `PythonPlugins/`.
 2. Edit `style.txt`.
 3. Repaint `cumulus.png`.
 4. Restart X-Plane and choose *my-style* in the menu.

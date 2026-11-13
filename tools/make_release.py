@@ -5,7 +5,8 @@ Usage:
 
 Writes `dist/xp-gliding-<version>.zip` with one folder inside, `xp-gliding-<version>/`,
 holding what a pilot copies into `Resources/plugins/PythonPlugins/`
-(`PI_xp_gliding.py` and the `xp_gliding` package, without caches) and, beside them,
+(`PI_xp_gliding.py`, the `xp_gliding` package, without caches, and `xp-gliding-cloud-styles/`,
+the folder for the pilot's own cloud styles, holding only a README.txt that says so) and, beside them,
 `README.txt` (how to install it) and `LICENSE`. The tools, tests, notes and the
 flight logger stay out. The version is `xp_gliding.__version__`.
 
@@ -26,6 +27,8 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENTRY = "PI_xp_gliding.py"
 PACKAGE = "xp_gliding"
 README = os.path.join(REPO, "tools", "release", "README.txt")
+STYLES_FOLDER = "xp-gliding-cloud-styles"  # xp_gliding.adapter.styles.OWN_FOLDER
+STYLES_README = os.path.join(REPO, "tools", "release", "cloud-styles-README.txt")
 SKIP_DIRS = {"__pycache__"}
 SKIP_EXT = (".pyc", ".pyo")
 
@@ -54,11 +57,20 @@ def package_files():
 
 def uncommitted():
     """What goes into the zip and differs from the last commit, or is not tracked: git's lines."""
-    paths = [ENTRY, PACKAGE, "LICENSE", os.path.relpath(README, REPO)]
+    paths = [ENTRY, PACKAGE, "LICENSE", os.path.relpath(README, REPO), os.path.relpath(STYLES_README, REPO)]
     result = subprocess.run(["git", "status", "--porcelain", "--untracked-files=all", "--", *paths],
                             cwd=REPO, capture_output=True, text=True, check=True)
     return [line for line in result.stdout.splitlines()
             if "__pycache__" not in line and not line.endswith(SKIP_EXT)]
+
+
+def windows_text(path, ver=None):
+    """A text file with Windows line endings, so that Notepad shows it as written; {version} filled in."""
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    if ver is not None:
+        text = text.replace("{version}", ver)
+    return text.replace("\r\n", "\n").replace("\n", "\r\n")
 
 
 def build(out_dir):
@@ -66,17 +78,15 @@ def build(out_dir):
     top = f"xp-gliding-{ver}"
     os.makedirs(out_dir, exist_ok=True)
     target = os.path.join(out_dir, top + ".zip")
-    with open(README, encoding="utf-8") as f:
-        readme = f.read().replace("{version}", ver)
     count = 0
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as z:
-        # Windows line endings, so that Notepad shows the text as written.
-        z.writestr(f"{top}/README.txt", readme.replace("\r\n", "\n").replace("\n", "\r\n"))
+        z.writestr(f"{top}/README.txt", windows_text(README, ver))
         z.write(os.path.join(REPO, "LICENSE"), f"{top}/LICENSE")
         for path, name in package_files():
             z.write(path, f"{top}/{name}")
             count += 1
-    print(f"wrote {target}: {count} plugin files, README.txt and LICENSE")
+        z.writestr(f"{top}/{STYLES_FOLDER}/README.txt", windows_text(STYLES_README))
+    print(f"wrote {target}: {count} plugin files, {STYLES_FOLDER}/README.txt, README.txt and LICENSE")
     return target
 
 

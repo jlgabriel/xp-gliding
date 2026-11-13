@@ -26,3 +26,23 @@ def test_the_changelog_has_the_version_or_it_is_unreleased():
     headings = re.findall(r"^## (.+)$", read("CHANGELOG.md"), flags=re.MULTILINE)
     released = [h.split(" ")[0] for h in headings if h != "Unreleased"]
     assert released[0] == __version__, "the newest released heading is the package's version"
+
+
+def test_the_zip_brings_the_folder_for_the_pilots_cloud_styles(tmp_path):
+    import sys
+    import zipfile
+    sys.path.insert(0, os.path.join(REPO, "tools"))
+    try:
+        import make_release
+    finally:
+        sys.path.pop(0)
+    from xp_gliding.adapter.styles import OWN_FOLDER
+    assert make_release.STYLES_FOLDER == OWN_FOLDER
+    top = f"xp-gliding-{__version__}"
+    with zipfile.ZipFile(make_release.build(str(tmp_path))) as z:
+        names = set(z.namelist())
+        readme = z.read(f"{top}/{OWN_FOLDER}/README.txt").decode("utf-8")
+    assert {f"{top}/PI_xp_gliding.py", f"{top}/xp_gliding/assets/clouds/standard/cumulus.obj",
+            f"{top}/README.txt", f"{top}/LICENSE"} <= names
+    assert [n for n in names if f"/{OWN_FOLDER}/" in n] == [f"{top}/{OWN_FOLDER}/README.txt"]
+    assert "Cloud style" in readme and readme.count("\r\n") == readme.count("\n")

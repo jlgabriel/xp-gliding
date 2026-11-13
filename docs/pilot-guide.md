@@ -12,14 +12,14 @@ How to install XP-Gliding, make a first flight and read its sky. This guide is f
 
 1. Download `xp-gliding-0.9.2.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
 2. Close X-Plane.
-3. From the unzipped folder, copy `PI_xp_gliding.py` and the whole `xp_gliding` folder into `X-Plane 12/Resources/plugins/PythonPlugins/`. The two must sit side by side there. `README.txt` and `LICENSE` do not need to be copied.
+3. From the unzipped folder, copy `PI_xp_gliding.py`, the whole `xp_gliding` folder and the `xp-gliding-cloud-styles` folder into `X-Plane 12/Resources/plugins/PythonPlugins/`. They must sit side by side there. The last one is for cloud styles of your own, and the plugin makes it if it is missing. `README.txt` and `LICENSE` do not need to be copied.
 4. Start X-Plane. *Plugins → XP-Gliding* appears in the menu.
 
 The plugin comes ready to fly: no file to edit, and nothing to set in X-Plane's thermal settings. It holds X-Plane's own thermal rate at 0 while it is active and puts it back afterwards.
 
-**Updating:** delete the old `xp_gliding` folder first, then copy the new one, so that no old file is left behind. Your settings and your cloud styles are kept.
+**Updating:** delete the old `xp_gliding` folder first, then copy the new one, so that no old file is left behind. Your settings are kept, and so are your cloud styles in the `xp-gliding-cloud-styles` folder beside it: leave that one as it is, or copy the new one over it.
 
-**Removing:** delete `PI_xp_gliding.py` and the `xp_gliding` folder. Your settings are in `X-Plane 12/Output/xp-gliding/config.json` and your cloud styles in `X-Plane 12/Output/xp-gliding/cloud-styles/`, which can be deleted too.
+**Removing:** delete `PI_xp_gliding.py` and the `xp_gliding` folder. Your cloud styles are in `xp-gliding-cloud-styles`, beside them, and your settings in `X-Plane 12/Output/xp-gliding/config.json`; both can be deleted too.
 
 ## A first flight
 

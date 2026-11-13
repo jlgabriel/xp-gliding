@@ -82,7 +82,10 @@ MAX_RESTARTS = 3  # errors in the flight loop after which it is not started agai
 PLACED_GRACE_S = 15.0  # after putting the glider near a cloud, a new flight's message keeps the sky
 ENABLED_LABEL = "Enabled"
 CLOUD_STYLE_TITLE = "Cloud style"
-CLOUD_STYLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "clouds")
+PACKAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CLOUD_STYLES = os.path.join(PACKAGE_DIR, "assets", "clouds")
+# The pilot's cloud styles, beside the package in PythonPlugins/ (`styles.py`).
+OWN_STYLES = os.path.join(os.path.dirname(PACKAGE_DIR), OWN_FOLDER)
 AUDIO_LABEL = "X-Plane's audio vario"
 # Said when a day is chosen while the cloud base comes from X-Plane's weather, which sets its zi.
 DAY_WEATHER_NOTE = ("the cloud base comes from X-Plane's weather, so the day's height is not used; "
@@ -279,7 +282,7 @@ class PythonInterface:
         self.status = Status()
         self.markers = TrainingMarkers(SkyObjects(), lambda text: print(f"{TAG} {text}"))
         standard = os.path.join(CLOUD_STYLES, DEFAULT_STYLE, OBJECT_FILE)
-        self.styles = self.find_cloud_styles(os.path.join(folder, OWN_FOLDER))
+        self.styles = self.find_cloud_styles(OWN_STYLES)
         style = style_named(self.styles, self.settings.cloud_style)
         self.clouds = CumulusClouds(SkyObjects(), standard if style is None else style.object_path,
                                     lambda text: print(f"{TAG} {text}"), fallback_path=standard)
