@@ -192,6 +192,17 @@ class SkyObjects:
         xp.loadObjectAsync(f"{self.folder}/{name}.obj", loaded, name)
 
     @staticmethod
+    def load_file_async(path, loaded):
+        """The object at this full path, as load_async: loaded(reference or None, path). A path
+        X-Plane cannot reach, on another drive, gets None at once."""
+        try:
+            relative = os.path.relpath(path, xp.getSystemPath()).replace(os.sep, "/")
+        except ValueError:
+            loaded(None, path)
+            return
+        xp.loadObjectAsync(relative, loaded, path)
+
+    @staticmethod
     def unload(obj):
         xp.unloadObject(obj)
 

@@ -17,9 +17,9 @@ How to install XP-Gliding, make a first flight and read its sky. This guide is f
 
 The plugin comes ready to fly: no file to edit, and nothing to set in X-Plane's thermal settings. It holds X-Plane's own thermal rate at 0 while it is active and puts it back afterwards.
 
-**Updating:** delete the old `xp_gliding` folder first, then copy the new one, so that no old file is left behind. Your settings are kept.
+**Updating:** delete the old `xp_gliding` folder first, then copy the new one, so that no old file is left behind. Your settings and your cloud styles are kept.
 
-**Removing:** delete `PI_xp_gliding.py` and the `xp_gliding` folder. Your settings are in `X-Plane 12/Output/xp-gliding/config.json`, which can be deleted too.
+**Removing:** delete `PI_xp_gliding.py` and the `xp_gliding` folder. Your settings are in `X-Plane 12/Output/xp-gliding/config.json` and your cloud styles in `X-Plane 12/Output/xp-gliding/cloud-styles/`, which can be deleted too.
 
 ## A first flight
 
@@ -88,10 +88,11 @@ Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next
 | Depth of the thermal layer (zi) | How high they go, and so the height of the clouds: in the afternoon, with *Daily cycle* on. 2000 m by default | |
 | Seed of the sky | Another arrangement of thermals | |
 | Units on the HUD | Metric (m/s and m, the default) or aviation (knots and feet). The wind is in knots with both | |
+| Cloud style | How the cumulus look, as a livery for the sky: *Standard* and any style you install. Only the look changes, never where the clouds are or what they say about their thermals. See [Cloud styles](cloud-styles.md). The command, not in the menu, steps to the next style, for a key to compare them | `xp_gliding/clouds/style/next` |
 
 Markers appear for up to 20 thermals within 3 km with at least 1.5 m/s at the core. The colour shows the lift at the core at your height: pale below 2 m/s, yellow from 2, orange from 3, and red from 4.
 
-Choosing another sky, seed or depth in flight replaces the clouds at once, and new ones fill in.
+Choosing another sky, seed, depth or cloud style in flight replaces the clouds at once, and new ones fill in.
 
 The menu's last line, greyed out, says what the plugin is doing: how many thermals are within reach and the depth of the day in use (with *Daily cycle* on, the depth now and the afternoon's), or why there are none.
 

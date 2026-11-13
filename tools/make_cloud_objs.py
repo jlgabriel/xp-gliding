@@ -1,4 +1,4 @@
-"""Generate the cumulus object, particle system and texture: xp_gliding/assets/clouds/.
+"""Generate the standard cloud style: xp_gliding/assets/clouds/standard/.
 
 Usage:
     python tools/make_cloud_objs.py
@@ -46,9 +46,13 @@ import numpy as np
 from PIL import Image
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT_DIR = os.path.join(REPO, "xp_gliding", "assets", "clouds")
+OUT_DIR = os.path.join(REPO, "xp_gliding", "assets", "clouds", "standard")
 
 NAME = "cumulus"
+# What the menu's *Cloud style* shows for it (`xp_gliding/adapter/styles.py`).
+STYLE_TEXT = """name: Standard
+license: GPL-3.0-or-later
+"""
 RATE_DATAREF = "xp_gliding/clouds/rate"
 SCALE_DATAREF = "xp_gliding/clouds/scale"
 
@@ -441,7 +445,8 @@ def outputs():
     pss = system(NAME, particles(), emitter(NAME, rate_rows, 0, 1, [RATE_DATAREF, SCALE_DATAREF]))
     return {f"{NAME}.png": png_bytes(texture()),
             f"{NAME}.pss": pss.encode("ascii"),
-            f"{NAME}.obj": object_text(NAME, NAME).encode("ascii")}
+            f"{NAME}.obj": object_text(NAME, NAME).encode("ascii"),
+            "style.txt": STYLE_TEXT.encode("ascii")}
 
 
 def main():
@@ -449,7 +454,7 @@ def main():
     for name, data in outputs().items():
         with open(os.path.join(OUT_DIR, name), "wb") as f:
             f.write(data)
-    print(f"wrote {NAME}.* to {OUT_DIR}")
+    print(f"wrote {NAME}.* and style.txt to {OUT_DIR}")
 
 
 if __name__ == "__main__":

@@ -2,6 +2,10 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## Unreleased
+
+- **Cloud styles.** *Plugins → XP-Gliding → Cloud style* chooses how the cumulus look, as a livery does for an aircraft. The plugin comes with *Standard*, today's clouds. Styles of your own go in `X-Plane 12/Output/xp-gliding/cloud-styles/`, which a new version of the plugin leaves alone, and show in the menu after a restart. A style changes only the look: where the clouds are, how big, how high and how long they live, and so what they say about their thermals, are the same with every style. A style that cannot be loaded gives *Standard*. How to make one, starting from a new texture: [Cloud styles](docs/cloud-styles.md).
+
 ## 0.9.2 — 2026-11-13
 
 - **Smaller cumulus.** Every cloud is drawn at 70 % of its former size: a typical one is now about 850 m wide and 420 m tall, from about 1.2 km and 600 m, and the largest no bigger than a typical one was. A cloud is closer to the width of the lift under it, and there is more blue sky between clouds, so neighbours run together less. Their look, number, place, life and lift are unchanged.

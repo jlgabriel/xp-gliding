@@ -10,6 +10,8 @@ import importlib
 import itertools
 import json
 import math
+import os
+import shutil
 import sys
 import types
 
@@ -66,7 +68,7 @@ DATA = {
 }
 
 
-ADAPTER_MODULES = ("xp_gliding.adapter.xpio", "xp_gliding.adapter.hud",
+ADAPTER_MODULES = ("xp_gliding.adapter.xpio", "xp_gliding.adapter.hud", "xp_gliding.adapter.styles",
                    "xp_gliding.adapter.plugin")
 
 
@@ -218,8 +220,7 @@ def make_fake_xp(tmp_path, data):
     return xp
 
 
-@pytest.fixture
-def plugin(tmp_path, monkeypatch):
+def run_plugin(tmp_path, monkeypatch):
     data = dict(DATA)
     xp = make_fake_xp(tmp_path, data)
     monkeypatch.setitem(sys.modules, "xp", xp)
@@ -235,6 +236,11 @@ def plugin(tmp_path, monkeypatch):
     assert not xp.instances and not xp.objects  # nothing left behind
     for mod in ADAPTER_MODULES:
         sys.modules.pop(mod, None)
+
+
+@pytest.fixture
+def plugin(tmp_path, monkeypatch):
+    yield from run_plugin(tmp_path, monkeypatch)
 
 
 def dataref(xp, name, value=None):
@@ -888,7 +894,7 @@ def test_clouds_are_on_by_default_and_fill_the_sky_over_many_updates(plugin):
     count = dataref(xp, "clouds/count")
     idle = dataref(xp, "clouds/pool_idle")  # made in advance for the near rings
     assert count > 40 and len(xp.instances) == count + idle == dataref(xp, "clouds/created")
-    assert all("xp_gliding/assets/clouds/cumulus.obj" in p for p in xp.objects.values())
+    assert all("xp_gliding/assets/clouds/standard/cumulus.obj" in p for p in xp.objects.values())
     assert set(xp.instances) == xp.shifted
     assert dataref(xp, "clouds/nearest_m") >= 0.0
     heights = pi.clouds.heights
@@ -1605,7 +1611,7 @@ def test_the_menu_is_in_the_order_of_the_pilot_guide(plugin):
     assert labels[:-1] == ([label for label, _, _ in MENU_SWITCHES] + ["X-Plane's audio vario",
                                                                      "Treat this aircraft as a glider",
                                                                      "Put me near a cloud"]
-                           + ["Day"] + [title for title, _, _ in MENU_SUBMENUS])
+                           + ["Day"] + [title for title, _, _ in MENU_SUBMENUS] + ["Cloud style"])
     assert labels[-1] == status_line(xp)  # the status line closes it
 
 
@@ -2433,3 +2439,120 @@ def test_good_and_bad_areas_are_on_by_default_and_the_menu_switches_them(plugin)
     assert not pi.settings.areas_enabled and pi.injector.field.config.areas is None
     assert (dataref(xp, "day/area_quality"), dataref(xp, "day/area_density"),
             dataref(xp, "day/area_strength")) == (0.0, 1.0, 1.0)
+
+
+# --- cloud styles --------------------------------------------------------------------------
+
+STANDARD = os.path.join(os.path.dirname(os.path.dirname(__file__)), "xp_gliding", "assets", "clouds", "standard")
+OWN_STYLES = ("Output", "xp-gliding", "cloud-styles")
+
+
+@pytest.fixture
+def styled(tmp_path, monkeypatch):
+    """The plugin with two styles of the pilot's: soft, a copy of the standard one, and broken,
+    which X-Plane will not load."""
+    own = tmp_path.joinpath(*OWN_STYLES)
+    for key, lines in (("soft", ["name: Soft cumulus", "author: Ana Pérez"]), ("broken", ["name: Broken"])):
+        shutil.copytree(STANDARD, own / key)
+        (own / key / "style.txt").write_text("".join(line + chr(10) for line in lines), encoding="utf-8")
+    yield from run_plugin(tmp_path, monkeypatch)
+
+
+def drawn_from(xp):
+    """The folders of the cloud objects loaded, as X-Plane was given them."""
+    return {path.rsplit("/", 1)[0] for path in xp.objects.values()}
+
+
+def test_the_standard_style_is_drawn_and_ticked_and_its_folder_for_the_pilot_is_made(plugin):
+    pi, xp, data = plugin
+    assert [name for name, _ in xp.menus["Cloud style"]["items"]] == ["Standard"]
+    assert checked(xp, "Cloud style") == ["Standard"]
+    first_clouds(pi, data)
+    assert all(p.endswith("xp_gliding/assets/clouds/standard") for p in drawn_from(xp))
+    assert os.path.isdir(os.path.join(xp.getSystemPath(), *OWN_STYLES))
+
+
+def test_a_pilots_style_is_listed_drawn_ticked_and_saved_and_back(styled):
+    pi, xp, data = styled
+    assert [name for name, _ in xp.menus["Cloud style"]["items"]] == [
+        "Standard", "Broken", "Soft cumulus, by Ana Perez"]
+    first_clouds(pi, data)
+    standard = {instance for instance in xp.instances}
+    choose(xp, "Cloud style", "Soft cumulus, by Ana Perez")
+    assert not xp.instances and not xp.objects  # the old clouds and their object went at once
+    assert saved(pi)["cloud_style"] == "soft"
+    first_clouds(pi, data)
+    assert drawn_from(xp) == {"Output/xp-gliding/cloud-styles/soft"}
+    assert checked(xp, "Cloud style") == ["Soft cumulus, by Ana Perez"]
+    assert not standard & set(xp.instances)
+    choose(xp, "Cloud style", "Standard")
+    first_clouds(pi, data)
+    assert all(p.endswith("xp_gliding/assets/clouds/standard") for p in drawn_from(xp))
+    assert checked(xp, "Cloud style") == ["Standard"] and saved(pi)["cloud_style"] == "standard"
+
+
+def test_a_style_that_does_not_load_gives_the_standard_one_and_the_choice_stays(styled, capsys):
+    pi, xp, data = styled
+    xp.bad_object = "cloud-styles/broken"
+    choose(xp, "Cloud style", "Broken")
+    first_clouds(pi, data)
+    assert all(p.endswith("xp_gliding/assets/clouds/standard") for p in drawn_from(xp))
+    assert "the standard style instead" in capsys.readouterr().out
+    pi.refresh_menu()
+    assert checked(xp, "Cloud style") == ["Standard"]  # what is drawn
+    assert saved(pi)["cloud_style"] == "broken"  # what was chosen, for when it is mended
+    assert not pi.clouds.failed
+
+
+def test_a_style_chosen_while_another_loads_is_the_one_drawn(styled):
+    pi, xp, data = styled
+    xp.deliveries = []
+    clouds_tick(pi, data)
+    assert len(xp.deliveries) == 1  # the standard object, on its way
+    choose(xp, "Cloud style", "Soft cumulus, by Ana Perez")
+    xp.deliveries.pop()()
+    assert not xp.objects  # it came after the change: unloaded at once
+    clouds_tick(pi, data)
+    xp.deliveries.pop()()
+    xp.deliveries = None
+    first_clouds(pi, data)
+    assert drawn_from(xp) == {"Output/xp-gliding/cloud-styles/soft"}
+
+
+def test_a_chosen_style_that_is_gone_draws_the_standard_one_and_is_kept(tmp_path, monkeypatch, capsys):
+    folder = tmp_path / "Output" / "xp-gliding"
+    folder.mkdir(parents=True)
+    (folder / "config.json").write_text(json.dumps({"cloud_style": "gone"}), encoding="utf-8")
+    run = run_plugin(tmp_path, monkeypatch)
+    pi, xp, data = next(run)
+    assert "cloud style 'gone' not found; drawing standard" in capsys.readouterr().out
+    first_clouds(pi, data)
+    assert all(p.endswith("xp_gliding/assets/clouds/standard") for p in drawn_from(xp))
+    assert pi.settings.cloud_style == "gone" and checked(xp, "Cloud style") == ["Standard"]
+    next(run, None)
+
+
+def test_the_next_style_command_goes_round_the_styles_and_saves(styled):
+    pi, xp, data = styled
+    handler, refcon = xp.handlers["xp_gliding/clouds/style/next"]
+    seen = []
+    for _ in range(4):
+        handler("xp_gliding/clouds/style/next", xp.CommandBegin, refcon)
+        seen.append(checked(xp, "Cloud style")[0])
+        assert saved(pi)["cloud_style"] == pi.settings.cloud_style
+    assert seen == ["Broken", "Soft cumulus, by Ana Perez", "Standard", "Broken"]
+
+
+def test_the_next_style_after_one_that_failed_is_the_one_after_it(styled):
+    # Seen in X-Plane 12.4.3 (2026-11-13): counted from the style drawn, the standard one, the
+    # command chose the broken style again and never got past it.
+    pi, xp, data = styled
+    xp.bad_object = "cloud-styles/broken"
+    handler, refcon = xp.handlers["xp_gliding/clouds/style/next"]
+    handler("xp_gliding/clouds/style/next", xp.CommandBegin, refcon)
+    first_clouds(pi, data)
+    assert pi.settings.cloud_style == "broken" and checked(xp, "Cloud style") == ["Standard"]
+    handler("xp_gliding/clouds/style/next", xp.CommandBegin, refcon)
+    first_clouds(pi, data)
+    assert pi.settings.cloud_style == "soft"
+    assert drawn_from(xp) == {"Output/xp-gliding/cloud-styles/soft"}

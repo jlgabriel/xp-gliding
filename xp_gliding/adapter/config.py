@@ -36,6 +36,9 @@ DEFAULTS = {
     "helix_enabled": True,  # cancel the climbing-turn overbanking of the energy force
     "markers_enabled": False,  # training mode: draw a ring and a column over nearby thermals
     "clouds_enabled": True,  # cumulus over the thermals that carry one
+    # How the cumulus look: a style's folder name (`styles.py`). One that is not there, removed
+    # since, say, is drawn as the standard style and kept, for when it is back.
+    "cloud_style": "standard",
     "blue_day": False,  # a blue day: the thermals that would carry a cloud climb as usual, with none
     "hud_enabled": True,  # soaring HUD: vario, netto, average, height to the top, centring aid
     "hud_units": "metric",  # a name in UNIT_NAMES: the HUD's vario in m/s and TOP in m, or knots and feet
@@ -168,6 +171,8 @@ def _checked(key, value):
         return None
     if key in NAMES:
         return (value, False) if isinstance(value, str) and value in NAMES[key] else None
+    if isinstance(default, str):  # a folder's name
+        return (value, False) if isinstance(value, str) and value.strip() and len(value) <= 200 else None
     try:
         number = type(default)(value)
     except (TypeError, ValueError, OverflowError):

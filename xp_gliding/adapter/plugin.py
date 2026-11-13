@@ -19,7 +19,9 @@ and the loop starts again from a clean state with a new flight or aircraft, or w
 unticks and ticks Enabled, up to MAX_RESTARTS times; after that only re-enabling the plugin does.
 
 The Plugins > XP-Gliding menu has the switches below, and submenus to choose the sky, the
-day, by name (`config.DAYS`) or one setting at a time, and the HUD's units (`config.MENU_CHOICES`). What is chosen there is saved to `config.json`. Its last item,
+day, by name (`config.DAYS`) or one setting at a time, and the HUD's units (`config.MENU_CHOICES`),
+and the clouds' style, from the styles found when the plugin starts (`styles.py`). What is chosen
+there is saved to `config.json`. Its last item,
 greyed out, says what the plugin is doing and, when there are no thermals, why (`status_line`).
 
 Commands (also in the menu):
@@ -42,6 +44,8 @@ Commands (also in the menu):
                                by its .acf name in `also_gliders`
   xp_gliding/airstart/near_cloud  put the glider in the air near a cloud worth flying to
                                (`engine/airstart.py`)
+  xp_gliding/clouds/style/next  the next cloud style, as the Cloud style submenu would choose
+                               it: for a key, to compare styles (not in the menu)
 
 Datarefs (`xp_gliding/...`, see DATAREFS): settings and debug modes are
 writable, so the flight logger and the test pilot can read what the adapter
@@ -67,6 +71,7 @@ from ..engine.shade import RAIN_OFF
 from .clouds import CumulusClouds
 from .hud import Hud
 from .markers import TrainingMarkers
+from .styles import DEFAULT_STYLE, OBJECT_FILE, OWN_FOLDER, find_styles, style_named
 from .xpio import SkyObjects, XPlaneIO
 
 SLOW_PERIOD_S = 1.0
@@ -76,6 +81,8 @@ TAG = "[xp-gliding]"
 MAX_RESTARTS = 3  # errors in the flight loop after which it is not started again
 PLACED_GRACE_S = 15.0  # after putting the glider near a cloud, a new flight's message keeps the sky
 ENABLED_LABEL = "Enabled"
+CLOUD_STYLE_TITLE = "Cloud style"
+CLOUD_STYLES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "clouds")
 AUDIO_LABEL = "X-Plane's audio vario"
 # Said when a day is chosen while the cloud base comes from X-Plane's weather, which sets its zi.
 DAY_WEATHER_NOTE = ("the cloud base comes from X-Plane's weather, so the day's height is not used; "
@@ -271,7 +278,11 @@ class PythonInterface:
         self.out = Injection()
         self.status = Status()
         self.markers = TrainingMarkers(SkyObjects(), lambda text: print(f"{TAG} {text}"))
-        self.clouds = CumulusClouds(SkyObjects("clouds"), lambda text: print(f"{TAG} {text}"))
+        standard = os.path.join(CLOUD_STYLES, DEFAULT_STYLE, OBJECT_FILE)
+        self.styles = self.find_cloud_styles(os.path.join(folder, OWN_FOLDER))
+        style = style_named(self.styles, self.settings.cloud_style)
+        self.clouds = CumulusClouds(SkyObjects(), standard if style is None else style.object_path,
+                                    lambda text: print(f"{TAG} {text}"), fallback_path=standard)
         self.injector.is_wet = self.clouds.sky.is_wet  # one probe for both
         self.injector.heights = self.clouds.heights
         self.hud = Hud(self.settings, lambda text: print(f"{TAG} {text}"))
@@ -355,6 +366,8 @@ class PythonInterface:
                                                "XP-Gliding: put the glider in the air near a cloud")
         xp.registerCommandHandler(self.near_cloud_cmd, self.on_near_cloud, 1, None)
         xp.appendMenuItemWithCommand(self.menu, "Put me near a cloud", self.near_cloud_cmd)
+        self.next_style_cmd = xp.createCommand("xp_gliding/clouds/style/next", "XP-Gliding: next cloud style")
+        xp.registerCommandHandler(self.next_style_cmd, self.on_next_style, 1, None)
         xp.appendMenuSeparator(self.menu)
         self.submenus = []  # (menu, setting, values, in the menu's order)
         # What each submenu item sets. An item carries only its place in this list: a tuple made
@@ -371,6 +384,13 @@ class PythonInterface:
                 xp.appendMenuItem(submenu, label, len(self.choices))
                 self.choices.append((attr, value))
             self.submenus.append((submenu, attr, tuple(value for _, value in options)))
+        if self.styles:
+            item = xp.appendMenuItem(self.menu, CLOUD_STYLE_TITLE, None)
+            submenu = xp.createMenu(CLOUD_STYLE_TITLE, self.menu, item, self.on_choice, None)
+            for style in self.styles:
+                xp.appendMenuItem(submenu, style.label, len(self.choices))
+                self.choices.append(("cloud_style", style.key))
+            self.submenus.append((submenu, "cloud_style", tuple(style.key for style in self.styles)))
         xp.appendMenuSeparator(self.menu)
         self.status_item = xp.appendMenuItem(self.menu, "Starting", None)
         xp.enableMenuItem(self.menu, self.status_item, 0)
@@ -387,6 +407,7 @@ class PythonInterface:
         xp.unregisterCommandHandler(self.audio_cmd, self.on_audio_toggle, 1, None)
         xp.unregisterCommandHandler(self.glider_cmd, self.on_glider_toggle, 1, None)
         xp.unregisterCommandHandler(self.near_cloud_cmd, self.on_near_cloud, 1, None)
+        xp.unregisterCommandHandler(self.next_style_cmd, self.on_next_style, 1, None)
         for submenu, _, _ in self.submenus:
             xp.destroyMenu(submenu)
         xp.destroyMenu(self.menu)
@@ -428,6 +449,51 @@ class PythonInterface:
                 self.injector.weather.reset(time.monotonic())
             self.hud.reset_instruments()
             self.next_slow = 0.0
+
+    # --- cloud styles ---------------------------------------------------------
+
+    def find_cloud_styles(self, own_folder):
+        """The plugin's cloud styles and the pilot's, once at start. The pilot's folder is made
+        if it is missing, so that it is there to put a style in."""
+        try:
+            os.makedirs(own_folder, exist_ok=True)
+        except OSError as exc:
+            print(f"{TAG} could not make {own_folder}: {exc}")
+        styles, notes = find_styles(CLOUD_STYLES, own_folder)
+        for note in notes:
+            print(f"{TAG} cloud styles: {note}")
+        print(f"{TAG} cloud styles: " + (", ".join(
+            f"{s.key}{' (yours)' if s.own else ''}" for s in styles) or "none found"))
+        style = style_named(styles, self.settings.cloud_style)
+        if style is not None and style.key != self.settings.cloud_style:
+            print(f"{TAG} cloud style {self.settings.cloud_style!r} not found; drawing {style.key}")
+        return styles
+
+    def use_cloud_style(self):
+        """The style chosen in the settings, from the clouds' next update."""
+        style = style_named(self.styles, self.settings.cloud_style)
+        if style is not None and self.clouds.set_style(style.object_path):
+            license = f", {style.license}" if style.license else ""
+            by = f" by {style.author}" if style.author else ""
+            print(f"{TAG} cloud style: {style.name}{by}{license} ({style.folder})")
+
+    def on_next_style(self, commandRef, phase, refcon):
+        """The style after the one chosen, back to the first after the last; saved as a menu choice."""
+        if phase == xp.CommandBegin and self.styles:
+            try:
+                # From the one chosen, not the one drawn: one that failed is drawn as the standard
+                # style, and the next after that would be the failed one again.
+                keys = [style.key for style in self.styles]
+                chosen = self.settings.cloud_style
+                at = chosen if chosen in keys else self.chosen("cloud_style")
+                key = keys[(keys.index(at) + 1) % len(keys)] if at in keys else keys[0]
+                self.settings.cloud_style = key
+                self.use_cloud_style()
+                self.refresh_menu()
+                self.save()
+            except Exception:
+                print(f"{TAG} error choosing the next cloud style, ignored:\n" + traceback.format_exc())
+        return 1
 
     # --- aircraft -----------------------------------------------------------
 
@@ -608,6 +674,8 @@ class PythonInterface:
             else:
                 self.settings.update({attr: value})
                 print(f"{TAG} {attr} = {getattr(self.settings, attr)}")
+            if attr == "cloud_style":
+                self.use_cloud_style()
             if self.settings.zi_m != zi and not self.settings.weather_base_enabled:
                 self.clouds.clear()
             self.next_slow = 0.0
@@ -657,9 +725,13 @@ class PythonInterface:
             xp.setMenuItemName(self.menu, self.status_item, text)
 
     def chosen(self, attr):
-        """What a submenu shows as chosen: a setting, or the place in DAYS of the day the settings
-        make (None, no tick, when they make none)."""
-        return day_index(self.settings) if attr == "day" else getattr(self.settings, attr)
+        """What a submenu shows as chosen: a setting, the place in DAYS of the day the settings
+        make (None, no tick, when they make none), or the cloud style drawn."""
+        if attr == "day":
+            return day_index(self.settings)
+        if attr == "cloud_style":  # the style drawn, which is the standard one if the chosen one failed
+            return next((s.key for s in self.styles if s.object_path == self.clouds.object_path), None)
+        return getattr(self.settings, attr)
 
     def refresh_menu(self):
         """The menu's ticks and greyed-out items. Called once a second too, since a dataref can

@@ -16,7 +16,7 @@ The emitters differ only in what drives their rate, which was one of the lab's q
 
 With --plugin it writes cuN_plugin.obj instead: the plugin's own assets as they are, driven
 by the plugin's rate and scale datarefs, so a look is seen exactly as it ships. With --rev
-they come from that git revision of `xp_gliding/assets/clouds/`, so an older look can stand
+they come from that git revision of the standard cloud style, so an older look can stand
 next to the new one (the lab keeps every version it has loaded).
 
 Measurement tool, not part of the plugin. License: GPL-3.0-or-later.
@@ -42,6 +42,16 @@ def pss(name, max_particles):
     return cloud.system(name, parts, emitters)
 
 
+def from_git(rev, name):
+    """A file of the plugin's cumulus at git revision `rev`: in `standard/` since the cloud styles,
+    in `xp_gliding/assets/clouds/` itself before."""
+    for folder in ("xp_gliding/assets/clouds/standard", "xp_gliding/assets/clouds"):
+        run = subprocess.run(["git", "show", f"{rev}:{folder}/{name}"], cwd=cloud.REPO, capture_output=True)
+        if run.returncode == 0:
+            return run.stdout
+    raise SystemExit(f"{name} is not in revision {rev}")
+
+
 def write_plugin(out_dir, version, rev=None):
     """The plugin's cumulus as cuN_plugin.obj, from the generator or from git revision `rev`."""
     name = f"cu{version}"
@@ -49,9 +59,7 @@ def write_plugin(out_dir, version, rev=None):
     if rev is None:
         files = cloud.outputs()
     else:
-        files = {f"{cloud.NAME}.{ext}": subprocess.run(
-            ["git", "show", f"{rev}:xp_gliding/assets/clouds/{cloud.NAME}.{ext}"], cwd=cloud.REPO,
-            check=True, capture_output=True).stdout for ext in ("png", "pss", "obj")}
+        files = {f"{cloud.NAME}.{ext}": from_git(rev, f"{cloud.NAME}.{ext}") for ext in ("png", "pss", "obj")}
     pss_text = files[f"{cloud.NAME}.pss"].decode("ascii").replace(
         f"TEXTURE {cloud.NAME}.png", f"TEXTURE {name}.png")
     obj_text = files[f"{cloud.NAME}.obj"].decode("ascii").replace(
