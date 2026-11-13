@@ -27,6 +27,10 @@ import unicodedata
 OBJECT_FILE = "cumulus.obj"
 INFO_FILE = "style.txt"
 DEFAULT_STYLE = "standard"
+# The plugin's styles in the menu's order; one not named here comes after them, by name.
+# cotton is v12 (0.8's cumulus, soft edges) and cauliflower v9 (crisp, bright lobes), both
+# from 2026-11-11, with the base and wisp layers that Standard dropped since.
+BUNDLED_ORDER = (DEFAULT_STYLE, "cotton", "cauliflower")
 OWN_FOLDER = "xp-gliding-cloud-styles"  # beside the xp_gliding package
 MAX_STYLES = 40  # more than a menu can show well; the rest are left out, and the log says so
 MAX_LABEL = 60
@@ -105,10 +109,11 @@ def styles_in(root, own):
 
 
 def find_styles(bundled_root, own_root):
-    """(styles, notes): the plugin's styles, `standard` first, then the pilot's. A pilot's style
+    """(styles, notes): the plugin's styles in BUNDLED_ORDER, then the pilot's. A pilot's style
     with the folder name of one of the plugin's is left out, so a choice always means one style."""
     bundled, notes = styles_in(bundled_root, own=False)
-    bundled.sort(key=lambda s: (s.key != DEFAULT_STYLE, s.key.lower()))
+    rank = {key: k for k, key in enumerate(BUNDLED_ORDER)}
+    bundled.sort(key=lambda s: (rank.get(s.key, len(rank)), s.key.lower()))
     own, own_notes = styles_in(own_root, own=True) if own_root else ([], [])
     notes += own_notes
     taken = {s.key.lower() for s in bundled}

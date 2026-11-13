@@ -17,10 +17,13 @@ def make_style(root, key, info=None, obj=True):
     return folder
 
 
-def test_the_plugin_ships_the_standard_style():
+def test_the_plugin_ships_standard_cotton_and_cauliflower_in_that_order():
     found, notes = styles.find_styles(BUNDLED, None)
     assert notes == []
-    assert found[0].key == styles.DEFAULT_STYLE and found[0].label == "Standard"
+    assert [s.key for s in found] == ["standard", "cotton", "cauliflower"]
+    assert [s.label for s in found] == ["Standard", "Cotton (soft edges)", "Cauliflower (crisp, bright lobes)"]
+    assert all(s.license == "GPL-3.0-or-later" and not s.own for s in found)
+    assert found[0].key == styles.DEFAULT_STYLE
     assert found[0].license == "GPL-3.0-or-later" and not found[0].own
     assert os.path.isfile(found[0].object_path)
 
@@ -50,7 +53,7 @@ def test_a_folder_with_no_object_or_a_taken_name_is_left_out_and_said(tmp_path):
 
 def test_no_folder_for_the_pilots_styles_is_no_style(tmp_path):
     found, notes = styles.find_styles(BUNDLED, str(tmp_path / "missing"))
-    assert [s.key for s in found] == ["standard"] and notes == []
+    assert [s.key for s in found] == list(styles.BUNDLED_ORDER) and notes == []
 
 
 def test_style_txt_gives_name_author_and_license_and_nothing_else(tmp_path):
@@ -100,3 +103,62 @@ def test_the_setting_takes_a_folder_name_and_nothing_else():
         s = config.Settings()
         assert s.update({"cloud_style": bad}) == [f"cloud_style {bad!r} left out"]
         assert s.cloud_style == "standard"
+
+
+def pss_blocks(text, start, end):
+    """The lines of each block from a line `start` to the line `end` after it."""
+    blocks, block = [], None
+    for line in text.splitlines():
+        word = line.strip()
+        if word == start:
+            block = []
+        elif word == end and block is not None:
+            blocks.append(block)
+            block = None
+        elif block is not None:
+            block.append(word)
+    return blocks
+
+
+def table_rows(block, name):
+    """The rows of the keyframe table `name` in a block, as lists of numbers."""
+    at = block.index(name)
+    rows = []
+    for line in block[at + 1:]:
+        if line == "END_KEYFRAME_TABLE":
+            return rows
+        if not line.startswith(("SLOT", "INTERP_MODE")):
+            rows.append([float(v) for v in line.split()])
+    raise AssertionError(f"no end to {name}")
+
+
+def test_every_shipped_style_keeps_the_contract_with_the_thermals():
+    """docs/cloud-styles.md: the two datarefs as slots, a particle life of at most 216 s, no speed,
+    no gravity, carried by the wind, at most three sub-emitters per emitter, and the object's
+    emitters those of its particle system."""
+    for style in styles.find_styles(BUNDLED, None)[0]:
+        with open(style.object_path, encoding="ascii") as f:
+            obj = f.read()
+        with open(os.path.join(style.folder, "cumulus.pss"), encoding="ascii") as f:
+            pss = f.read()
+        assert "PARTICLE_SYSTEM cumulus.pss" in obj and "TEXTURE cumulus.png" in pss, style.key
+        assert os.path.isfile(os.path.join(style.folder, "cumulus.png")), style.key
+        emitters = pss_blocks(pss, "EMITTER", "END_EMITTER")
+        names = [line.split()[1] for e in emitters for line in e if line.startswith("NAME ")]
+        assert names == [line.split()[1] for line in obj.splitlines() if line.startswith("EMITTER ")], style.key
+        for e in emitters:
+            assert "DREF xp_gliding/clouds/rate" in e and "DREF xp_gliding/clouds/scale" in e, style.key
+        subs = [s for e in emitters for s in pss_blocks(chr(10).join(e), "SUB_EMITTER", "END_SUB_EMITTER")]
+        assert all(len(pss_blocks(chr(10).join(e), "SUB_EMITTER", "END_SUB_EMITTER")) <= 3 for e in emitters)
+        for sub in subs:
+            assert sub[sub.index("EMIT_RATE") + 1] == "SLOT 0", style.key
+            assert table_rows(sub, "EMIT_RATE")[0] == [0.0, 0.0, 0.0], style.key  # rate 0: no feed
+            for name in ("DX", "DY", "DZ", "INITIAL_SIZE"):
+                assert sub[sub.index(name) + 1] == "SLOT 1", (style.key, name)
+            assert max(row[2] for row in table_rows(sub, "TIME_TO_LIVE")) <= 216.0, style.key
+            assert all(v == 0.0 for row in table_rows(sub, "INITIAL_SPEED") for v in row[1:]), style.key
+            dx = table_rows(sub, "DX")[-1]  # at scale 2: within 500 m each side at scale 1
+            assert dx[0] == 2.0 and -1000.0 <= dx[1] and dx[2] <= 1000.0, style.key
+        for part in pss_blocks(pss, "PARTICLE", "END_PARTICLE"):
+            assert all(v == 0.0 for row in table_rows(part, "GRAVITY_CURVE") for v in row[1:]), style.key
+            assert all(v == 1.0 for row in table_rows(part, "DRAG_CURVE") for v in row[1:]), style.key

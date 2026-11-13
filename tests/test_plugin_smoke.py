@@ -2467,7 +2467,7 @@ def drawn_from(xp):
 
 def test_the_standard_style_is_drawn_and_ticked_and_its_folder_for_the_pilot_is_made(plugin):
     pi, xp, data = plugin
-    assert [name for name, _ in xp.menus["Cloud style"]["items"]] == ["Standard"]
+    assert [name for name, _ in xp.menus["Cloud style"]["items"]] == ["Standard", "Cotton (soft edges)", "Cauliflower (crisp, bright lobes)"]
     assert checked(xp, "Cloud style") == ["Standard"]
     first_clouds(pi, data)
     assert all(p.endswith("xp_gliding/assets/clouds/standard") for p in drawn_from(xp))
@@ -2477,7 +2477,8 @@ def test_the_standard_style_is_drawn_and_ticked_and_its_folder_for_the_pilot_is_
 def test_a_pilots_style_is_listed_drawn_ticked_and_saved_and_back(styled):
     pi, xp, data = styled
     assert [name for name, _ in xp.menus["Cloud style"]["items"]] == [
-        "Standard", "Broken", "Soft cumulus, by Ana Perez"]
+        "Standard", "Cotton (soft edges)", "Cauliflower (crisp, bright lobes)", "Broken",
+        "Soft cumulus, by Ana Perez"]
     first_clouds(pi, data)
     standard = {instance for instance in xp.instances}
     choose(xp, "Cloud style", "Soft cumulus, by Ana Perez")
@@ -2542,7 +2543,8 @@ def test_the_next_style_command_goes_round_the_styles_and_saves(styled):
         handler("xp_gliding/clouds/style/next", xp.CommandBegin, refcon)
         seen.append(checked(xp, "Cloud style")[0])
         assert saved(pi)["cloud_style"] == pi.settings.cloud_style
-    assert seen == ["Broken", "Soft cumulus, by Ana Perez", "Standard", "Broken"]
+    assert seen == ["Cotton (soft edges)", "Cauliflower (crisp, bright lobes)", "Broken",
+                    "Soft cumulus, by Ana Perez"]
 
 
 def test_the_next_style_after_one_that_failed_is_the_one_after_it(styled):
@@ -2551,7 +2553,7 @@ def test_the_next_style_after_one_that_failed_is_the_one_after_it(styled):
     pi, xp, data = styled
     xp.bad_object = "cloud-styles/broken"
     handler, refcon = xp.handlers["xp_gliding/clouds/style/next"]
-    handler("xp_gliding/clouds/style/next", xp.CommandBegin, refcon)
+    choose(xp, "Cloud style", "Broken")
     first_clouds(pi, data)
     assert pi.settings.cloud_style == "broken" and checked(xp, "Cloud style") == ["Standard"]
     handler("xp_gliding/clouds/style/next", xp.CommandBegin, refcon)
