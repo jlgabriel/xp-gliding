@@ -5,7 +5,7 @@ Usage (X-Plane running with the xp-gliding plugin and flight logger 0.3.0):
     python tools/testpilot/fly_compare.py report [--segments ...] NAME=LOG.csv ...
 
 Each glider gets one air start over KHOB at 2300 m MSL in calm, clear air
-(test A conditions), the plugin's thermals off, and four recorded segments
+(as for the still-air polar), the plugin's thermals off, and four recorded segments
 in a row, each framed by two logger marks:
 
   S90   straight, 90 km/h        still-air sink and glide

@@ -1,4 +1,4 @@
-"""Less lift under X-Plane's clouds, and none in rain (SPEC stage 2, block 3).
+"""Less lift under X-Plane's clouds, and none in rain.
 
 The thermals are as strong as the sun heats the ground: w* = (g / theta * H * zi)^(1/3), the cube
 root of the surface heat flux H times the depth zi (`daycycle.py`). X-Plane's own cloud layers

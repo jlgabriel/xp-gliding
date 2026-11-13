@@ -1,13 +1,14 @@
-"""Baseline tests B and C (Alex Ferrer's calibration mode) flown by the test pilot.
+"""Alex Ferrer's calibration mode, flown by the test pilot: tests B (the climb at 90 and
+120 km/h, slider 1 to 3 m/s) and C (the lift and the thrust factor one at a time).
 
 Usage (X-Plane running with flight logger 0.2.0 or later, which exposes
 Alex's settings as `xp_gliding/flightlog/alex_*` datarefs):
     python tools/testpilot/calibrate_alex.py [--only B90_1 ...] [--seconds 30]
 
-Each segment is an air start over KHOB in calm, clear air (test A
-conditions), Alex's plugin enabled in calibration mode with the slider and
+Each segment is an air start over KHOB in calm, clear air (as for the
+still-air polar), Alex's plugin enabled in calibration mode with the slider and
 factors of that segment, a settle, and a recorded stretch at a fixed IAS.
-The result is vs_te against test A at the same IAS (notes/baseline.md). Alex's
+The result is vs_te against the still-air polar at the same IAS. Alex's
 original settings are read first and written back at the end, whatever
 happens, because his plugin saves them to init_values.json when X-Plane
 closes.

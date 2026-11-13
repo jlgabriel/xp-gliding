@@ -1,4 +1,4 @@
-"""Turbulence at a thermal's edge, for the sharper thermal edges (stage 2, to judge by flying).
+"""Turbulence at a thermal's edge, for the sharper thermal edges (to judge by flying).
 
 Allen's profiles are smooth: a wide thermal's lift changes over a couple of hundred metres, seven
 seconds at 97 km/h, so the kick it gives (engine/injection.py) is under 0.1 g. Real edges are

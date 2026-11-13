@@ -3,7 +3,7 @@
 X-Plane 12 does not sort particles between instances. It draws instances in the reverse of the
 order they were created: the newest first, underneath, and the oldest last, on top. Setting an
 instance's position or its values again does not change its place in that order (flown
-2026-11-07, notes/phase4.md). So a far cloud created before a nearer one in the same direction
+2026-11-07 in X-Plane 12.4.3). So a far cloud created before a nearer one in the same direction
 is drawn over it, with a sharp edge.
 
 An instance keeps its place for life, wherever it is moved. So at the start of a sky, before any

@@ -1,7 +1,7 @@
 """Lift injection: from air velocity at sample points to forces and moments.
 
 X-Plane cannot move the air at a point, so local lift becomes a force on the
-aircraft (SPEC "Injection physics"). Everything here is plain math on numbers
+aircraft. Everything here is plain math on numbers
 the adapter reads from datarefs; no per-glider calibration constant appears.
 
 Energy force. Air rising at w delivers power m g w to a glider that holds its
@@ -16,7 +16,7 @@ axes it is split with the angle of attack and sideslip (`path_force_body`).
 Sample points. The air velocity is sampled at the centre, both wing tips and
 the tail (`SampleGeometry`), at their real 3D positions: a banked wing's tips
 are closer together horizontally and at different heights, so the bank
-attenuation the SPEC asks for comes out of the geometry instead of a factor.
+attenuation comes out of the geometry instead of a factor.
 The energy uses the span average of the wing samples (Simpson's rule).
 
 Gust roll moment. A vertical air velocity that varies linearly across the span,
@@ -29,7 +29,7 @@ the aircraft's own roll damping applied to p = g:
 with Clp < 0 the roll-damping derivative per unit p b / 2V. Clp comes from
 the wing's geometry (lifting-line lift slope and a taper correction), never
 from a tuned constant. Note it grows with V: at a given spatial gradient a
-faster glider is rolled harder, as in reality. Flown in test F (2026-11-07, notes/SPEC.md):
+faster glider is rolled harder, as in reality. Flown by hand for the feel (2026-11-07):
 the wing lifts enough to notice and no more.
 
 The kick (with the sharper thermal edges). Entering rising air raises every

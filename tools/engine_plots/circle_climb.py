@@ -8,9 +8,10 @@ For every thermal alive within 5 km of KHOB at that moment (zulu hour, day as
 X-Plane's `local_date_days`), and at a few heights, the lift is averaged over a
 circle centred on the thermal (the best a pilot can do for a round thermal),
 with the radius the ASK 21 flies at each bank and IAS: R = TAS^2 / (g tan bank).
-The climb is that average minus the glider's sink in the turn, from the test A
-polar and its n^1.5 turn model plus the 0.18 m/s that the model fell short of
-the measured circling sink at 35 deg and 90 km/h (notes/phase1.md). Prints, per
+The climb is that average minus the glider's sink in the turn, from the still-air
+polar (`tools/testpilot/polar.py`) and its n^1.5 turn model plus the 0.18 m/s
+that the model fell short of the circling sink at 35 deg and 90 km/h, measured
+by the test pilot on 2026-11-03. Prints, per
 height and turn, the median and 90th percentile climb and the share of thermals
 that give more than 0, 0.5 and 1 m/s.
 

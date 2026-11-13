@@ -462,7 +462,7 @@ def status_line(xp):
 def test_the_menu_says_why_there_are_no_thermals(plugin):
     pi, xp, data = plugin
     frame(pi, data)
-    # 14:00 local at Hobbs: the day is not quite as deep as it will be (daily cycle, step B).
+    # 14:00 local at Hobbs: the day is not quite as deep as it will be (the daily cycle's depth).
     zi_now = pi.injector.zi_now_m
     assert 1800.0 < zi_now < 1995.0
     assert status_line(xp).startswith("Active: ")
@@ -2081,7 +2081,7 @@ def test_the_floors_read_the_ground_only_when_a_thermal_loads(plugin):
     assert len(reads) == count
 
 
-# --- the cloud base from X-Plane's weather (notes/phase5.md) ---
+# --- the cloud base from X-Plane's weather ---
 
 WEATHER_SWITCH = "xp_gliding/day/weather/toggle"
 

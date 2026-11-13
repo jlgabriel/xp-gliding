@@ -27,7 +27,7 @@ anchored to the sky as tuned and flown, 4.5 per km2 at zi = 2000 m, which is All
 zi = 1400 m (`thermal_density_per_km2`). So the number of thermals, and where each is, depend
 on zi: the same seed and date give another sky at another depth (Juan Luis, 2026-11-09).
 
-Life cycle (the original plugin author's TODO, SPEC "Thermal model"): a thermal
+Life cycle (the original plugin author's TODO): a thermal
 starts narrow and weak, grows to full width and strength, and fades out. The
 envelope scales the thermal's radius and its whole perturbation of the
 environment smoothly from zero, so no thermal ever appears or disappears
@@ -42,7 +42,7 @@ thermals merge into a stronger one, which real thermals do.
 Sky profiles. `SkyProfile` shapes the sky without moving anything in it: the same random
 stream draws the same thermals in the same places, then the thermals that carry a cloud
 can be stretched and the others thinned out and weakened. The default changes nothing.
-See `SkyProfile` for what the numbers mean, and notes/phase2.md for how they were measured.
+See `SkyProfile` for what the numbers mean.
 
 The wind carries the whole sky from outside (`wind.py`): this module is in the air's frame.
 The lean is from outside too: the field is the sky at the clouds' base, and whoever asks at a
@@ -50,23 +50,23 @@ height shifts the point by `wind.Lean` first.
 
 The sun (`sun.py`): with `FieldConfig.sun_min_deg` set, a thermal is born only while the sun is
 that high at its place and birth, and the environment sink fades with the share of thermals alive
-(`ThermalField.sink_share`). The strength of the moment is the caller's w* (`daycycle.py`, step A).
+(`ThermalField.sink_share`). The strength of the moment is the caller's w* (`daycycle.py`).
 
-The depth of the moment (`FieldConfig.depth_cycle`, the daily cycle's step B, off by default): a
+The depth of the moment (`FieldConfig.depth_cycle`, part of the daily cycle, off by default): a
 thermal is as deep as the day was at its birth, `Thermal.depth` of the field's zi, which
 `daycycle.DayCycle.depth_share` gives. Its whole profile is Allen's for that zi: a morning thermal
 is low and narrow, and keeps the depth it was born with for life, so its cloud keeps one base and
 the bases rise through the day as later thermals are born deeper. The sink between thermals is
 Allen's for the zi of the moment at the glider (`ThermalField.depth_share`). The number of
 thermals stays the one drawn for the field's zi: a morning sky holds as many as the afternoon's,
-narrower, so less of it rises and less sinks (notes/phase5.md, *Step B*).
+narrower, so less of it rises and less sinks.
 
 Good and bad areas (`FieldConfig.areas`, `areas.py`): a smooth map over tens of kilometres, from
 the seed and the date, raises the number of thermals a tile draws and their strength in good areas,
 and lowers both in bad ones; the sky as a whole keeps as many. Off in a `FieldConfig` by default, so
 the tools and tests that give none get the sky as before.
 
-Not modeled yet: terrain triggers (stage 3). Ground where no
+Not modeled yet: terrain triggers. Ground where no
 thermal is born (the adapter: water) is excluded with an optional `accept(lat, lon, birth)`
 predicate, which never shifts the random stream; nor does the sun.
 """
@@ -85,12 +85,12 @@ DECAY_FRACTION = 0.3  # strength 1 -> 0 at the end
 WIDEN_FRACTION = 0.4  # radius gain RADIUS_START -> 1
 RADIUS_START = 0.6
 
-# Sharper thermal edges (stage 2, first guesses to judge by flying, with the kick in
+# Sharper thermal edges (first guesses to judge by flying, with the kick in
 # engine/injection.py): a sink ring around every thermal, from r2 out to (1 + EDGE_RING_WIDTH) r2
 # and deepest halfway across at EDGE_RING times its mean updraft, and the sink between thermals
 # times EDGE_SINK_GAIN. Both depart from Allen's conservation of mass, whose ring is weak and only
-# high up, and whose sink between thermals is -0.14 m/s in the wide sky (notes/SPEC.md, open
-# questions). The ring was 0.5 and r2 wide until Juan Luis felt it pull down too long and too far
+# high up, and whose sink between thermals is -0.14 m/s in the wide sky (at z/zi 0.4,
+# w* 3). The ring was 0.5 and r2 wide until Juan Luis felt it pull down too long and too far
 # out on leaving a thermal (2026-11-12), and 0.3 until it competed with a narrow thermal's lift
 # for a glider circling wide in it, on his hand flights the same day (0.2 is his).
 EDGE_RING = 0.2
@@ -102,7 +102,7 @@ WGAIN_RANGE = (0.3, 2.5)
 RGAIN_RANGE = (0.5, 2.0)
 
 # Which thermals carry a cloud, from their drawn numbers: the largest mass flux, and a life
-# long enough for a cloud to form and fade (notes/phase2.md). `clouds.CloudParams` defaults
+# long enough for a cloud to form and fade. `clouds.CloudParams` defaults
 # to these.
 CARRIER_MIN_FLUX = 2.0
 CARRIER_MIN_LIFE_S = 720.0
@@ -178,7 +178,7 @@ def is_carrier(wgain, rgain, life_s):
 class SkyProfile:
     """How a sky differs from the one the random stream draws. Defaults: not at all.
 
-    Deviations from Allen's model, so they stay on record (notes/SPEC.md "Thermal model"):
+    Deviations from Allen's model, so they stay on record:
     - `carrier_stretch` widens a thermal that carries a cloud by this factor, shape and all:
       the lift at r is the lift Allen gives at r / stretch. Raising `rgain` instead would
       follow his Eq. 13, where the core ratio grows with r2, so a wide thermal has a lower
@@ -216,7 +216,7 @@ class SkyProfile:
 # The skies that can be chosen by name (`"sky"` in the plugin's config.json).
 SKIES = {
     "default": SkyProfile(),
-    # First guesses to judge by flying, measured offline and flown a little (notes/phase2.md).
+    # First guesses to judge by flying, measured offline and flown a little.
     "wide_carriers": SkyProfile(carrier_stretch=2.0, blue_keep=0.15, blue_gain=0.6, blue_stretch=0.75,
                                 cloud_base_zzi=0.75),
     "medium_carriers": SkyProfile(carrier_stretch=1.5, blue_keep=0.15, blue_gain=0.6, blue_stretch=0.75,
@@ -280,7 +280,7 @@ class FieldConfig:
         self.sky = sky if sky is not None else SKIES["default"]
         # A thermal is born only with the sun at least this high (degrees); None: at any hour.
         self.sun_min_deg = None if sun_min_deg is None else float(sun_min_deg)
-        # Each thermal as deep as the day at its birth (daily cycle, step B). Only with the sun.
+        # Each thermal as deep as the day at its birth (the daily cycle's depth). Only with the sun.
         self.depth_cycle = bool(depth_cycle) and self.sun_min_deg is not None
         # Good and bad areas: the thermals' number and strength vary over tens of km.
         self.areas = Areas(self.seed, self.day) if areas else None

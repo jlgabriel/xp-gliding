@@ -1,6 +1,6 @@
 """Which thermals the training markers show, and in which variant.
 
-Training mode (off by default, SPEC "Visual cues") draws a ring and a column
+Training mode (off by default) draws a ring and a column
 over the thermals near the glider. This module is the part with no simulator:
 given the field, the glider's place and the markers already shown, it says
 which thermals to mark, how strong their core is and how wide. The adapter

@@ -26,7 +26,7 @@ is also shifted by the lean at the aircraft's height, from X-Plane's layers of w
 (`Injector.lean_update`, in the slow path).
 
 Which wind carries the sky. By default the wind at the aircraft, so in shear it stays with its
-thermal at any height. With `wind_at_clouds` (off by default, notes/phase3.md) it is the wind at
+thermal at any height. With `wind_at_clouds` (off by default) it is the wind at
 the clouds' base, from the same layers (`Injector.sky_wind_update`): the emitters move with it,
 and the aircraft moves through the sky at the difference. Particles appear to go on moving at
 about the wind at the aircraft, so in shear they fall behind their emitters (flown, read from
@@ -35,7 +35,7 @@ screenshots).
 The lift ends with its cloud. A cloud has one height MSL, whatever the ground under the glider is
 doing, so each thermal is read at a height from a floor of its own (`engine.field.height_in_thermal`).
 The floor comes from its cloud's base (`clouds.CloudHeights`), set in the slow path when the thermal
-loads. With no `heights`, thermals have no floor and the glider's AGL rules (notes/phase4.md).
+loads. With no `heights`, thermals have no floor and the glider's AGL rules.
 
 The day's depth. `zi` is the pilot's setting, or, with `weather_base_enabled`, the cloud base
 X-Plane's weather gives (`engine.day.weather_base_m`) over the sky's `cloud_base_zzi`, so the clouds
@@ -50,7 +50,7 @@ and rain all of it, over a few minutes (`engine/shade.py`, always on: a clear sk
 Good and bad areas (`engine/areas.py`, setting `areas_enabled`, on by default) vary the number and
 strength of the thermals over tens of kilometres, from the seed and the date.
 Each thermal is also as deep as the day was at its birth
-(`FieldConfig.depth_cycle`, step B): zi above is the afternoon's, and `Injector.zi_now_m` the moment's. None is born over
+(`FieldConfig.depth_cycle`): zi above is the afternoon's, and `Injector.zi_now_m` the moment's. None is born over
 water (`Injector.accept_thermal`). A thermal keeps its place in the air,
 so what counts is the ground under it at its birth, worked out in the present wind: the field and
 the clouds load the same thermal at different times, and in a steady wind must agree about it.
@@ -60,10 +60,10 @@ X-Plane's conventions (DataRefs.txt, XP 12.4.3): `faxil_plug_acf` positive
 pushes the aircraft *backward*, `fside_plug_acf` positive pushes it right,
 `fnrml_plug_acf` positive pushes it up, `L_plug_acf` positive rolls right.
 `sim/flightmodel/position/beta` is positive with the nose right of the flight
-path (measured, notes/baseline.md), the opposite of the engine's convention.
+path (measured by the test pilot, 2026-11-03), the opposite of the engine's convention.
 
 Debug modes, for measurements: `uniform_ms` replaces the field with the same
-w everywhere (repeats baseline test B with our physics); `debug_dwdy` replaces
+w everywhere (checks the climb gain at any speed and bank); `debug_dwdy` replaces
 the spanwise gradient for the roll moment (checks the roll sign).
 """
 
@@ -167,8 +167,8 @@ class Nearest:
 class NativeThermalGuard:
     """Keeps XP12's native thermal setting at 0 while our thermals are active.
 
-    Thermal strategy A (SPEC): the native setting only adds a uniform sink, so
-    it must be 0 under our thermals. Real weather and a new flight can rewrite
+    Our thermals replace the native ones, and the native setting only adds a
+    uniform sink, so it must be 0 under our thermals. Real weather and a new flight can rewrite
     it, so it is re-checked every `period_s`, not every frame; a nonzero value
     found then is taken as the new one to restore. When our thermals stop, the
     saved value is written back.
@@ -283,7 +283,7 @@ class Injector:
         self.sun_elevation_deg = 0.0  # the engine's sun at the aircraft, to compare with X-Plane's
         self.sun_share = 1.0  # the share of a full day's thermals alive (`ThermalField.sink_share`)
         self.day_share = 1.0  # w* of the moment over the menu's, the day's peak (daily cycle)
-        self.depth_share = 1.0  # zi of the moment over the afternoon's (daily cycle, step B)
+        self.depth_share = 1.0  # zi of the moment over the afternoon's (the daily cycle's depth)
         self.shade = Shade()  # less lift under X-Plane's clouds, none in rain
         self.sky_cover = 0.0  # the share of the sun X-Plane's layers stop, at the aircraft
         self.rain = 0.0  # X-Plane's rain_percent

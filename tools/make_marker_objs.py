@@ -21,7 +21,7 @@ Each face comes twice with opposite winding where it can be seen from both
 sides, since two-sided drawing is deprecated in OBJ8. Texture coordinates are
 constant over each mesh (one palette cell).
 
-Found by trying in X-Plane 12.4.3 (2026-11-03, notes/phase2.md):
+Found by trying in X-Plane 12.4.3 (2026-11-03):
 - The palette must be large: at 32x16 pixels X-Plane showed one mixed colour
   (presumably it reduces textures, and a small one ends up as its average), at
   256x128 the right colours. It compresses to almost nothing anyway.

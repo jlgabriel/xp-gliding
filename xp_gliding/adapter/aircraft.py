@@ -1,7 +1,7 @@
 """Wing geometry of the user's aircraft, read from its .acf file.
 
 The gust roll moment needs the span, wing area and taper, and the tail sample
-needs the tail arm (SPEC "Sampling geometry"). The SDK exposes the wing parts
+needs the tail arm. The SDK exposes the wing parts
 as `sim/aircraft/parts/acf_*[56]` arrays but not their positions, so the
 geometry is read from the aircraft's own .acf file instead, which Plane Maker
 writes as text lines `P <key> <value>` with lengths in feet.

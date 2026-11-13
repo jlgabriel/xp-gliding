@@ -1,6 +1,6 @@
-"""The sun: no sun, no thermals (SPEC, stage 1).
+"""The sun: no sun, no thermals.
 
-A cutoff, not the daily cycle of stage 2. A thermal is born only while the sun is at least
+A cutoff, not the daily cycle (`daycycle.py`). A thermal is born only while the sun is at least
 `SUN_MIN_DEG` above the horizon at its place and birth time. Thermals born before the sun goes
 down live out their lives, so the sky fades out over about half an hour around sunset, clouds
 and all, and fills again after sunrise. `SUN_MIN_DEG` is a first guess to tune by flying.
@@ -10,7 +10,8 @@ X-Plane: the field needs it at each thermal's birth, which can be half an hour a
 (seed, day, place, time) must give the same sky on every machine. The formulas are NOAA's
 approximation (declination and equation of time as Fourier series in the day of the year,
 good to about 0.5 degrees), with no refraction. Compared with X-Plane's
-`sim/graphics/scenery/sun_pitch_degrees` in the simulator (notes/SPEC.md).
+`sim/graphics/scenery/sun_pitch_degrees` in X-Plane 12.4.3 (2026-11-08): within 0.4
+degrees over a whole day.
 
 The environment sink is the thermals' mass coming down between them, so it fades with them:
 `ThermalShare` gives the share of a full day's thermal flux alive at a moment, from which births

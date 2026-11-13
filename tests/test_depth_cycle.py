@@ -1,4 +1,4 @@
-"""The daily cycle's step B: each thermal as deep as the day was at its birth (`FieldConfig.depth_cycle`)."""
+"""The daily cycle's depth: each thermal as deep as the day was at its birth (`FieldConfig.depth_cycle`)."""
 
 import math
 
@@ -90,7 +90,7 @@ def test_the_sink_between_thermals_is_the_one_for_the_zi_of_the_moment():
     plain = field_at(10.0, depth=False)
     z = 0.3 * ZI * field.depth_share
     assert field.environment_sink(z, WSTAR, ZI * field.depth_share) * field.sink_share < 0.0
-    # Shallower thermals cover less of the sky, so less sinks between them than in step A.
+    # Shallower thermals cover less of the sky, so less sinks between them than without the depth.
     assert (field.environment_sink(z, WSTAR, ZI * field.depth_share)
             > plain.environment_sink(z, WSTAR, ZI))
 

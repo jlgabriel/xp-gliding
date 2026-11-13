@@ -118,7 +118,7 @@ def own_lift(th, field, e, n, z, t, wstar, zi, ground_m=None):
     if z <= 0.0:
         return 0.0
     z = height_in_thermal(th, z, ground_m)
-    zi = th.zi(zi)  # its own depth (daily cycle, step B)
+    zi = th.zi(zi)  # its own depth (the daily cycle's depth)
     if z >= zi:
         return 0.0
     s, rf = th.envelope(t)
@@ -133,7 +133,7 @@ def own_lift(th, field, e, n, z, t, wstar, zi, ground_m=None):
 def ceiling_agl(th, field, sink, t, z_from, wstar, zi, ground_m=None):
     """The height (m AGL) where this thermal's core no longer holds up a glider sinking at `sink`."""
     z = max(z_from, CEILING_STEP_M)
-    zit = th.zi(zi)  # its own depth (daily cycle, step B)
+    zit = th.zi(zi)  # its own depth (the daily cycle's depth)
     while True:
         zt = height_in_thermal(th, z, ground_m)
         if zt >= zit:

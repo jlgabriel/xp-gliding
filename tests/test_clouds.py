@@ -47,7 +47,7 @@ def test_a_cloud_depends_only_on_the_thermal():
 
 
 def test_density_is_a_cumulus_sky():
-    """About one full cloud every 3 km: the number notes/phase2.md gives. The thinning ones,
+    """About one full cloud every 3 km, the density first chosen for the cumulus. The thinning ones,
     over decaying or dead thermals, come on top: about half as many again."""
     c = config()
     p = cl.CloudParams()

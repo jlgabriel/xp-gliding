@@ -66,7 +66,7 @@ def test_strength_rises_through_the_morning_and_falls_in_the_evening():
 
 
 def test_the_numbers_in_the_notes():
-    """notes/phase5.md, *The daily cycle*: Hobbs, 2 November."""
+    """The shares worked out offline when the daily cycle was designed: Hobbs, 2 November."""
     cycle = DayCycle(NOV_2)
     for hour, share in ((8.0, 0.29), (10.0, 0.76), (12.0, 0.97), (13.0, 1.00), (16.0, 0.63)):
         assert at_solar(cycle, HOBBS, hour) == pytest.approx(share, abs=0.03)

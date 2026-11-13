@@ -4,9 +4,9 @@ Usage:
     python tools/testpilot/airstart.py [--msl 2800] [--kmh 90] [--heading 0]
 
 Replaces the current flight with the Laminar ASK 21 flying over Hobbs, NM
-(KHOB, the phase 0 site) at the given altitude and airspeed, in calm, clear
+(KHOB, where the first measurements were flown) at the given altitude and airspeed, in calm, clear
 weather at local noon, and sets the native thermal rate to zero. Matches the
-still-air conditions of test A in notes/baseline.md.
+conditions the still-air polar was measured in (`polar.py`).
 
 Reference: https://developer.x-plane.com/article/flight-initialization-api/
 (`lle_air_start`, custom weather definition). Measurement tool, not part of
@@ -27,7 +27,7 @@ KHOB = (32.6875, -103.2170, 1116.0)  # lat, lon, field elevation (m)
 DAY_OF_YEAR = 305  # 2 November (0 = 1 January)
 # Payload per station (kg). Without it the Flight Initialization API loads the
 # ASK 21 empty (360.6 kg, CG far aft: it pitches up with full forward stick;
-# seen 2026-11-03 after an X-Plane restart). Test A flew at 541 kg total;
+# seen 2026-11-03 after an X-Plane restart). The polar was flown at 541 kg total;
 # 180.4 kg is split over the two seats ("Passenger front", "Pilot aft").
 PAYLOAD_KG = [90.2, 90.2, 0, 0, 0, 0, 0, 0, 0]
 

@@ -31,8 +31,8 @@ test pilot can run the calibration tests from outside, a few of its settings
 are also exposed as datarefs (`xp_gliding/flightlog/alex_*`, see
 ALEX_CONTROLS; the last two are read-only); nothing writes them unless asked. Writing them does not save
 Alex's preferences, but his plugin saves its current settings when X-Plane
-closes, so restore them before quitting. Phase 0 only; remove all of this when
-the reference plugin goes.
+closes, so restore them before quitting. Only for measuring that plugin; remove
+all of this when the reference plugin goes.
 
 Since 0.3.0, if the xp-gliding plugin is loaded, its own datarefs are logged
 ("xpg_" columns, see XPG_DATAREFS): the lift at each sample point, the force

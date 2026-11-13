@@ -131,4 +131,4 @@ A note on how the thermals feel is welcome too. The plugin has been tried on Win
 
 ## More
 
-The [documentation](README.md) has what was measured about X-Plane along the way. The [working notes](../notes/README.md) hold the full record of the measurements quoted here.
+[How it works](how-it-works.md) explains the thermals, the clouds and the lift behind what this guide describes, and the [documentation](README.md) has what was measured about X-Plane along the way.

@@ -25,17 +25,17 @@ It is an independent take on thermals, offered as another option for soaring in 
 
 ## Where it is going
 
-The work is in three stages. The first is this public version of what flies today. The second brings strength and cloud base from X-Plane's weather with a daily cycle, a sky tuned by flying it, and a better HUD and clouds. The third holds pieces that are not promised, such as XCSoar, other gliders, and thermals born where global land data says they would be. What changed in each version is in the [changelog](CHANGELOG.md), and the details of the plan in the [stages](notes/SPEC.md#stages).
+Next, a sky tuned further by flying it: how much sink belongs between clouds, where a climb ends under its cloud, the clouds' width on deep and shallow days, the strength of the day from X-Plane's weather, and a better HUD. Later, and not promised: thermals lined up in streets along the wind, thermals born where the ground favours them, measured polars so other gliders get netto, and the same sky for two pilots at the same place and time. Tools around soaring, such as a link to XCSoar, tasks or other gliders in the sky, are outside this project. What changed in each version is in the [changelog](CHANGELOG.md).
 
 ## Documentation
 
 - **[Documentation](docs/README.md):** start here, including [measurements of X-Plane's native soaring](docs/findings/native-soaring.md).
 - **[Pilot guide](docs/pilot-guide.md):** installing, a first flight, reading the sky, and the known limits.
-- **[Working notes](notes/README.md):** the full records of the work, with the current design and [stages](notes/SPEC.md#stages).
+- **[How it works](docs/how-it-works.md):** the thermal model, the day, the clouds, the wind and how the lift is applied.
 
 ## What it is not
 
-It is not a simulation of the atmosphere. The thermals start from a published model ([Allen, 2006](https://ntrs.nasa.gov/citations/20060004052)) and are tuned by flying, with each departure from the paper documented. It is not a soaring simulator either: no tasks, no traffic, no wave. A glider still flies as well as its own flight model allows.
+It is not a simulation of the atmosphere. The thermals start from a published model ([Allen, 2006](https://ntrs.nasa.gov/citations/20060004052)) and are tuned by flying, with each departure from the paper [documented](docs/how-it-works.md#the-shape-of-a-thermal). It is not a soaring simulator either: no tasks, no traffic, no wave. A glider still flies as well as its own flight model allows.
 
 ## Principles
 

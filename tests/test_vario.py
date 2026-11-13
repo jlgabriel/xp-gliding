@@ -27,9 +27,9 @@ def test_polar_reproduces_the_measured_sinks():
     sink = ASK21_LAMINAR.sink
     assert sink(90.0, 25.0, 0.0, 541.0) == pytest.approx(0.86)
     assert sink(120.0, 120.0 / 3.6, 0.0, 541.0) == pytest.approx(1.11)
-    # The reference circle of the orbits: 46 degrees, 93 km/h, TAS 11% over IAS (phase 1).
+    # The reference circle of the orbits: 46 degrees, 93 km/h, TAS 11% over IAS (2026-11-03).
     assert sink(93.0, 93.0 / 3.6 * 1.11, 46.0, 541.0) == pytest.approx(2.02, abs=0.1)
-    # 35 degrees at 90 km/h and 2700 m MSL sinks 1.54 m/s (phase 1).
+    # 35 degrees at 90 km/h and 2700 m MSL sinks 1.54 m/s (test pilot, 2026-11-03).
     assert sink(90.0, 25.0 * 1.15, 35.0, 541.0) == pytest.approx(1.54, abs=0.1)
 
 

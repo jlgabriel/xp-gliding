@@ -4,8 +4,12 @@ reference/
 # Machine-specific notes for Claude Code
 CLAUDE.local.md
 
-# Original Spanish draft of the spec (superseded by notes/SPEC.md)
+# Original Spanish draft of the spec (superseded by the spec in the working notes)
 Vuelo a vela*.md
+
+# Working notes: the spec and the records of the work, kept on the maintainer's machine
+# since 2026-11-13, so the repository holds final documents only
+notes/
 
 # Python
 __pycache__/

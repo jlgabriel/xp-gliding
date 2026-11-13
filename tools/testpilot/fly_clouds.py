@@ -11,7 +11,7 @@ look: air start, straight flight, a screenshot every 30 s from the front with no
 the way, and what the plugin reports at each one, to see a sky form. Local time, wind
 from the east and a layer of X-Plane's own cumulus can be chosen. With --back, a second
 screenshot looking back each time: the clouds already passed, where a far one drawn over a
-near one showed most (notes/phase4.md, the order clouds are drawn in).
+near one showed most (`engine/cloud_order.py`).
 
 cost: straight flight with the clouds off and on in alternating blocks. Prints the
 plugin's frame_us (median, 99th percentile), the frame rate, X-Plane's own estimate of

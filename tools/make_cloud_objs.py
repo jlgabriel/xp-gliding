@@ -20,11 +20,11 @@ above and shaded below and where one bulge hides another, and initial rotation s
 to keep that. Each layer can have its own tint. Puffs fade out before the edge of their cell: a puff cut by the cell shows as a
 straight line from close up (seen flying through the first version).
 
-The look follows X-Plane 12's own cumulus, by eye (notes/cloud-looks.md): soft, uneven
+The look follows X-Plane 12's own cumulus, by eye: soft, uneven
 edges and density that varies through the cloud. Its flatter, greyer base and wisps were
 tried as layers of their own and dropped: they showed as a flat band under the body.
 
-Found by trying in X-Plane 12.4.3 under Vulkan (notes/phase2.md, `tools/cloudlab/`):
+Found by trying in X-Plane 12.4.3 under Vulkan (`tools/cloudlab/`):
 - An emitter's table can have a dataref of the instance as its slot, and it follows the
   value set with XPLMInstanceSetPosition, per instance, in flight.
 - Destroying an instance removes its particles at once.
@@ -97,7 +97,7 @@ def _square(frac, y0, y1, cx=0.0, cz=0.0):
 # Shape at scale 1. The body is a few towers off the centre, so a cloud is uneven and differs
 # with the side it is seen from; the plugin turns each cloud by its own heading.
 # The order is the order they are drawn in, last on top: X-Plane does not sort the emitters of
-# one object by distance (notes/phase4.md).
+# one object by distance (seen in the cloud lab, 2026-11-07).
 LAYERS = (
     Layer("tower_a", 40, LOBE_CELLS, 270.0, (0.6, 1.4), _square(0.36, 180.0, 400.0, -120.0, 40.0),
           (1.00, 1.00, 1.00), 0.92),
@@ -112,18 +112,18 @@ LAYERS = (
 )
 # No flat base layer and no wisps since v14: seen edge on near the base's height, their thin
 # layer of wide puffs showed as a flat band sticking out under the body, grey or white, and
-# Juan Luis did not want it (notes/cloud-looks.md). The low lobes make the bottom. Since v15
+# Juan Luis did not want it (2026-11-12). The low lobes make the bottom. Since v15
 # also no small edge puffs, and the top is a few large lobes instead of many small ones: the
 # small puffs made the outline a puffy chain ("menos pomposas"). The base, small and wisp cells
 # stay in the atlas, unused.
 BY_NAME = {layer.name: layer for layer in LAYERS}
 # Sub-emitters per emitter. Eight in one emitter crashed X-Plane 12.4.3 (heap corruption) a few
-# seconds after the first cloud was placed (notes/cloud-looks.md); three were always fine.
+# seconds after the first cloud was placed (2026-11-11); three were always fine.
 SUBS_PER_EMITTER = 3
 
 MAX_PARTICLES = 2048  # per emitter: far above what rate x life can reach
 LIGHT = 1.7  # X-Plane's ambient and diffuse for a particle. 1.2 and 1.35 too dark to Juan Luis; he
-# preferred 1.7 to 2.1 (notes/cloud-looks.md)
+# preferred 1.7 to 2.1 (2026-11-11)
 RATE_TOP = 20.0  # CloudParams.prewarm: fills a cloud in TTL_S / RATE_TOP
 SCALE_TOP = 2.0
 # The bottom of a base puff's image (from its centre, as a fraction of its half size).
@@ -232,7 +232,7 @@ def billow(rng, size, base=4, octaves=5):
 def cloud_cell(rng, size, density, edge, soft, belly):
     """RGBA from a density field in [0, 1]: lit from above, darker below, and an edge that
     fades out slowly over the density's outer tail, so no puff shows as a disc (a firm edge
-    made the cloud's outline a chain of round bubbles, notes/cloud-looks.md)."""
+    made the cloud's outline a chain of round bubbles)."""
     xs, ys = _grid(size)
     bill = billow(rng, size, base=4)
     fine = noise2(rng, size, octaves=4, base=16)
@@ -259,7 +259,7 @@ def base(rng, size):
     """A wide, soft grey oval, densest in its lower half: the cloud's base.
 
     A flat, hard bottom drawn in the image looked right from the side but broke into
-    horizontal stripes seen from below (notes/cloud-looks.md); the base is flat because its
+    horizontal stripes seen from below (2026-11-11); the base is flat because its
     puffs are emitted in a thin layer, and each puff stays soft all round.
     """
     xs, ys = _grid(size)

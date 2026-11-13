@@ -42,7 +42,7 @@ import os
 
 from PIL import Image
 
-TEXTURE_SIZE = 512  # a small texture may reach the screen as its average colour (notes/phase2.md)
+TEXTURE_SIZE = 512  # a small texture may reach the screen as its average colour (seen with a 32x16 one)
 LOD_M = 40000  # X-Plane divides this: LOD_bias_rat was 5 here, so 40 km drew to about 8 km
 # Above roads, which are above everything on an airport.
 LAYER = "ATTR_layer_group_draped roads 5"

@@ -15,7 +15,7 @@ text lines. Published, over the samples since `xp_gliding/hudlab/reset` was last
 Exceptions must not leave a draw callback: XPPython3 logged the first one and the callback
 never drew again (seen 2026-11-03), so a bug in one mode silently ends the others sharing
 its window. GPU cost and main-thread CPU are read from outside by the driver.
-imgui is imported only when its mode is first used: the SPEC warns that reloading scripts
+imgui is imported only when its mode is first used: XPPython3's docs warn that reloading scripts
 after using it crashes the simulator, so never reload with this plugin once that mode ran.
 
 License: GPL-3.0-or-later.

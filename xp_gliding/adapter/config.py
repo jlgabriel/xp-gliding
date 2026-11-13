@@ -45,7 +45,7 @@ DEFAULTS = {
     "also_gliders": [],
     "wstar_ms": 3.0,  # convective velocity scale w* (m/s)
     "zi_m": 2000.0,  # convective layer depth zi (m AGL)
-    "weather_base_enabled": False,  # zi from the cloud base in X-Plane's weather (notes/phase5.md)
+    "weather_base_enabled": False,  # zi from the cloud base in X-Plane's weather
     "seed": 1,  # field seed; with the date and place it fixes the sky
     "sky": "wide_carriers",  # a name in engine.field.SKIES; another name is left out
     "range_m": 10000.0,  # thermals are loaded this far around the aircraft

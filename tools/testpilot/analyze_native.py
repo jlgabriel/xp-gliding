@@ -9,7 +9,7 @@ into windows of --window seconds and each window gets:
   native lift = vs_te - still-air sink at that IAS, TAS and bank
 
 where vs_te is the slope of energy height h + TAS^2/2g (see
-analyze_flightlog.py) and the still-air sink comes from the test A polar
+analyze_flightlog.py) and the still-air sink comes from the measured polar
 (sea-level sink scaled by TAS/IAS, and by n^1.5 = cos(bank)^-1.5 in a turn).
 Positions are reported along and across the pass line, and X-Plane's terrain
 under the glider is elevation minus AGL.
@@ -114,7 +114,7 @@ def slope_fit(w):
 
 
 def thermal_report(entry):
-    """Test I: one line per circle (odd marks) and cruise statistics."""
+    """Native thermals (test I): one line per circle (odd marks) and cruise statistics."""
     _, rows = load_rows(os.path.join(LOG_DIR, entry["log"]))
     rows = flying_rows(rows)
     lines = []

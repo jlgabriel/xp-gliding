@@ -20,7 +20,7 @@ over the given stretch, lift by distance, the entry, and the centring aid's erro
 as the HUD does and measured in the air's frame. The field is the oracle here: the plugin's
 instruments never read it. The cloud's schedule is what the model asks for, not a
 measurement of what was drawn: particles are not logged. The sky rebuilt here has no thermal
-floors (notes/phase4.md), so over hills its lift is not the plugin's; `read_flight.py` has them.
+floors, so over hills its lift is not the plugin's; `read_flight.py` has them.
 
 Measurement tool, not part of the plugin. License: GPL-3.0-or-later.
 """

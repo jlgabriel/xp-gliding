@@ -1,6 +1,6 @@
 """The architecture's first rule, checked: the engine never imports `xp`.
 
-CLAUDE.md and notes/SPEC.md: the atmospheric engine is pure Python and testable outside
+The project's design rule: the atmospheric engine is pure Python and testable outside
 X-Plane, and only the adapter talks to the SDK. Of the adapter, only `xpio`, `plugin` and
 `hud` may import `xp`; the rest say "no `xp`" in their docstrings and are tested without it.
 """

@@ -6,7 +6,7 @@ degree of spread between temperature and dew point (Espy's rule). Good to a few 
 use, and it is what soaring pilots use.
 
 The ground's values come from a table of heights, as X-Plane's layers do. Below the first height
-or above the last, the end value holds. See notes/phase5.md.
+or above the last, the end value holds.
 License: GPL-3.0-or-later.
 """
 
@@ -38,11 +38,11 @@ def cloud_base_above_ground_m(temperature_c, dew_point_c):
 
 
 # A base from the weather is kept within these heights above the ground. First 500-3500 m (Juan
-# Luis, 2026-11-09; X-Plane's calm default, with nothing set, gives 2733 m, notes/phase5.md), then
+# Luis, 2026-11-09; X-Plane 12.4.3's calm default at Hobbs, with nothing set, gives 2733 m), then
 # 1000-2250 m for 0.3.1, while the thermals' density did not follow zi. It does now, so the top is
 # 3500 m again: the sink between thermals stays as at the default zi. The bottom stays 1000 m:
 # under a lower base Allen's thermals are too narrow to climb in a 30 degree circle, and the sky
-# holds more of them than the plugin likes to load (notes/SPEC.md). With the wide sky's base at
+# holds more of them than the plugin likes to load. With the wide sky's base at
 # 0.75 zi these give zi 1333-4667 m.
 BASE_MIN_M = 1000.0
 BASE_MAX_M = 3500.0

@@ -5,8 +5,9 @@ instruments and formats the text, so nothing of this runs in the frames between.
 A window in the flight overlay layer draws the result every frame: the static
 part from a GL display list, the rest as a few GL primitives and strings already
 made. Under Vulkan X-Plane gives plugins an OpenGL context of their own, and
-drawing in a window is the supported way to use it (notes/hud.md has the
-measurements behind this choice, and what to move to on X-Plane 12.4.4). Small
+drawing in a window is the supported way to use it (measured in X-Plane 12.4.3,
+2026-11-04: ~75 us a frame for a test scene, against ~500 us through xpgl or imgui;
+X-Plane 12.4.4's native Panel Graphics are the next step). Small
 text uses X-Plane's own font, because TrueType through xpgl costs ~18 us per
 glyph from Python; only the big TE reading pays for it.
 
@@ -42,7 +43,7 @@ WIND_CALM_MS = 0.5  # below this there is no direction to show
 KT_PER_MS = 1.0 / 0.514444
 # Half-swing of the lift around a circle. On logged orbits of the test pilot it is 0.8-0.9 m/s
 # even within 30 m of the core, where the direction means nothing, and 1.8 m/s or more once
-# 30 m or more off centre (notes/hud.md). Below this the arrow stays hidden.
+# 30 m or more off centre. Below this the arrow stays hidden.
 AID_MIN_AMP_MS = 1.2
 AID_FULL_AMP_MS = 3.0
 SOLVE_EVERY = 5  # samples between CentringAid solutions

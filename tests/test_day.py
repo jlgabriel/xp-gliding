@@ -44,7 +44,7 @@ LAYERS = [0.0, 1000.0, 2000.0]
 
 
 def test_weather_base_at_the_ground():
-    # 7.8 C over -3.6 C at the ground: Hobbs with a cumulus set at 2500 m MSL (notes/phase5.md).
+    # 7.8 C over -3.6 C at the ground: Hobbs with a cumulus set at 2500 m MSL (X-Plane 12.4.3).
     assert weather_base_m(1112.0, [1000.0, 1200.0], [7.8, 7.8], [-3.6, -3.6]) == pytest.approx(1425.0)
 
 

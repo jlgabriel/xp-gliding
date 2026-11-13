@@ -1,4 +1,4 @@
-"""Phase 1 checks of the xp-gliding plugin, flown by the test pilot.
+"""First checks of the xp-gliding plugin in flight, flown by the test pilot.
 
 Usage (X-Plane running with the xp-gliding plugin and flight logger 0.3.0):
     python tools/testpilot/fly_phase1.py uniform [--only U90_1 ...]
@@ -8,10 +8,10 @@ Usage (X-Plane running with the xp-gliding plugin and flight logger 0.3.0):
     python tools/testpilot/fly_phase1.py orbit [--minutes 30] [--kmh 80] [--bank 45]
     python tools/testpilot/fly_phase1.py report [--orbit] LOG.csv ...
 
-uniform: baseline test B with our physics. Each segment is an air start over
-KHOB in calm, clear air (test A conditions, 541 kg) with the plugin's debug
+uniform: test B of `calibrate_alex.py` with our physics. Each segment is an air start over
+KHOB in calm, clear air (as for the still-air polar, 541 kg) with the plugin's debug
 mode `xp_gliding/debug/uniform_ms` (the same w everywhere), a settle and a
-recorded stretch. Δvs is vs_te minus the test A polar at the same IAS, TAS and
+recorded stretch. Δvs is vs_te minus the still-air polar at the same IAS, TAS and
 bank; the energy force should give Δvs = w at every speed and bank. The
 segments with w = 0 and thermals off check that the plugin adds nothing then.
 

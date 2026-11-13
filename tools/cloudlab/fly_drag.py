@@ -9,7 +9,7 @@ wind is the wind moving the particles. With --moving the emitters go with the wi
 use, and a cloud should stay whole. --shear makes the wind grow with height, reaching about
 --wind-kt at the clouds, while the emitters travel at the wind of the glider. If the particles
 travelled at the wind of the clouds, a cloud would stretch; the flights saw no such stretch, and
-the particles appear to move at about the wind at the aircraft (notes/phase3.md). Compare with the
+the particles appear to move at about the wind at the aircraft (flown 2026-11-06). Compare with the
 same flight at --wind-kt 0.
 
 Measurement tool, not part of the plugin. License: GPL-3.0-or-later.

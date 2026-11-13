@@ -352,7 +352,7 @@ class CircleMission:
         self.ground_start = None
         self.wanted = None  # wanted(thermal, t): only these can be chosen
         self.floors = None  # floors(field): gives this oracle the plugin's floors. Without it, over
-        # hills its lift differs from the plugin's (notes/phase4.md).
+        # hills its lift differs from the plugin's.
         self.ground_m = None  # the ground under the glider now, for an oracle with floors
 
     def choose(self, lat, lon, z, t):

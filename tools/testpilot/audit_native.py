@@ -1,4 +1,4 @@
-"""Native soaring audit (baseline tests H-J) flown by the test pilot.
+"""Native soaring audit flown by the test pilot: ridge (test H), thermals (I), wave (J).
 
 Usage (X-Plane running; each pass replaces the current flight):
     python tools/testpilot/audit_native.py ridge|wave [--only NAME ...]
@@ -180,7 +180,7 @@ def run_ridge(api, only):
                         "crest_m": RIDGE_CREST_M})
 
 
-# Test I site: KHOB (flat, the test A site), light wind, a cumulus layer.
+# Test I site: KHOB (flat, where the still-air polar was flown), light wind, a cumulus layer.
 KHOB = (32.6875, -103.2170, 1116.0)
 LOGGER_MARK = "xp_gliding/flightlog/mark"
 AGL_REF = "sim/flightmodel/position/y_agl"
@@ -190,7 +190,7 @@ class ThermalHunter:
     """Cruise on a course; on native lift circle while it lasts, then go on.
 
     The sensor is netto lift from the glider's own total-energy vario
-    (`total_energy_fpm` plus the test A polar sink at the current IAS, TAS and
+    (`total_energy_fpm` plus the still-air polar's sink at the current IAS, TAS and
     bank), smoothed over ~2 s: `sim/weather/aircraft/thermal_rate_ms` cannot
     be used, it only repeats the regional thermal setting (seen 2026-11-03).
     Centering is the usual rule of thumb: while the lift is getting stronger,

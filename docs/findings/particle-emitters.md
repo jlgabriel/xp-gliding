@@ -206,7 +206,7 @@ Nothing between these two was looked at, nor dawn, nor a low sun in front of the
 
 - **Mostly by eye.** Only the cost is timed. The rest is screenshots, usually of one flight, with no particle count behind them.
 - **The fading of a cloud was not measured.** Stopping the rate should remove a cloud over 144 to 216 s, from the particle's life. That is a schedule. In one hand flight the pilot could not be sure that a cloud had shrunk.
-- **A shift of X-Plane's local origin:** one, flying east in calm air. Instances here use `instanceSetAutoShift`, and the particles already in the sky stayed in place, by eye: the same clouds 13 s before and 1 s after it, and a marker placed through `worldToLocal` under the cloud ahead 10 s after. Not looked at: north or south, in wind, or in a climb. See [the record](../../notes/phase4.md#a-shift-of-x-planes-local-origin).
+- **A shift of X-Plane's local origin:** one, flying east in calm air. Instances here use `instanceSetAutoShift`, and the particles already in the sky stayed in place, by eye: the same clouds 13 s before and 1 s after it, and a marker placed through `worldToLocal` under the cloud ahead 10 s after. Not looked at: north or south, in wind, or in a climb.
 - **Time acceleration** above 2× was not tried.
 - **Only one object design:** long-lived billboards with no speed and no gravity, at cloud sizes. A smaller or faster effect may behave differently.
 - **The draw order was seen with up to three clouds in the lab,** and with about 200 to 400 instances only through the result: near clouds in front once instances were made in that order. Additive and pre-multiplied blending were not tried.
@@ -226,6 +226,6 @@ Nothing between these two was looked at, nor dawn, nor a low sun in front of the
 - **Fade each puff inside its texture cell,** or its edge shows from close up.
 - **Create instances in the order they should be drawn:** what is to be on top first. Moving an instance does not change its place, and a new one always goes underneath, so make the instances for near effects in advance and reuse them.
 
-## Full record
+## Repeating it
 
-The working notes hold the record and the reasoning: [what X-Plane does with an emitter](../../notes/phase2.md#what-x-plane-does-with-an-emitter), [the cost](../../notes/phase2.md#cost), [clouds in wind](../../notes/phase3.md#clouds-in-wind), [which wind carries the sky in shear](../../notes/phase3.md#which-wind-carries-the-sky-in-shear), [the disc and its distance limit](../../notes/shadows.md#other-findings), [next to X-Plane's clouds and at dusk](../../notes/phase4.md#next-to-xp12s-clouds-and-at-dusk), [the graphics menu](../../notes/phase4.md#does-the-graphics-menu-change-the-sky) and [the order clouds are drawn in](../../notes/phase4.md#the-order-clouds-are-drawn-in).
+The lab plugin and the scripts named under the method place the test emitters and fly the passes. [How it works](../how-it-works.md#clouds) shows how the plugin draws its clouds with what was found here.

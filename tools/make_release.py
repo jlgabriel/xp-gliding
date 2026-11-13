@@ -11,7 +11,7 @@ flight logger stay out. The version is `xp_gliding.__version__`.
 
 The zip is built from the working tree, so it refuses to build while anything that goes into it
 differs from the last commit or is not tracked by git (`--allow-dirty` builds anyway, for a try).
-The steps around it are in notes/release-checklist.md.
+The maintainer's release checklist covers the steps around it.
 
 License: GPL-3.0-or-later.
 """

@@ -104,6 +104,6 @@ The air was smooth on every pass, with no bands of lift and sink downwind. The o
 - **Ridge lift already works** close to the face, so there is no need to replace it for ridge running.
 - **If you script air starts through the web API,** give the payload. After an X-Plane restart the ASK 21 loaded empty (360.6 kg), with its centre of gravity so far aft that it pitched up to 45° at full forward stick.
 
-## Full record
+## Repeating it
 
-Protocol, every pass and the reasoning are in the [working notes](../../notes/baseline.md#native-audit-hj).
+The two scripts named under the method fly the passes through X-Plane's local web API and read the results.

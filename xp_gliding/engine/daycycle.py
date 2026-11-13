@@ -1,6 +1,6 @@
-"""The daily cycle: how strong the thermals are at each hour of the day (SPEC, stage 2).
+"""The daily cycle: how strong the thermals are at each hour of the day.
 
-Designed in notes/phase5.md, *The daily cycle*, step A, and chosen by Juan Luis (2026-11-10).
+Designed offline, and chosen by Juan Luis (2026-11-10).
 The field owns one (`ThermalField.cycle`) when the sun is on, and the injector takes the w* of
 the moment from it; the cloud catalog uses `blue` to leave the morning without clouds.
 

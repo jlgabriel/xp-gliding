@@ -4,7 +4,7 @@ Usage:
     python tools/terrainlab/analyze_terrain.py [--folder Output/xp-gliding/terrainlab]
 
 Offline, from the CSVs that fly_terrain.py leaves. `rule` applies the rule for a cloud's base
-(notes/phase3.md) to the height map scanned at Santiago.
+(`engine.clouds.cloud_base_m`) to the height map scanned at Santiago.
 
 Measurement tool, not part of the plugin. License: GPL-3.0-or-later.
 """

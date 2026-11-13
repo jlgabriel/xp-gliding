@@ -5,7 +5,7 @@ makes 17 reads of the aircraft state and the wind and reads and writes the four 
 datarefs; nothing else crosses into the SDK in the per-frame path.
 
 Forces: DataRefs.txt says to *add* to the `*_plug_acf` datarefs, and X-Plane
-clears them every frame (baseline test B: a plugin that adds to the current
+clears them every frame (measured 2026-11-03: a plugin that adds to the current
 value applies its force exactly once per frame). So the adapter reads each
 one and adds its own force once per frame from its before-flight-model loop,
 which keeps any other plugin's force written earlier in the same frame.
@@ -66,7 +66,7 @@ class XPlaneIO:
         self._cloud_type = xp.findDataRef("sim/weather/aircraft/cloud_type")
         self._cloud_cover = xp.findDataRef("sim/weather/aircraft/cloud_coverage_percent")
         self._rain = xp.findDataRef("sim/weather/region/rain_percent")
-        # X-Plane's own audio vario, on total energy, so it hears our lift (notes/phase4.md): the
+        # X-Plane's own audio vario, on total energy, so it hears our lift (flown 2026-11-07): the
         # AUDIO switch on the ASK 21's panel. Gliders without one get it from the menu.
         self._te_audio = xp.findDataRef("sim/cockpit2/switches/total_energy_audio")
 
@@ -164,7 +164,7 @@ class SkyObjects:
 
     def ground_m(self, lat, lon):
         """The ground's height at a place, m MSL; None where no ground is loaded, which begins
-        at about 125 km from the glider (notes/phase3.md). Far from the local origin one probe
+        at about 125 km from the glider (seen 2026-11-06). Far from the local origin one probe
         lands a little beside the place: within about 20 m of height at 40 km, in the Andes."""
         info = self._probed(lat, lon)
         if info.result != xp.ProbeHitTerrain:
@@ -173,7 +173,7 @@ class SkyObjects:
 
     def is_wet(self, lat, lon):
         """Is this place on water, a pond or a river as much as the sea? Not where no ground is
-        loaded (notes/phase3.md)."""
+        loaded."""
         info = self._probed(lat, lon)
         return info.result == xp.ProbeHitTerrain and bool(info.is_wet)
 

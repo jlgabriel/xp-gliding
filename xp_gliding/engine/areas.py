@@ -1,4 +1,4 @@
-"""Good and bad areas: a slow variation of the thermals' number and strength (SPEC stage 2, block 3).
+"""Good and bad areas: a slow variation of the thermals' number and strength.
 
 Real days are not even: over tens of kilometres some areas work better than others, and choosing
 where to go is part of the flight. Here a smooth field over the globe, the area's quality q,
@@ -20,8 +20,8 @@ thermal's `gain`, `clouds.cloud_scale`), and fewer, smaller ones where it is wor
   thermals and 1.2 times the strength, the worst 15% about 0.4 and 0.8. Both average 1, so the
   sky as a whole holds as many thermals as before.
 - The areas are in the air's frame, as the thermals are: with wind they drift with it, as an air
-  mass does. They are not the ground: that is the terrain triggers (stage 3, and the light
-  version in stage 2).
+  mass does. They are not the ground: that would be terrain triggers, not modeled
+  yet.
 
 The sink between thermals stays the sky's, not the area's. Where density and strength rise
 together the mean mass flux rises with them (`MEAN_FLUX`), and the field's sink takes it into

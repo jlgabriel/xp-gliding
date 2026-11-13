@@ -7,7 +7,7 @@ tests and tools to check them.
 
 Works with force injection: our lift is real energy for the aircraft, so the
 total energy rate reads it like moving air, and X-Plane's own total-energy gauge
-agrees with it (within 0.03 m/s over 20 s, wings level; notes/hud.md).
+agrees with it (within 0.03 m/s over 20 s, wings level; measured 2026-11-03).
 
 - `Polar`: the still-air sink of an aircraft, measured by the test pilot.
 - `Vario`: total-energy rate, netto, and the true average over a time window.
@@ -76,8 +76,8 @@ class Polar:
         return sink_sl * scale * tas_ms / (ias_kmh / 3.6)
 
 
-# The Laminar ASK 21 at 541 kg: level flight from test A (notes/baseline.md), the
-# turn term fitted to the logged circles of 2026-11-03 (notes/hud.md).
+# The Laminar ASK 21 at 541 kg: level flight measured by the test pilot over KHOB in calm
+# air (2026-11-02, X-Plane 12.4.3), the turn term fitted to the logged circles of 2026-11-03.
 ASK21_LAMINAR = Polar(((77.0, 0.86), (80.0, 0.86), (90.0, 0.86), (100.0, 0.90),
                        (120.0, 1.11), (140.0, 1.50)), 541.0, 0.85, 90.0)
 

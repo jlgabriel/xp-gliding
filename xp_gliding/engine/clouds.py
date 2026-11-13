@@ -1,6 +1,6 @@
 """Which thermals carry a cumulus, and what each cloud's emitter should do.
 
-The sky must be a consequence of the model (SPEC "Visual cues"): a cumulus marks a
+The sky must be a consequence of the model: a cumulus marks a
 thermal, forms and fades with it, and is the same for anyone with the same seed,
 date and place. The clouds are not chosen around the glider; a thermal either
 carries a cloud or it does not, from its own fixed numbers. The glider's place only
@@ -10,7 +10,7 @@ Which thermals. About 4.5 are alive per km2, and a cumulus sky has one cloud eve
 few km, so about 3% get one: the largest mass flux (`wgain * rgain^2`), which is what
 would carry moist air highest, and with a life long enough for the cloud to form and
 fade while the thermal lives. With the defaults that is 0.12 clouds per km2, one
-every ~2.8 km, measured offline (notes/phase2.md).
+every ~2.8 km, measured offline.
 
 A cloud cannot be changed once drawn, only fed. Each is an emitter of long-lived
 particles that do not move (see `tools/make_cloud_objs.py`). All that can be
@@ -24,7 +24,7 @@ which removes its particles at once (flown 2026-11-04). So:
   oldest first, go over one more life (144-216 s): a thin cloud fading over air that no longer
   rises, half gone after about a minute and a half and all of it after three and a half, as a
   real one lingers after its lift has gone. The instance goes once nothing is left to see. So a full cloud is a mature thermal, a thinning one a weakening
-  thermal, and a thin one may be dead (notes/SPEC.md, stage 2, block 3).
+  thermal, and a thin one may be dead.
 - A cloud that comes into range, or the first sky of a flight, should already look as
   old as it is, so it emits fast for a moment (`prewarm`), and then rests.
 - Far clouds use fewer particles. At 15 km a third of them looks the same (flown), and
@@ -33,9 +33,9 @@ which removes its particles at once (flown 2026-11-04). So:
 
 How high (`ground_points`, `cloud_base_m`). Real bases are level, and a particle stays where it
 was emitted, so a cloud keeps one height for life: the higher of a level for the area and the
-highest ground under it and along its drift, plus a margin (notes/SPEC.md "Generation").
+highest ground under it and along its drift, plus a margin.
 
-Under X-Plane's clouds (`shade.py`, SPEC stage 2, block 3): where its layers leave a share of the
+Under X-Plane's clouds (`shade.py`): where its layers leave a share of the
 clear sky's w*, that share of the clouds keep their cumulus, the same ones for everyone (`shade_keeps`),
 and they are drawn that much smaller (`shaded_scale`). In rain the share is 0: no cumulus. A clear
 sky changes nothing.
@@ -52,14 +52,14 @@ from .rng import hash_key
 TOP_ZZI = 1.0 / 1.1  # the lift ends at this z/zi (Allen Eq. 11), the same as the markers' top
 CREATE, RATE, DESTROY = 0, 1, 2  # actions of CloudPlanner.step
 # Cloud size against wgain x rgain: this value gets the object's size. It keeps the median size
-# that a size from rgain alone had (1.07), so the sky is as cloudy (notes/phase3.md).
+# that a size from rgain alone had (1.07), so the sky is as cloudy.
 SCALE_WR = 1.7
 # Every cloud this share of that size (Juan Luis, 2026-11-13): at 1 a cloud was about 1.2 km wide
 # over lift about 530 m wide, and the clouds took the stage from the thermals they mark. A median
 # cloud is now about 850 m wide and 420 m tall, the biggest no longer over 1.
 CLOUD_SIZE = 0.7
 SCALE_RANGE = (0.6 * CLOUD_SIZE, 1.4 * CLOUD_SIZE)
-# The height of a cloud (notes/phase3.md). First guesses.
+# The height of a cloud. First guesses.
 BASE_MARGIN_M = 300.0
 GROUND_STEP_M = 1000.0  # the ground is read this far apart along a cloud's drift
 CLOUD_HALF_WIDTH_M = 500.0  # at scale 1, as `tools/make_cloud_objs.py` draws it

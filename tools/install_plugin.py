@@ -7,7 +7,7 @@ Copies `PI_xp_gliding.py` and the `xp_gliding` package (without caches) into
 `Resources/plugins/PythonPlugins/`, replacing a previous copy of the package
 so that deleted modules do not linger. X-Plane must be restarted afterwards:
 XPPython3's "Reload scripts" does not reload submodules and is unreliable
-with numpy (SPEC, XPPython3 platform facts). The X-Plane folder defaults to
+with numpy (XPPython3's own documentation). The X-Plane folder defaults to
 the XPLANE_DIR environment variable.
 
 License: GPL-3.0-or-later.

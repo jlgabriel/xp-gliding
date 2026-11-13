@@ -1,4 +1,7 @@
-"""Still-air polar of the Laminar ASK 21 measured in test A (notes/baseline.md).
+"""Still-air polar of the Laminar ASK 21 at 541 kg (test A in the tools' output).
+
+Measured by the test pilot in X-Plane 12.4.3 on 2026-11-02 over KHOB, in calm, clear
+air: each speed held for 60 s at 2660-2710 m MSL, wings level.
 
 Measurement tool, not part of the plugin. License: GPL-3.0-or-later.
 """
