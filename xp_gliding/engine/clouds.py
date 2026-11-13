@@ -54,7 +54,11 @@ CREATE, RATE, DESTROY = 0, 1, 2  # actions of CloudPlanner.step
 # Cloud size against wgain x rgain: this value gets the object's size. It keeps the median size
 # that a size from rgain alone had (1.07), so the sky is as cloudy (notes/phase3.md).
 SCALE_WR = 1.7
-SCALE_RANGE = (0.6, 1.4)
+# Every cloud this share of that size (Juan Luis, 2026-11-13): at 1 a cloud was about 1.2 km wide
+# over lift about 530 m wide, and the clouds took the stage from the thermals they mark. A median
+# cloud is now about 850 m wide and 420 m tall, the biggest no longer over 1.
+CLOUD_SIZE = 0.7
+SCALE_RANGE = (0.6 * CLOUD_SIZE, 1.4 * CLOUD_SIZE)
 # The height of a cloud (notes/phase3.md). First guesses.
 BASE_MARGIN_M = 300.0
 GROUND_STEP_M = 1000.0  # the ground is read this far apart along a cloud's drift
@@ -107,7 +111,7 @@ def cloud_scale(thermal):
     biggest clouds the weakest thermals, and a size from wgain alone would rank them exactly.
     The product reads as a pilot should expect: a big cloud is usually a good one, not always.
     """
-    size = thermal.wgain * thermal.gain * thermal.rgain / SCALE_WR
+    size = CLOUD_SIZE * thermal.wgain * thermal.gain * thermal.rgain / SCALE_WR
     return min(max(size, SCALE_RANGE[0]), SCALE_RANGE[1])
 
 

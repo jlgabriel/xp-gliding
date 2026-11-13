@@ -894,7 +894,7 @@ def test_clouds_are_on_by_default_and_fill_the_sky_over_many_updates(plugin):
     heights = pi.clouds.heights
     lowest = min(heights.level_of(th) for th in pi.clouds.instances)
     assert dataref(xp, "clouds/nearest_base_m") >= lowest > 0.0 and dataref(xp, "clouds/level_m") > 0.0
-    assert 0.6 <= dataref(xp, "clouds/nearest_scale") <= 1.4
+    assert SCALE_RANGE[0] <= dataref(xp, "clouds/nearest_scale") <= SCALE_RANGE[1]
 
 
 def test_clouds_carry_their_rate_and_scale_at_the_base_of_the_clouds(plugin):

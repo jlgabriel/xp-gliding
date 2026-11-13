@@ -382,7 +382,7 @@ def test_the_plan_does_not_depend_on_how_the_catalog_was_loaded():
 
 
 def test_scale_follows_the_thermal_within_limits():
-    assert cl.cloud_scale(make_thermal(wgain=cl.SCALE_WR, rgain=1.0)) == 1.0
+    assert cl.cloud_scale(make_thermal(wgain=cl.SCALE_WR, rgain=1.0)) == pytest.approx(cl.CLOUD_SIZE)
     assert cl.cloud_scale(make_thermal(wgain=0.1, rgain=0.1)) == cl.SCALE_RANGE[0]
     assert cl.cloud_scale(make_thermal(wgain=9.0, rgain=9.0)) == cl.SCALE_RANGE[1]
 

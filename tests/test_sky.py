@@ -213,7 +213,7 @@ def test_cloud_size_does_not_follow_the_stretch():
     """A cloud's size is from the drawn gains, not the lift's width."""
     drawn = f.Thermal(LAT, LON, 0.0, 1000.0, 1.0, cl.SCALE_WR, 1.0, 1.0)
     wide = f.Thermal(LAT, LON, 0.0, 1000.0, 1.0, cl.SCALE_WR, 1.0, 2.0)
-    assert cl.cloud_scale(wide) == cl.cloud_scale(drawn) == 1.0
+    assert cl.cloud_scale(wide) == cl.cloud_scale(drawn) == pytest.approx(cl.CLOUD_SIZE)
 
 
 def test_a_bigger_cloud_is_usually_a_stronger_thermal():
