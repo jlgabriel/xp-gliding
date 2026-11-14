@@ -2,9 +2,10 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
-## Unreleased
+## 1.0 — 2026-11-14
 
 - **Cloud styles.** *Plugins → XP-Gliding → Cloud style* chooses how the cumulus look, as a livery does for an aircraft. The plugin comes with four: *Standard*, today's clouds; *Cotton*, the softer, fuller cumulus of 0.8; *Cauliflower*, whiter, with crisp round lobes; and *Popcorn*, Standard with a new texture of round white puffs. Styles of your own go in `xp-gliding-cloud-styles`, a folder the zip now brings, to copy beside the plugin in `Resources/plugins/PythonPlugins/`; a new version of the plugin leaves it alone, and they show in the menu after a restart. A style changes only the look: where the clouds are, how big, how high and how long they live, and so what they say about their thermals, are the same with every style. A style that cannot be loaded gives *Standard*. How to make one, starting from a new texture: [Cloud styles](docs/cloud-styles.md).
+- **Pictures in the documentation.** The pilot guide shows the menu, the HUD, the training markers and the sky as seen from the glider, and [Cloud styles](docs/cloud-styles.md) shows its submenu and the four styles side by side, all taken in this version.
 
 ## 0.9.2 — 2026-11-13
 

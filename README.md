@@ -4,9 +4,9 @@ A thermal soaring plugin for X-Plane 12: thermals you can find by reading the cl
 
 It is an independent take on thermals, offered as another option for soaring in X-Plane 12. The weather, the wind, the ridge lift and the flight model stay X-Plane's, and the plugin brings thermals tied to clouds of their own.
 
-![A Laminar ASK 21 banking in a thermal under cumulus, beside a yellow training marker: a ring at its height and a column up to the cloud. The soaring HUD is on the left](docs/images/ask21-circling-at-a-marker.jpg)
+![A Laminar ASK 21 seen from below, circling under the cumulus that marks its thermal, with more cumulus over the hills of Santiago, Chile. The soaring HUD is on the left](docs/images/circling-under-its-cloud.jpg)
 
-> **Version 0.9.2.** Its limits are stated in the guide. Download it from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and follow the [pilot guide](docs/pilot-guide.md) to install it: it needs only X-Plane 12 and [XPPython3](https://xppython3.readthedocs.io/).
+> **Version 1.0.** Its limits are stated in the guide. Download it from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and follow the [pilot guide](docs/pilot-guide.md) to install it: it needs only X-Plane 12 and [XPPython3](https://xppython3.readthedocs.io/).
 
 ## What it does today
 

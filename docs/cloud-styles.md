@@ -4,6 +4,8 @@ A cloud style sets how XP-Gliding's cumulus look, the way a livery sets how an a
 
 *Plugins → XP-Gliding → Cloud style* lists the styles found when X-Plane starts. The one ticked is the one drawn. Choosing another replaces the clouds at once, and new ones fill in over a few seconds. The choice is saved. The command `xp_gliding/clouds/style/next` steps to the next style; bound to a key in X-Plane's keyboard settings, it compares styles in flight.
 
+![The Cloud style submenu of Plugins → XP-Gliding, with Standard ticked above Cotton (soft edges), Cauliflower (crisp, bright lobes) and Popcorn (round white puffs)](images/menu-cloud-style.png)
+
 ## Installing a style
 
 A style is a folder. Put it in `X-Plane 12/Resources/plugins/PythonPlugins/xp-gliding-cloud-styles/`, beside the plugin's `xp_gliding` folder. The plugin's zip brings that folder, and the plugin makes it if it is missing. Updating the plugin replaces only `xp_gliding` and `PI_xp_gliding.py`, so your styles survive updates. Restart X-Plane, and the style is in the menu.
@@ -14,6 +16,10 @@ The plugin comes with four styles, in `xp_gliding/assets/clouds/`:
 - *Cotton (soft edges)*: the cumulus of version 0.8, softer and fuller, with a light layer of flat puffs and wisps under the base.
 - *Cauliflower (crisp, bright lobes)*: a whiter cloud of round lobes with firm outlines, with the same layer under the base.
 - *Popcorn (round white puffs)*: *Standard* with another texture, drawn with ChatGPT: rounder, whiter puffs. It shows how far a new texture alone goes.
+
+![The same stretch of sky over Santiago, Chile, drawn in each of the four styles: Standard, Cotton, Cauliflower and Popcorn](images/cloud-styles.jpg)
+
+The four views were taken a minute apart from a glider circling in one thermal, in X-Plane 12.4.3, so the clouds themselves moved on a little between them.
 
 All four are drawn at the same size over the same thermals. A style of your own with the same folder name as one of the plugin's is left out.
 

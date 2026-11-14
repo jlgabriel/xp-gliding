@@ -1,6 +1,8 @@
 # Pilot guide
 
-How to install XP-Gliding, make a first flight and read its sky. This guide is for version 0.9.2. Its known limits are listed at the end.
+How to install XP-Gliding, make a first flight and read its sky. This guide is for version 1.0. Its known limits are listed at the end.
+
+![A Laminar ASK 21 banked in a climbing turn over Santiago, Chile, with small cumulus around it and hills beyond. The HUD on the left reads +2.3 m/s](images/climbing-among-cumulus.jpg)
 
 ## What you need
 
@@ -10,7 +12,7 @@ How to install XP-Gliding, make a first flight and read its sky. This guide is f
 
 ## Installing
 
-1. Download `xp-gliding-0.9.2.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
+1. Download `xp-gliding-1.0.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
 2. Close X-Plane.
 3. From the unzipped folder, copy `PI_xp_gliding.py`, the whole `xp_gliding` folder and the `xp-gliding-cloud-styles` folder into `X-Plane 12/Resources/plugins/PythonPlugins/`. They must sit side by side there. The last one is for cloud styles of your own, and the plugin makes it if it is missing. `README.txt` and `LICENSE` do not need to be copied.
 4. Start X-Plane. *Plugins → XP-Gliding* appears in the menu.
@@ -31,9 +33,13 @@ The plugin comes ready to fly: no file to edit, and nothing to set in X-Plane's 
 6. **Circle where the lift is.** When the vario goes up, turn. A bank of 28–35° at 90–95 km/h has worked in the ASK 21, flown by hand in X-Plane 12.4.3. Steeper turns cost a lot of climb in this glider.
 7. **Listen, if you like.** The AUDIO switch on the ASK 21's panel turns on X-Plane's own audio vario, which hears the plugin's thermals. In a glider with no such switch, choose *Plugins → XP-Gliding → X-Plane's audio vario*.
 
+![Training markers around an ASK 21: a red ring at the glider's height with its column rising to the cloud, for a thermal of 4 m/s or more at its core, and a pale column farther off for a weaker one](images/training-markers.jpg)
+
 In calm air the sky is the same every time for the same place, date, time and seed, so a good thermal can be found again. With wind the sky drifts from where it stood when the flight began, so the same thermal turns up over different ground.
 
 ## Reading the sky
+
+![The view ahead from a glider over the hills of Santiago, Chile: a few separate cumulus, each over a thermal, with blue sky between them and more cumulus in the distance](images/clouds-ahead.jpg)
 
 - **A cloud means a thermal.** Each of the plugin's clouds sits over a thermal. A few thermals have no cloud, and they are weaker.
 - **Clouds are born with their thermal and outlive it.** A thermal lives between 5 and 30 minutes, growing and then fading, and never vanishes at once. A full cloud has a thermal at its best. A cloud that thins has a thermal that is weakening, and it stays a few minutes after its thermal has died, fading. A thin cloud may have nothing left under it.
@@ -51,6 +57,8 @@ In calm air the sky is the same every time for the same place, date, time and se
 
 A small panel on the left of the screen. The vario readings and the centring arrow use only what a real glider could sense, not the plugin's knowledge of where the thermals are.
 
+![The soaring HUD in a climb: +2.3 large in amber, NET +3.5 in green, AVG +0.3, THM +0.3, TOP +507 m, WIND calm, the tape on the left and the centring arrow at the bottom](images/hud.png)
+
 | Item | What it shows |
 | --- | --- |
 | Large amber number, and the tape | Total energy rate, m/s, or knots with aviation units (the tape then spans ±10 kt) |
@@ -64,6 +72,8 @@ A small panel on the left of the screen. The vario readings and the centring arr
 ## The menu
 
 Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next session, and each switch is also a command you can bind to a key or a joystick button in X-Plane's keyboard or joystick settings.
+
+![The XP-Gliding menu with its default settings: the switches with a dot where they are on, then the submenus from Day to Cloud style, and the status line at the bottom](images/menu.png)
 
 | Item | What it does | Command |
 | --- | --- | --- |
