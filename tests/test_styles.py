@@ -25,7 +25,7 @@ def test_the_plugin_ships_its_six_styles_in_order():
                                         "Popcorn (round white puffs)", "Billow (rendered heaps)",
                                         "Billow light (lighter, softer edges)"]
     assert all(s.license == "GPL-3.0-or-later" and not s.own for s in found)
-    assert found[0].key == styles.DEFAULT_STYLE
+    assert found[0].key == styles.FALLBACK_STYLE
     assert found[0].license == "GPL-3.0-or-later" and not found[0].own
     assert os.path.isfile(found[0].object_path)
 
@@ -99,12 +99,12 @@ def test_a_style_that_is_gone_is_the_standard_one(tmp_path):
 
 
 def test_the_setting_takes_a_folder_name_and_nothing_else():
-    assert config.Settings().cloud_style == "standard"
+    assert config.Settings().cloud_style == "billow-light"  # the default since 1.1.1
     assert config.Settings({"cloud_style": "soft"}).cloud_style == "soft"
     for bad in (3, "", "   ", None, ["soft"], "x" * 300):
         s = config.Settings()
         assert s.update({"cloud_style": bad}) == [f"cloud_style {bad!r} left out"]
-        assert s.cloud_style == "standard"
+        assert s.cloud_style == "billow-light"
 
 
 def pss_blocks(text, start, end):

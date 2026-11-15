@@ -39,8 +39,9 @@ DEFAULTS = {
     "markers_enabled": False,  # training mode: draw a ring and a column over nearby thermals
     "clouds_enabled": True,  # cumulus over the thermals that carry one
     # How the cumulus look: a style's folder name (`styles.py`). One that is not there, removed
-    # since, say, is drawn as the standard style and kept, for when it is back.
-    "cloud_style": "standard",
+    # since, say, is drawn as the standard style and kept, for when it is back. Billow light by
+    # default since 1.1.1, standard before; a saved choice is kept.
+    "cloud_style": "billow-light",
     "blue_day": False,  # a blue day: the thermals that would carry a cloud climb as usual, with none
     "hud_enabled": True,  # soaring HUD: vario, netto, average, height to the top, centring aid
     "hud_units": "metric",  # a name in UNIT_NAMES: the HUD's vario in m/s and TOP in m, or knots and feet

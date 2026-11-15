@@ -5,6 +5,7 @@ What changes for a pilot in each version. Each release on [GitHub](https://githu
 ## 1.1.1 — 2026-11-15
 
 - **Softer edges for *Billow* and *Billow light*.** Their outline still read as round balls that ended abruptly against the sky. The rendered heaps now fade out through several thinner, looser layers, so the edge frays into tufts and blends with the sky, and the round balls are gone from the outline. The inside keeps a little less relief than in 1.1. The clouds are about the same size as before. Each style's texture is larger, so the zip grows by about 4 MB. If *Billow* or *Billow light* is your style, it is still chosen after the update.
+- ***Billow light* is the default cloud style**, in place of *Standard*. If you have flown an earlier version, your settings file keeps the style you had: choose *Billow light* in *Plugins → XP-Gliding → Cloud style* to see it. *Standard* is still the one drawn when a style cannot be loaded.
 
 ## 1.1 — 2026-11-14
 

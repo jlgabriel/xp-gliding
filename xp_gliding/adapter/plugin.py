@@ -71,7 +71,7 @@ from ..engine.shade import RAIN_OFF
 from .clouds import CumulusClouds
 from .hud import Hud
 from .markers import TrainingMarkers
-from .styles import DEFAULT_STYLE, OBJECT_FILE, OWN_FOLDER, find_styles, style_named
+from .styles import FALLBACK_STYLE, OBJECT_FILE, OWN_FOLDER, find_styles, style_named
 from .xpio import SkyObjects, XPlaneIO
 
 SLOW_PERIOD_S = 1.0
@@ -281,7 +281,7 @@ class PythonInterface:
         self.out = Injection()
         self.status = Status()
         self.markers = TrainingMarkers(SkyObjects(), lambda text: print(f"{TAG} {text}"))
-        standard = os.path.join(CLOUD_STYLES, DEFAULT_STYLE, OBJECT_FILE)
+        standard = os.path.join(CLOUD_STYLES, FALLBACK_STYLE, OBJECT_FILE)
         self.styles = self.find_cloud_styles(OWN_STYLES)
         style = style_named(self.styles, self.settings.cloud_style)
         self.clouds = CumulusClouds(SkyObjects(), standard if style is None else style.object_path,

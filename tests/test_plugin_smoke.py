@@ -897,7 +897,7 @@ def test_clouds_are_on_by_default_and_fill_the_sky_over_many_updates(plugin):
     count = dataref(xp, "clouds/count")
     idle = dataref(xp, "clouds/pool_idle")  # made in advance for the near rings
     assert count > 40 and len(xp.instances) == count + idle == dataref(xp, "clouds/created")
-    assert all("xp_gliding/assets/clouds/standard/cumulus.obj" in p for p in xp.objects.values())
+    assert all("xp_gliding/assets/clouds/billow-light/cumulus.obj" in p for p in xp.objects.values())
     assert set(xp.instances) == xp.shifted
     assert dataref(xp, "clouds/nearest_m") >= 0.0
     heights = pi.clouds.heights
@@ -2509,14 +2509,14 @@ def drawn_from(xp):
     return {path.rsplit("/", 1)[0] for path in xp.objects.values()}
 
 
-def test_the_standard_style_is_drawn_and_ticked_and_its_folder_for_the_pilot_is_made(plugin):
+def test_billow_light_is_drawn_and_ticked_by_default_and_the_folder_for_the_pilot_is_made(plugin):
     pi, xp, data = plugin
     assert [name for name, _ in xp.menus["Cloud style"]["items"]] == ["Standard", "Cotton (soft edges)", "Cauliflower (crisp, bright lobes)",
                                                                   "Popcorn (round white puffs)", "Billow (rendered heaps)",
                                                                   "Billow light (lighter, softer edges)"]
-    assert checked(xp, "Cloud style") == ["Standard"]
+    assert checked(xp, "Cloud style") == ["Billow light (lighter, softer edges)"]  # the default since 1.1.1
     first_clouds(pi, data)
-    assert all(p.endswith("xp_gliding/assets/clouds/standard") for p in drawn_from(xp))
+    assert all(p.endswith("xp_gliding/assets/clouds/billow-light") for p in drawn_from(xp))
     assert os.path.isdir(os.path.join(xp.getSystemPath(), OWN_STYLES))
 
 
@@ -2586,12 +2586,13 @@ def test_the_next_style_command_goes_round_the_styles_and_saves(styled):
     pi, xp, data = styled
     handler, refcon = xp.handlers["xp_gliding/clouds/style/next"]
     seen = []
-    for _ in range(6):
+    for _ in range(8):  # from Billow light, the default, round to it again
         handler("xp_gliding/clouds/style/next", xp.CommandBegin, refcon)
         seen.append(checked(xp, "Cloud style")[0])
         assert saved(pi)["cloud_style"] == pi.settings.cloud_style
-    assert seen == ["Cotton (soft edges)", "Cauliflower (crisp, bright lobes)", "Popcorn (round white puffs)",
-                    "Billow (rendered heaps)", "Billow light (lighter, softer edges)", "Broken"]
+    assert seen == ["Broken", "Soft cumulus, by Ana Perez", "Standard", "Cotton (soft edges)",
+                    "Cauliflower (crisp, bright lobes)", "Popcorn (round white puffs)", "Billow (rendered heaps)",
+                    "Billow light (lighter, softer edges)"]
 
 
 def test_the_next_style_after_one_that_failed_is_the_one_after_it(styled):
