@@ -4,7 +4,7 @@ A cloud style sets how XP-Gliding's cumulus look, the way a livery sets how an a
 
 *Plugins → XP-Gliding → Cloud style* lists the styles found when X-Plane starts. The one ticked is the one drawn. Choosing another replaces the clouds at once, and new ones fill in over a few seconds. The choice is saved. The command `xp_gliding/clouds/style/next` steps to the next style; bound to a key in X-Plane's keyboard settings, it compares styles in flight.
 
-![The Cloud style submenu of Plugins → XP-Gliding, with Standard ticked above Cotton (soft edges), Cauliflower (crisp, bright lobes) and Popcorn (round white puffs)](images/menu-cloud-style.png)
+![The Cloud style submenu of Plugins → XP-Gliding: Standard, Cotton (soft edges), Cauliflower (crisp, bright lobes), Popcorn (round white puffs), Billow (rendered heaps) and Billow light (lighter, softer edges), the default, ticked](images/menu-cloud-style.png)
 
 ## Installing a style
 
