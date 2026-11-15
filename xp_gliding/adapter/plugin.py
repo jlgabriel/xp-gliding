@@ -450,6 +450,7 @@ class PythonInterface:
             # near a cloud sends it too, and keeps the sky.
             if not self.just_placed(time.monotonic()):
                 self.injector.weather.reset(time.monotonic())
+                self.new_wind()
             self.hud.reset_instruments()
             self.next_slow = 0.0
 
@@ -509,10 +510,8 @@ class PythonInterface:
         self.clouds.clear()  # a new flight: X-Plane may have dropped the particles
         self.injector.drift.reset()  # and the sky starts where the field drew it
         self.injector.reset_field()  # which ground each thermal was born over depends on that
-        self.injector.lean.reset()
-        self.injector.sky_wind = None
+        self.new_wind()
         self.injector.weather.reset(time.monotonic())  # a new flight, maybe a new day
-        self.next_lean = 0.0
         # At the main menu the "aircraft" is X-Plane's own folder: stay inert until
         # a real aircraft is loaded (a plane-loaded message follows).
         self.acf_path = path
@@ -524,6 +523,15 @@ class PythonInterface:
               f"{'treated as a glider' if self.settings.treated_as_glider(self.acf) else 'not in also_gliders'}, "
               f"{'eligible' if self.eligible else 'not a glider, inactive'}; "
               f"{self.injector.geometry}")
+
+    def new_wind(self):
+        """A new flight, place or time may have another wind: its lean at once, not eased in over
+        a minute from the last flight's, and the markers drawn again with it. Paused, they would
+        otherwise keep the last flight's lean until the pilot flies."""
+        self.injector.lean.reset()
+        self.injector.sky_wind = None
+        self.next_lean = 0.0
+        self.markers.clear()
 
     def restart(self, why):
         """Start the flight loop again after an error, from a clean state, while restarts are left."""
@@ -835,6 +843,7 @@ class PythonInterface:
             if self.injector.jumped and not self.just_placed(now):
                 self.injector.weather.reset(now)  # a new place or time: read its weather
                 self.hud.reset_instruments()  # and the vario's average starts over
+                self.new_wind()
             zi = self.injector.zi_m
             if zi != self.sky_zi_m:
                 if self.sky_zi_m is not None:

@@ -1436,6 +1436,48 @@ def test_the_ring_is_at_the_lift_and_the_column_leans_from_the_cloud_through_it(
     assert column[4] == pytest.approx(270.0, abs=1.0)  # the bottom swings upwind, to the west
 
 
+def calm(data):
+    data["sim/weather/aircraft/wind_speed_kts"] = [0.0] * 13
+
+
+def test_a_new_flight_in_calm_air_does_not_keep_the_last_flights_lean(plugin):
+    # Seen in X-Plane 12.4.3, 2026-11-14: a new flight in the air with the wind cut still had
+    # leaning columns; the lean eased toward the new wind over a minute, and not at all paused.
+    pi, xp, data = plugin
+    dataref(xp, "markers_enabled", 1)
+    dataref(xp, "lean_enabled", 1)
+    pi.next_lean = 0.0
+    frame(pi, data)
+    markers_tick(pi, data)
+    assert dataref(xp, "lean/e_m") < -100.0
+    calm(data)
+    pi.XPluginReceiveMessage(0, xp.MSG_AIRPORT_LOADED, 0)
+    assert not pi.markers.shown  # not the last flight's, even paused
+    data["sim/time/paused"] = 1
+    frame(pi, data)
+    assert not pi.markers.shown
+    data["sim/time/paused"] = 0
+    frame(pi, data)
+    assert dataref(xp, "lean/e_m") == 0.0 and dataref(xp, "lean/n_m") == 0.0
+    markers_tick(pi, data)
+    item = next(iter(pi.markers.shown.values()))
+    assert xp.instances[item.column][1][3:] == (0.0, 0.0, 0.0)  # upright
+
+
+def test_a_jump_on_the_map_takes_the_new_places_lean_at_once(plugin):
+    pi, xp, data = plugin
+    dataref(xp, "lean_enabled", 1)
+    pi.next_lean = 0.0
+    frame(pi, data)
+    assert dataref(xp, "lean/e_m") < -100.0
+    calm(data)
+    data["sim/flightmodel/position/latitude"] += 0.2  # 22 km: the map
+    pi.next_slow = 0.0
+    frame(pi, data)  # the jump is seen
+    frame(pi, data)  # and the new wind read
+    assert dataref(xp, "lean/e_m") == 0.0
+
+
 # --- which wind carries the sky ---------------------------------------------------
 
 def shear_layers(data):
