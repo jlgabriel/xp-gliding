@@ -2342,9 +2342,11 @@ def test_with_the_daily_cycle_off_every_thermal_is_as_deep_as_the_day(plugin):
 def test_the_sharper_edges_kick_on_a_change_of_lift_and_do_no_work(plugin):
     pi, xp, data = plugin
     frame(pi, data)
-    assert pi.settings.edge_enabled  # on by default since 0.9.1
+    assert not pi.settings.edge_enabled  # off by default since 1.1, on from 0.9.1
     assert dataref(xp, "kick_n") == 0.0  # no change of lift yet
     handler, refcon = xp.handlers["xp_gliding/edge/toggle"]
+    handler("xp_gliding/edge/toggle", xp.CommandBegin, refcon)
+    assert pi.settings.edge_enabled
     frame(pi, data)
     dataref(xp, "debug/uniform_ms", 2.0)  # into 2 m/s of lift at once
     frame(pi, data)
@@ -2510,7 +2512,8 @@ def drawn_from(xp):
 def test_the_standard_style_is_drawn_and_ticked_and_its_folder_for_the_pilot_is_made(plugin):
     pi, xp, data = plugin
     assert [name for name, _ in xp.menus["Cloud style"]["items"]] == ["Standard", "Cotton (soft edges)", "Cauliflower (crisp, bright lobes)",
-                                                                  "Popcorn (round white puffs)"]
+                                                                  "Popcorn (round white puffs)", "Billow (rendered heaps)",
+                                                                  "Billow light (lighter, softer edges)"]
     assert checked(xp, "Cloud style") == ["Standard"]
     first_clouds(pi, data)
     assert all(p.endswith("xp_gliding/assets/clouds/standard") for p in drawn_from(xp))
@@ -2520,7 +2523,8 @@ def test_the_standard_style_is_drawn_and_ticked_and_its_folder_for_the_pilot_is_
 def test_a_pilots_style_is_listed_drawn_ticked_and_saved_and_back(styled):
     pi, xp, data = styled
     assert [name for name, _ in xp.menus["Cloud style"]["items"]] == [
-        "Standard", "Cotton (soft edges)", "Cauliflower (crisp, bright lobes)", "Popcorn (round white puffs)", "Broken",
+        "Standard", "Cotton (soft edges)", "Cauliflower (crisp, bright lobes)", "Popcorn (round white puffs)",
+        "Billow (rendered heaps)", "Billow light (lighter, softer edges)", "Broken",
         "Soft cumulus, by Ana Perez"]
     first_clouds(pi, data)
     standard = {instance for instance in xp.instances}
@@ -2582,12 +2586,12 @@ def test_the_next_style_command_goes_round_the_styles_and_saves(styled):
     pi, xp, data = styled
     handler, refcon = xp.handlers["xp_gliding/clouds/style/next"]
     seen = []
-    for _ in range(4):
+    for _ in range(6):
         handler("xp_gliding/clouds/style/next", xp.CommandBegin, refcon)
         seen.append(checked(xp, "Cloud style")[0])
         assert saved(pi)["cloud_style"] == pi.settings.cloud_style
     assert seen == ["Cotton (soft edges)", "Cauliflower (crisp, bright lobes)", "Popcorn (round white puffs)",
-                    "Broken"]
+                    "Billow (rendered heaps)", "Billow light (lighter, softer edges)", "Broken"]
 
 
 def test_the_next_style_after_one_that_failed_is_the_one_after_it(styled):

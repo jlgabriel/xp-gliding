@@ -1,6 +1,6 @@
 # How it works
 
-How XP-Gliding builds its sky and puts its lift on a glider, for pilots who want to know what they are flying in and for anyone reading or changing the code. It describes version 1.0. The [pilot guide](pilot-guide.md) covers flying it.
+How XP-Gliding builds its sky and puts its lift on a glider, for pilots who want to know what they are flying in and for anyone reading or changing the code. It describes version 1.1. The [pilot guide](pilot-guide.md) covers flying it.
 
 ## Two parts
 
@@ -37,7 +37,7 @@ The tuned sky departs from the paper in these ways, most of them settled by flyi
 | The lift of nearby thermals is added together | The paper uses only the nearest thermal, which jumps where two overlap |
 | Thermals that carry a cloud are twice as wide, shape and all (*wide*, the default sky) or 1.5 times (*medium*). Of the others, 15% are kept, at 0.6 of the strength and 0.75 of the width | The paper's thermals are about as wide as an ASK 21's circle, and few could be climbed at the bank a pilot flies. The *narrow* sky in the menu is the paper's |
 | About twice the paper's density of thermals, for the same zi | The density was tuned and flown at zi 1400 m and kept when the default depth became 2000 m |
-| With *Sharper thermal edges*, on by default: a ring of sink around each thermal, from its outer radius to 1.5 times it, deepest at 0.2 of its mean updraft; twice the sink between thermals; a jolt on entering and leaving lift; and bumps at the edges | In the paper the ring exists only in the upper half of the layer and is weak, and its edges are smooth. A pilot finds a thermal by its edge |
+| With *Sharper thermal edges*, off by default: a ring of sink around each thermal, from its outer radius to 1.5 times it, deepest at 0.2 of its mean updraft; twice the sink between thermals; a jolt on entering and leaving lift; and bumps at the edges | In the paper the ring exists only in the upper half of the layer and is weak, and its edges are smooth. A pilot finds a thermal by its edge |
 
 The jolt is the extra lift a wing gets when its angle of attack rises with the air, ½ ρ V S C<sub>Lα</sub> w, applied only while the air's speed is changing, and fading over the wing's own response time, about 0.4 s in the ASK 21. It is square to the flight path, so it adds no energy. The bumps are a field of small cells of vertical air, 20 m across, as strong as the lift changes where the glider is: none in even air, more at the edges and low down. Both change only how the climb feels, never the climb itself.
 
@@ -61,7 +61,7 @@ The plugin draws its own cumulus. X-Plane's clouds carry no thermal of this plug
 - **Its height.** Real bases are level, so each cloud keeps one height for life: the higher of a level for the area, set at 0.75 zi above the ground where the sky begins, and the highest ground under it and along its drift plus 300 m.
 - **The lift ends with its cloud.** Each thermal's height is counted from a floor of its own, set so that its cloud's base is at the top of its lift, over any ground. A thermal with no cloud ends at the area's level.
 - **How they are drawn.** Each cloud is one X-Plane object with a particle emitter. Particles live 144 to 216 s and stay where they were born, so a cloud is shaped by how fast it is fed. Far clouds get fewer particles, and the rest fill in as the glider approaches. X-Plane draws such objects in the reverse of the order they were made and does not sort them by distance, so at the start of a sky the plugin makes them in rings of distance, nearest first, and hands a cloud over to another ring's object as the glider moves. What was found about X-Plane's emitters along the way is in [this finding](findings/particle-emitters.md).
-- **Their look is a style.** The object each cloud is drawn from comes from a cloud style, a folder with the object, its particle system and its texture, chosen in the menu. The plugin ships four, *Standard*, *Cotton*, *Cauliflower* and *Popcorn*, and a pilot can add others in `xp-gliding-cloud-styles`, a folder beside the plugin. A style changes only the look: each cloud's place, height, size and life still come from the plugin, through two values it sets per cloud, its feed rate and its scale, which every style's emitters must read. How to make one is in [Cloud styles](cloud-styles.md).
+- **Their look is a style.** The object each cloud is drawn from comes from a cloud style, a folder with the object, its particle system and its texture, chosen in the menu. The plugin ships six, *Standard*, *Cotton*, *Cauliflower*, *Popcorn*, *Billow* and *Billow light*, and a pilot can add others in `xp-gliding-cloud-styles`, a folder beside the plugin. A style changes only the look: each cloud's place, height, size and life still come from the plugin, through two values it sets per cloud, its feed rate and its scale, which every style's emitters must read. How to make one is in [Cloud styles](cloud-styles.md).
 
 ## Wind
 

@@ -17,12 +17,13 @@ def make_style(root, key, info=None, obj=True):
     return folder
 
 
-def test_the_plugin_ships_its_four_styles_in_order():
+def test_the_plugin_ships_its_six_styles_in_order():
     found, notes = styles.find_styles(BUNDLED, None)
     assert notes == []
-    assert [s.key for s in found] == ["standard", "cotton", "cauliflower", "popcorn"]
+    assert [s.key for s in found] == ["standard", "cotton", "cauliflower", "popcorn", "billow", "billow-light"]
     assert [s.label for s in found] == ["Standard", "Cotton (soft edges)", "Cauliflower (crisp, bright lobes)",
-                                        "Popcorn (round white puffs)"]
+                                        "Popcorn (round white puffs)", "Billow (rendered heaps)",
+                                        "Billow light (lighter, softer edges)"]
     assert all(s.license == "GPL-3.0-or-later" and not s.own for s in found)
     assert found[0].key == styles.DEFAULT_STYLE
     assert found[0].license == "GPL-3.0-or-later" and not found[0].own

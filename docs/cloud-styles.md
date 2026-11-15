@@ -10,18 +10,20 @@ A cloud style sets how XP-Gliding's cumulus look, the way a livery sets how an a
 
 A style is a folder. Put it in `X-Plane 12/Resources/plugins/PythonPlugins/xp-gliding-cloud-styles/`, beside the plugin's `xp_gliding` folder. The plugin's zip brings that folder, and the plugin makes it if it is missing. Updating the plugin replaces only `xp_gliding` and `PI_xp_gliding.py`, so your styles survive updates. Restart X-Plane, and the style is in the menu.
 
-The plugin comes with four styles, in `xp_gliding/assets/clouds/`:
+The plugin comes with six styles, in `xp_gliding/assets/clouds/`:
 
 - *Standard*, the default: lobes of several sizes, soft edges, no layer under the base.
 - *Cotton (soft edges)*: the cumulus of version 0.8, softer and fuller, with a light layer of flat puffs and wisps under the base.
 - *Cauliflower (crisp, bright lobes)*: a whiter cloud of round lobes with firm outlines, with the same layer under the base.
 - *Popcorn (round white puffs)*: *Standard* with another texture, drawn with ChatGPT: rounder, whiter puffs. It shows how far a new texture alone goes.
+- *Billow (rendered heaps)*: another way of drawing a cloud. Each particle is a whole heap of cumulus, rendered in Blender as a lit volume, with sunlit bulges, grey creases, a shaded underside and soft, hairy edges, so a cloud is 34 large particles instead of many small puffs. Made by `tools/cloud_render/`.
+- *Billow light (lighter, softer edges)*: *Billow* with lighter shade and a wider, softer fringe.
 
-![The same stretch of sky over Santiago, Chile, drawn in each of the four styles: Standard, Cotton, Cauliflower and Popcorn](images/cloud-styles.jpg)
+![The same stretch of sky over Santiago, Chile, drawn in each of the first four styles: Standard, Cotton, Cauliflower and Popcorn](images/cloud-styles.jpg)
 
-The four views were taken a minute apart from a glider circling in one thermal, in X-Plane 12.4.3, so the clouds themselves moved on a little between them.
+The four views, from before the two *Billow* styles, were taken a minute apart from a glider circling in one thermal, in X-Plane 12.4.3, so the clouds themselves moved on a little between them.
 
-All four are drawn at the same size over the same thermals. A style of your own with the same folder name as one of the plugin's is left out.
+All six are drawn at about the same size over the same thermals. A style of your own with the same folder name as one of the plugin's is left out.
 
 If a style cannot be loaded, the clouds are drawn with *Standard* and the log, `XPPython3Log.txt`, says why. The menu then ticks *Standard*. Your choice stays saved, for when the style is mended. The log also lists the styles found at start, and any folder left out.
 

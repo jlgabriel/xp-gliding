@@ -2,6 +2,12 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## 1.1 — 2026-11-14
+
+- **Two new cloud styles: *Billow* and *Billow light*.** A new way of drawing a cloud: each particle is a whole heap of cumulus, rendered in Blender as a lit volume, with sunlit bulges, grey creases, a shaded underside and soft, hairy edges, so a cloud is a few large pieces instead of many small puffs. *Billow light* has lighter shade and a softer fringe. Choose them in *Plugins → XP-Gliding → Cloud style*. Like every style they change only the look: where the clouds are, how big and how long they live are the same.
+- ***Sharper thermal edges* off by default.** A first flight now has smooth thermals, to learn them before the rougher air: the jolt into and out of lift, the bumps at the edge, the ring of sink and the sink between thermals. Tick the item when you want them. If you have flown an earlier version, your settings file keeps the choice you had.
+- **A new flight takes its own wind at once.** Starting a new flight with the same aircraft, or jumping on the map, kept the last flight's lean of the thermals and training markers for a minute, or for as long as the sim was paused. The lean now follows the new flight's wind as soon as it loads.
+
 ## 1.0 — 2026-11-14
 
 - **Cloud styles.** *Plugins → XP-Gliding → Cloud style* chooses how the cumulus look, as a livery does for an aircraft. The plugin comes with four: *Standard*, today's clouds; *Cotton*, the softer, fuller cumulus of 0.8; *Cauliflower*, whiter, with crisp round lobes; and *Popcorn*, Standard with a new texture of round white puffs. Styles of your own go in `xp-gliding-cloud-styles`, a folder the zip now brings, to copy beside the plugin in `Resources/plugins/PythonPlugins/`; a new version of the plugin leaves it alone, and they show in the menu after a restart. A style changes only the look: where the clouds are, how big, how high and how long they live, and so what they say about their thermals, are the same with every style. A style that cannot be loaded gives *Standard*. How to make one, starting from a new texture: [Cloud styles](docs/cloud-styles.md).
