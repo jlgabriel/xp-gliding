@@ -1,6 +1,6 @@
 # How it works
 
-How XP-Gliding builds its sky and puts its lift on a glider, for pilots who want to know what they are flying in and for anyone reading or changing the code. It describes version 1.1. The [pilot guide](pilot-guide.md) covers flying it.
+How XP-Gliding builds its sky and puts its lift on a glider, for pilots who want to know what they are flying in and for anyone reading or changing the code. It describes version 1.1.1. The [pilot guide](pilot-guide.md) covers flying it.
 
 ## Two parts
 

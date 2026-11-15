@@ -2,6 +2,10 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## 1.1.1 — 2026-11-15
+
+- **Softer edges for *Billow* and *Billow light*.** Their outline still read as round balls that ended abruptly against the sky. The rendered heaps now fade out through several thinner, looser layers, so the edge frays into tufts and blends with the sky, and the round balls are gone from the outline. The inside keeps a little less relief than in 1.1. The clouds are about the same size as before. Each style's texture is larger, so the zip grows by about 4 MB. If *Billow* or *Billow light* is your style, it is still chosen after the update.
+
 ## 1.1 — 2026-11-14
 
 - **Two new cloud styles: *Billow* and *Billow light*.** A new way of drawing a cloud: each particle is a whole heap of cumulus, rendered in Blender as a lit volume, with sunlit bulges, grey creases, a shaded underside and soft, hairy edges, so a cloud is a few large pieces instead of many small puffs. *Billow light* has lighter shade and a softer fringe. Choose them in *Plugins → XP-Gliding → Cloud style*. Like every style they change only the look: where the clouds are, how big and how long they live are the same.

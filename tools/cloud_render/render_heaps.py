@@ -11,13 +11,19 @@ particles whose relief, grey creases and shaded underside come from the render.
 
 A heap is spheres at three scales: some fourteen making the heap, bulges standing out on their
 upper sides, small bulges on those, and a fairly level bottom. Geometry nodes' Points to Volume
-turns them into a volume twice:
-- a core, the spheres a little smaller, dense (40) and torn inside by fine noise, which gives
-  the cauliflower relief and the grey creases;
-- a halo, the spheres larger, thinner (14-16) and torn by finer noise, which makes the edge
-  soft and hairy instead of a sphere's outline.
+turns them into a volume five times:
+- a core, the spheres smaller (0.72-0.74 of their radius), dense (40), torn inside by fine
+  noise, which gives the cauliflower relief and the grey creases, and cut into by a coarse noise,
+  which breaks the outline of its spheres;
+- four halo shells around it, from 1.0 to 1.9-2.0 of the radius, each thinner (18 down to 5) and
+  torn by coarser, more distorted noise, so the edge fades out in loose tufts instead of ending
+  at a sphere's outline.
 Lit by a sun from above, a little to the side and towards the camera, and a soft blue sky;
 an orthographic camera looking level; Cycles on the GPU when there is one.
+
+The first Billow styles (1.1, 2026-11-14) had one halo shell at 1.3-1.36 around a core at
+0.85-0.88: in the simulator their outline still read as round balls ending abruptly. Two
+shells of density 5 and 1.8 beyond it barely showed; these densities fray it.
 
 Found while making it (2026-11-14): a mesh of metaballs with even density looks like plastic,
 and pushing that mesh out with Voronoi cells folds it and crashed Blender. A volume from points
@@ -38,11 +44,20 @@ from mathutils import Vector
 
 RES = 512
 SAMPLES = 96
-# (core density, core noise scale, core erosion), (halo density, noise scale, erosion, ramp
-# width), core radius factor, halo radius factor. billow is version D, billow-light version E.
+# core: (density, noise scale, erosion, radius factor[, coarse noise (scale, erosion, ramp
+# width)]); halos: shells around it, inside out, each (radius factor, density, noise scale,
+# erosion, ramp width, distortion). billow-light is lighter in the atlas, with a wider fringe.
 VERSIONS = {
-    "billow": ((40.0, 14.0, 0.36), (14.0, 20.0, 0.40, 0.30), 0.88, 1.30),
-    "billow-light": ((40.0, 14.0, 0.36), (16.0, 18.0, 0.37, 0.36), 0.85, 1.36),
+    "billow": ((40.0, 14.0, 0.36, 0.74, (3.5, 0.40, 0.22)),
+               ((1.00, 18.0, 18.0, 0.42, 0.30, 0.6),
+                (1.25, 12.0, 12.0, 0.48, 0.26, 1.2),
+                (1.55, 9.0, 8.0, 0.54, 0.22, 2.0),
+                (1.90, 6.0, 6.0, 0.58, 0.20, 3.0))),
+    "billow-light": ((40.0, 14.0, 0.36, 0.72, (3.5, 0.40, 0.22)),
+                     ((1.00, 16.0, 18.0, 0.40, 0.34, 0.6),
+                      (1.28, 11.0, 11.0, 0.47, 0.28, 1.2),
+                      (1.60, 8.0, 7.5, 0.53, 0.24, 2.0),
+                      (2.00, 5.0, 5.5, 0.57, 0.22, 3.0))),
 }
 # Cell k: (seed, width, height, heap balls, bulges, small bulges). 0-11 heaps, 12-15 small pieces.
 CELLS = [(100 + k, 0.9 + 0.4 * ((k * 7) % 5) / 4, 0.6 + 0.35 * ((k * 3) % 4) / 3, 14, 45, 140)
@@ -108,8 +123,9 @@ def setup():
     s.camera = cam
 
 
-def volume_material(name, density, noise_scale, erode, width, detail, roughness, distortion=0.0):
-    """White scattering cloud whose density is cut into by noise in the object's space."""
+def volume_material(name, density, noise_scale, erode, width, detail, roughness, distortion=0.0, coarse=None):
+    """White scattering cloud whose density is cut into by noise in the object's space; with
+    coarse = (noise scale, erosion, ramp width), also cut into by a second, coarser noise."""
     m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     m.use_nodes = True
     nt = m.node_tree
@@ -134,6 +150,23 @@ def volume_material(name, density, noise_scale, erode, width, detail, roughness,
     nt.links.new(tc.outputs["Object"], nz.inputs["Vector"])
     nt.links.new(nz.outputs["Fac"], ramp.inputs["Fac"])
     nt.links.new(ramp.outputs["Color"], mul.inputs[0])
+    if coarse:
+        cz = nt.nodes.new("ShaderNodeTexNoise")
+        cz.inputs["Scale"].default_value = coarse[0]
+        cz.inputs["Detail"].default_value = 4.0
+        cz.inputs["Roughness"].default_value = 0.55
+        cz.inputs["Distortion"].default_value = 0.8
+        cramp = nt.nodes.new("ShaderNodeValToRGB")
+        c0, c1 = cramp.color_ramp.elements
+        c0.position, c0.color = coarse[1], (0, 0, 0, 1)
+        c1.position, c1.color = coarse[1] + coarse[2], (1, 1, 1, 1)
+        both = nt.nodes.new("ShaderNodeMath")
+        both.operation = 'MULTIPLY'
+        nt.links.new(tc.outputs["Object"], cz.inputs["Vector"])
+        nt.links.new(cz.outputs["Fac"], cramp.inputs["Fac"])
+        nt.links.new(ramp.outputs["Color"], both.inputs[0])
+        nt.links.new(cramp.outputs["Color"], both.inputs[1])
+        nt.links.new(both.outputs[0], mul.inputs[0])
     nt.links.new(mul.outputs[0], pv.inputs["Density"])
     nt.links.new(pv.outputs["Volume"], out.inputs["Volume"])
     return m
@@ -200,20 +233,24 @@ def volume_object(balls, name, material, voxel):
 
 
 def render_cell(k, version, out_dir):
-    (cd, cn, ce), (hd, hn, he, hw), core_k, halo_k = VERSIONS[version]
-    core_mat = volume_material("Core", cd, cn, ce, 0.18, detail=10.0, roughness=0.62)
-    halo_mat = volume_material("Halo", hd, hn, he, hw, detail=14.0, roughness=0.7, distortion=0.6)
+    (cd, cn, ce, core_k, *coarse), halos = VERSIONS[version]
+    core_mat = volume_material("Core", cd, cn, ce, 0.18, detail=10.0, roughness=0.62,
+                               coarse=coarse[0] if coarse else None)
     for o in [o for o in scene().objects if o.type == 'MESH']:
         bpy.data.objects.remove(o, do_unlink=True)
     balls = heap(*CELLS[k])
     volume_object([(c, r * core_k) for c, r in balls], "Core", core_mat, 0.008)
-    halo = [(c, r * halo_k) for c, r in balls]
-    volume_object(halo, "Halo", halo_mat, 0.01)
+    for i, (halo_k, hd, hn, he, hw, hdist) in enumerate(halos):
+        name = "Halo" if i == 0 else f"Halo{i}"
+        mat = volume_material(name, hd, hn, he, hw, detail=14.0, roughness=0.7, distortion=hdist)
+        halo = [(c, r * halo_k) for c, r in balls]
+        volume_object(halo, name, mat, 0.01 if i == 0 else 0.014)
     lo_x, hi_x = min(c.x - r for c, r in halo), max(c.x + r for c, r in halo)
     lo_z, hi_z = min(c.z - r for c, r in halo), max(c.z + r for c, r in halo)
     cam = scene().camera
     cam.location = ((lo_x + hi_x) / 2, -10, (lo_z + hi_z) / 2)
     cam.data.ortho_scale = max(hi_x - lo_x, hi_z - lo_z) * 1.08
+    print(f"cell {k:02d} frame {cam.data.ortho_scale:.3f}", flush=True)
     scene().render.filepath = os.path.join(out_dir, f"cell{k:02d}.png")
     bpy.ops.render.render(write_still=True)
 

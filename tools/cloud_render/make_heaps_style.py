@@ -38,10 +38,13 @@ WHITE = (1.0, 1.0, 1.0)
 
 # version: (menu name, grey kept, heap size factor, spread factor). The factors scale the first
 # layout tried, whose heaps were drawn far smaller than the standard style's clouds; with them a
-# cloud is about as wide as a standard one, so it still says how wide its thermal is.
+# cloud is about as wide as a standard one, so it still says how wide its thermal is. The
+# frayed cells of 1.1.1 frame a wider fringe round the same visible heap, so the heaps were made
+# 1.19 and 1.21 times larger than 1.1's 1.8 and 1.9, to keep its visible width (measured on the
+# renders, 2026-11-15).
 VERSIONS = {
-    "billow": ("Billow (rendered heaps)", 0.45, 1.8, 1.6),
-    "billow-light": ("Billow light (lighter, softer edges)", 0.35, 1.9, 1.6),
+    "billow": ("Billow (rendered heaps)", 0.45, 1.8 * 1.19, 1.6),
+    "billow-light": ("Billow light (lighter, softer edges)", 0.35, 1.9 * 1.21, 1.6),
 }
 
 
