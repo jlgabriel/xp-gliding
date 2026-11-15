@@ -6,20 +6,21 @@ It is an independent take on thermals, offered as another option for soaring in 
 
 ![A Laminar ASK 21 seen from below, circling under the cumulus that marks its thermal, with more cumulus over the hills of Santiago, Chile. The soaring HUD is on the left](docs/images/circling-under-its-cloud.jpg)
 
-> **Version 1.1.1.** Its limits are stated in the guide. Download it from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and follow the [pilot guide](docs/pilot-guide.md) to install it: it needs only X-Plane 12 and [XPPython3](https://xppython3.readthedocs.io/).
+> **Version 1.2.** Its limits are stated in the guide. Download it from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and follow the [pilot guide](docs/pilot-guide.md) to install it: it needs only X-Plane 12 and [XPPython3](https://xppython3.readthedocs.io/).
 
 ## What it does today
 
 - **Thermals** with a life cycle: they grow, peak and fade, and never vanish abruptly. In calm air, the same seed, date, place and time give the same sky.
 - **A daily cycle.** The thermals follow the sun: weak and low in the morning, strongest in the early afternoon, gone around sunset. The early morning is blue, and the first cumulus come late in the morning, low, under a base that rises through the day.
 - **Cumulus** drawn by the plugin over the thermals that carry one. Each forms with its thermal, thins as it weakens and lingers a few minutes after it dies, so a cloud means something and an old one can deceive. Clouds keep to a level for the area, and stand higher where the ground under them and along their drift would reach them.
-- **Good and bad areas.** Over tens of kilometres the thermals are more numerous and stronger in some areas, under more and bigger clouds, and fewer and weaker in others, so choosing where to fly by the look of the sky pays. Each date has its own map.
+- **Good and bad areas.** Over tens of kilometres the thermals are more numerous and stronger in some areas, under more and bigger clouds, and fewer and weaker in others, so choosing where to fly by the look of the sky pays. Each date has its own map. Off by default, for an easier start.
 - **Less lift under X-Plane's clouds,** by how much of the sky its layers cover and how thick they are, and none in rain.
 - **Lift that ends with its cloud,** over any ground, rather than following the ground under the glider. No thermal is born over water.
 - **Lift with no per-aircraft calibration.** It is applied as the energy rising air would give the glider, and measured within 0.01 m/s of the intended climb at different speeds, banks and frame rates. The reference glider is the Laminar ASK 21. Other gliders get the lift, and no netto on the HUD. A motor glider gets it once treated as a glider from the menu.
 - **Thermals and clouds that follow the wind.** The wind is X-Plane's, real or set by hand: the plugin reads it and has no wind of its own.
 - **A soaring HUD:** total energy, netto, average climb, height up to the clouds, the wind and a centring aid.
 - **A menu** in *Plugins → XP-Gliding* to choose the day, by name (easy, typical, demanding, weak and low, or blue, with no clouds to read) or one setting at a time, saved between sessions. As an experiment, the cloud base can come from X-Plane's weather instead.
+- **A hotspot flight:** a file of hotspots from [thermal.kk7.ch](https://thermal.kk7.ch/) in place of the plugin's own sky, so the thermals are where pilots find them at that site, and nowhere else.
 - **Put me near a cloud:** from the menu, the glider starts flying towards a cloud, with no tow.
 - **Optional training markers** showing where the thermals are.
 

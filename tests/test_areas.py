@@ -66,7 +66,14 @@ def test_marked_contrast_between_the_best_and_the_worst_areas():
     density, strength = a.factors(-1.05)
     assert density == pytest.approx(0.4, abs=0.02)
     assert strength == pytest.approx(0.8, abs=0.01)
-    assert a.factors(-3.0)[0] == 0.0  # the very worst draws none
+
+
+def test_the_worst_areas_thin_out_but_never_empty():
+    # An area with no thermals left half the sky without a cloud at Vallenar (2026-11-15).
+    assert a.factors(-3.0)[0] == a.DENSITY_FLOOR
+    assert a.factors(-1.5)[0] == a.DENSITY_FLOOR
+    assert a.factors(-1.2)[0] > a.DENSITY_FLOOR
+    assert 0.0 < a.factors(-3.0)[1] < 0.5  # few, and weak
 
 
 def test_the_sky_as_a_whole_keeps_its_thermals_and_the_flux_is_as_the_field_assumes():

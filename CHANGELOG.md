@@ -2,6 +2,12 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## 1.2 — 2026-11-15
+
+- **Hotspot flight.** *Plugins → XP-Gliding → Hotspot flight* flies the sky of a site from a file of thermal hotspots, in place of the plugin's own sky. Download the hotspots of the area you want from [thermal.kk7.ch](https://thermal.kk7.ch/) (*Download currently visible hotspots → csv*), put the file in `Output/xp-gliding/hotspots/` in your X-Plane folder and restart X-Plane; the file is then listed in the submenu. The thermals are only where the file says pilots find them, and none elsewhere. Each hotspot works in cycles, one thermal at a time, and has one for the share of the time its probability says: a hotspot of 100% almost always, one of 60% a little more than half the time. Each thermal carries a cloud and drifts with the wind, and the daily cycle, the HUD, the training markers and *Put me near a cloud* work as in a normal flight. Where the file has no hotspots there are no thermals. *None: a normal flight* brings the plugin's sky back. How it works: [pilot guide](docs/pilot-guide.md#a-hotspot-flight).
+- ***Good and bad areas* off by default.** A first flight now has the same sky everywhere, the easier one; tick the item when you want choosing where to fly to matter. If you have flown an earlier version, your settings file keeps the choice you had.
+- **The worst areas are never empty.** With *Good and bad areas* on, the poorest stretches had no thermals at all, which could leave half the sky without a cloud. They now keep at least a fifth of the thermals, weak and under small clouds, so the contrast is still marked but no part of the sky is blank.
+
 ## 1.1.1 — 2026-11-15
 
 - **Softer edges for *Billow* and *Billow light*.** Their outline still read as round balls that ended abruptly against the sky. The rendered heaps now fade out through several thinner, looser layers, so the edge frays into tufts and blends with the sky, and the round balls are gone from the outline. The inside keeps a little less relief than in 1.1. The clouds are about the same size as before. Each style's texture is larger, so the zip grows by about 4 MB. If *Billow* or *Billow light* is your style, it is still chosen after the update.

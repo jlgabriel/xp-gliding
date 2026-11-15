@@ -21,6 +21,7 @@ from xp_gliding.engine.areas import factors as area_factors
 from xp_gliding.engine.airstart import pick_cloud
 from xp_gliding.engine.clouds import SCALE_RANGE, carries_cloud, shade_keeps
 from xp_gliding.engine.field import sky_named
+from xp_gliding.engine.geo import LocalFrame
 
 DATA = {
     "sim/flightmodel/position/latitude": 32.6875,
@@ -1656,7 +1657,7 @@ def test_the_menu_is_in_the_order_of_the_pilot_guide(plugin):
     assert labels[:-1] == ([label for label, _, _ in MENU_SWITCHES] + ["X-Plane's audio vario",
                                                                      "Treat this aircraft as a glider",
                                                                      "Put me near a cloud"]
-                           + ["Day"] + [title for title, _, _ in MENU_SUBMENUS] + ["Cloud style"])
+                           + ["Day"] + [title for title, _, _ in MENU_SUBMENUS] + ["Cloud style", "Hotspot flight"])
     assert labels[-1] == status_line(xp)  # the status line closes it
 
 
@@ -2469,8 +2470,13 @@ def test_a_day_chosen_under_the_weathers_base_says_its_height_is_not_used(plugin
 
 # --- good and bad areas (engine/areas.py) ---
 
-def test_good_and_bad_areas_are_on_by_default_and_the_menu_switches_them(plugin):
+def test_good_and_bad_areas_are_off_by_default_and_the_menu_switches_them(plugin):
     pi, xp, data = plugin
+    slow_frame(pi, data)
+    assert not pi.settings.areas_enabled and dataref(xp, "areas_enabled") == 0  # off by default since 2026-11-15
+    assert pi.injector.field.config.areas is None
+    handler, refcon = xp.handlers["xp_gliding/day/areas/toggle"]
+    handler("xp_gliding/day/areas/toggle", xp.CommandBegin, refcon)
     slow_frame(pi, data)
     assert pi.settings.areas_enabled and dataref(xp, "areas_enabled") == 1
     areas = pi.injector.field.config.areas
@@ -2480,7 +2486,6 @@ def test_good_and_bad_areas_are_on_by_default_and_the_menu_switches_them(plugin)
     q = areas.quality(lat, lon)
     assert dataref(xp, "day/area_quality") == pytest.approx(q)
     assert (dataref(xp, "day/area_density"), dataref(xp, "day/area_strength")) == pytest.approx(area_factors(q))
-    handler, refcon = xp.handlers["xp_gliding/day/areas/toggle"]
     handler("xp_gliding/day/areas/toggle", xp.CommandBegin, refcon)
     slow_frame(pi, data)
     assert not pi.settings.areas_enabled and pi.injector.field.config.areas is None
@@ -2608,3 +2613,68 @@ def test_the_next_style_after_one_that_failed_is_the_one_after_it(styled):
     first_clouds(pi, data)
     assert pi.settings.cloud_style == "soft"
     assert drawn_from(xp) == {"xp-gliding-cloud-styles/soft"}
+
+
+# --- the hotspot flight (engine/hotspots.py) ---
+
+HOBBS_HOTSPOTS = ("latitude degree WGS84,longitude degree WGS84,altitude in meters AMSL,thermal probability\n"
+                  "32.70,-103.20,1116,100\n32.66,-103.25,1116,90\n32.72,-103.26,1116,80\nbroken line\n")
+
+
+@pytest.fixture
+def with_hotspots(tmp_path, monkeypatch):
+    """The plugin with a hotspot file around Hobbs in its folder."""
+    folder = tmp_path / "Output" / "xp-gliding" / "hotspots"
+    folder.mkdir(parents=True)
+    (folder / "hobbs.csv").write_text(HOBBS_HOTSPOTS, encoding="utf-8")
+    yield from run_plugin(tmp_path, monkeypatch)
+
+
+def test_a_normal_flight_by_default_and_the_menu_lists_the_hotspot_files(with_hotspots):
+    pi, xp, data = with_hotspots
+    slow_frame(pi, data)
+    assert [name for name, _ in xp.menus["Hotspot flight"]["items"]] == ["None: a normal flight", "hobbs.csv"]
+    assert checked(xp, "Hotspot flight") == ["None: a normal flight"]
+    assert pi.settings.hotspots == "" and pi.injector.field.hotspots is None
+    assert status_line(xp).startswith("Active:")
+
+
+def test_a_hotspot_flight_has_only_the_files_thermals_and_is_saved(with_hotspots):
+    pi, xp, data = with_hotspots
+    pi.settings.areas_enabled = True  # which a hotspot flight leaves out
+    choose(xp, "Hotspot flight", "hobbs.csv")
+    slow_frame(pi, data)
+    field = pi.injector.field
+    assert pi.settings.hotspots == "hobbs.csv" and saved(pi)["hotspots"] == "hobbs.csv"
+    assert checked(xp, "Hotspot flight") == ["hobbs.csv"]
+    assert field.hotspots is not None and len(field.hotspots) == 3 and field.hotspots.skipped == 2
+    assert field.config.areas is None
+    thermals = list(field.thermals())
+    assert 0 < len(thermals) < 30
+    spots = [(s.lat, s.lon) for s in field.hotspots.hotspots]
+    for th in thermals:  # within 250 m of a hotspot, and the sky has not drifted yet
+        e, n = LocalFrame(th.lat, th.lon).to_enu(*min(spots, key=lambda s: abs(s[0] - th.lat) + abs(s[1] - th.lon)))
+        assert math.hypot(e, n) < 260.0
+    assert status_line(xp).startswith("Hotspot flight")
+    # The clouds too: their catalog reaches farther than the field, from the same hotspots only
+    # (on 2026-11-15 it drew the random sky's clouds over a hotspot flight).
+    for _ in range(100):
+        clouds_tick(pi, data)
+    catalog = list(pi.clouds.catalog.thermals())
+    assert catalog and pi.clouds.catalog.missing == 0
+    for th in catalog:
+        e, n = LocalFrame(th.lat, th.lon).to_enu(*min(spots, key=lambda s: abs(s[0] - th.lat) + abs(s[1] - th.lon)))
+        assert math.hypot(e, n) < 260.0
+    choose(xp, "Hotspot flight", "None: a normal flight")
+    slow_frame(pi, data)
+    assert pi.injector.field.hotspots is None and pi.injector.field.loaded_count() > 100
+    assert saved(pi)["hotspots"] == ""
+
+
+def test_a_hotspot_file_that_is_gone_gives_a_normal_flight_and_says_so(with_hotspots):
+    pi, xp, data = with_hotspots
+    os.remove(os.path.join(pi.hotspots_folder, "hobbs.csv"))
+    choose(xp, "Hotspot flight", "hobbs.csv")
+    slow_frame(pi, data)
+    assert pi.injector.field.hotspots is None and pi.injector.field.loaded_count() > 100
+    assert status_line(xp) == "Normal flight: hotspot file hobbs.csv not found"

@@ -45,8 +45,10 @@ Pure Python: no `xp`. `CloudPlanner.step` returns what to do, the adapter does i
 
 import math
 
-from .field import CARRIER_MIN_FLUX, CARRIER_MIN_LIFE_S, DECAY_FRACTION, FieldConfig, generate_tile
-from .geo import radii_of_curvature
+from .field import (CARRIER_MIN_FLUX, CARRIER_MIN_LIFE_S, DECAY_FRACTION, HOTSPOT_KEY, FieldConfig,
+                    generate_tile, hotspot_keys)
+from .geo import radii_of_curvature, wrap_lon_deg
+from .hotspots import RADIUS_M as HOTSPOT_RADIUS_M
 from .rng import hash_key
 
 TOP_ZZI = 1.0 / 1.1  # the lift ends at this z/zi (Allen Eq. 11), the same as the markers' top
@@ -196,9 +198,13 @@ class CloudCatalog:
     these few and reaches farther. Loading a tile costs ~200 us in the simulator, so at
     most `tiles_per_update` per update, the nearest first: a sky fills from the glider out.
     Working out which tiles are needed (rarely) takes a whole update of its own.
+
+    In a hotspot flight (`hotspots`, as the field's) it loads the hotspots' thermals in place of
+    the tiles, as `ThermalField` does, with the same `air_at` and `ground_at`.
     """
 
-    def __init__(self, config, frame, params=None, accept=None):
+    def __init__(self, config, frame, params=None, accept=None, hotspots=None, air_at=None,
+                 ground_at=None):
         self.params = params or CloudParams()
         self.config = FieldConfig(seed=config.seed, day=config.day, tile_deg=config.tile_deg,
                                   zi_m=config.zi_m, density_per_km2=config.density_per_km2,
@@ -211,11 +217,14 @@ class CloudCatalog:
                                   areas=config.areas is not None)
         self.frame = frame
         self.accept = accept
+        self.hotspots = hotspots
+        self.air_at = air_at
+        self.ground_at = ground_at
         # With the sun on, a thermal born before zi has grown to the cloud base has no cloud:
         # the morning is blue (daycycle.py). Its lift is the field's, unchanged. The same cycle
         # gives each thermal its depth, with the depth cycle, as the field's does.
         self.cycle = self.config.cycle()
-        self._tiles = {}  # (i, j, slot) -> list of Thermal with a cloud
+        self._tiles = {}  # (i, j, slot), or a field's hotspot key -> list of Thermal with a cloud
         self._where = None  # the (i, j, slot) the missing tiles were worked out for
         self._missing = []  # keys to load, the farthest first
 
@@ -242,15 +251,32 @@ class CloudCatalog:
         m, n = radii_of_curvature(lat)
         tile_h = math.radians(tile) * m
         tile_w = math.radians(tile) * n * max(math.cos(math.radians(lat)), 1e-6)
-        di, dj = math.ceil(c.range_m / tile_h), math.ceil(c.range_m / tile_w)
-        wanted = {(i, j, slot) for i in range(i0 - di, i0 + di + 1)
-                  for j in range(j0 - dj, j0 + dj + 1) for slot in (s - 1, s)}
+        if self.hotspots is not None:
+            wanted = hotspot_keys(self.hotspots, c, c.range_m, t, lat, lon, self.ground_at)
+        else:
+            di, dj = math.ceil(c.range_m / tile_h), math.ceil(c.range_m / tile_w)
+            wanted = {(i, j, slot) for i in range(i0 - di, i0 + di + 1)
+                      for j in range(j0 - dj, j0 + dj + 1) for slot in (s - 1, s)}
         for key in [k for k in self._tiles if k not in wanted]:
             del self._tiles[key]
         self._missing = sorted((k for k in wanted if k not in self._tiles),
-                               key=lambda k: -((k[0] - i0) ** 2 * tile_h ** 2
-                                               + (k[1] - j0) ** 2 * tile_w ** 2))
+                               key=lambda k: -self._distance_m(k, lat, lon))
         return True
+
+    def _distance_m(self, key, lat, lon):
+        """How far from (lat, lon) a key's thermals can start (m): a tile's nearest edge, or a
+        hotspot less the circle its thermals start in."""
+        m, n = radii_of_curvature(lat)
+        to_n, to_e = math.radians(1.0) * m, math.radians(1.0) * n * max(math.cos(math.radians(lat)), 1e-6)
+        if key[0] == HOTSPOT_KEY:
+            h = self.hotspots.hotspots[key[1]]
+            glat, glon = (lat, lon) if self.ground_at is None else self.ground_at(lat, lon, key[2] * self.config.slot_s)
+            return max(math.hypot((h.lat - glat) * to_n, wrap_lon_deg(h.lon - glon) * to_e) - HOTSPOT_RADIUS_M, 0.0)
+        i, j, _ = key
+        tile = self.config.tile_deg
+        dlat = max(i * tile - lat, 0.0, lat - (i + 1) * tile)
+        dlon = max(j * tile - lon, 0.0, lon - (j + 1) * tile)
+        return math.hypot(dlat * to_n, dlon * to_e)
 
     def update(self, t, lat, lon):
         """Load up to `tiles_per_update` tiles. Returns True while some are missing."""
@@ -258,8 +284,11 @@ class CloudCatalog:
             return bool(self._missing)
         for _ in range(min(self.params.tiles_per_update, len(self._missing))):
             key = self._missing.pop()
-            kept = [th for th in generate_tile(self.config, *key, accept=self.accept, cycle=self.cycle)
-                    if carries_cloud(th, self.params) and not self._blue(th)]
+            if key[0] == HOTSPOT_KEY:
+                born = self.hotspots.generate(self.config, key[1], key[2], self.air_at, self.cycle)
+            else:
+                born = generate_tile(self.config, *key, accept=self.accept, cycle=self.cycle)
+            kept = [th for th in born if carries_cloud(th, self.params) and not self._blue(th)]
             for th in kept:
                 th.e, th.n = self.frame.to_enu(th.lat, th.lon)
             self._tiles[key] = kept
@@ -273,15 +302,7 @@ class CloudCatalog:
         """How far from (lat, lon) every tile has loaded (m): no new thermal can turn up nearer."""
         if not self._missing:
             return math.inf
-        tile = self.config.tile_deg
-        m, n = radii_of_curvature(lat)
-        to_n, to_e = math.radians(1.0) * m, math.radians(1.0) * n * max(math.cos(math.radians(lat)), 1e-6)
-        nearest = math.inf
-        for i, j, _ in self._missing:
-            dlat = max(i * tile - lat, 0.0, lat - (i + 1) * tile)
-            dlon = max(j * tile - lon, 0.0, lon - (j + 1) * tile)
-            nearest = min(nearest, math.hypot(dlat * to_n, dlon * to_e))
-        return nearest
+        return min(self._distance_m(key, lat, lon) for key in self._missing)
 
     def set_frame(self, frame):
         self.frame = frame

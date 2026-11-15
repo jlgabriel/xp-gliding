@@ -267,7 +267,8 @@ class CumulusClouds:
             self.clear()
             self._heights_resets = self.heights.resets
             self.config = field.config
-            self.catalog = CloudCatalog(field.config, frame, self.planner.params, field.accept)
+            self.catalog = CloudCatalog(field.config, frame, self.planner.params, field.accept,
+                                        field.hotspots, field.air_at, field.ground_at)
             self._next_order = now + ORDER_LOADING_PERIOD_S  # nothing to put in order yet
             self.frame = frame
         elif frame is not self.frame:

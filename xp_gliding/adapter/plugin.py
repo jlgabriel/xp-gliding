@@ -71,6 +71,7 @@ from ..engine.shade import RAIN_OFF
 from .clouds import CumulusClouds
 from .hud import Hud
 from .markers import TrainingMarkers
+from ..engine.hotspots import find_files as hotspot_files_in, load as load_hotspots
 from .styles import FALLBACK_STYLE, OBJECT_FILE, OWN_FOLDER, find_styles, style_named
 from .xpio import SkyObjects, XPlaneIO
 
@@ -82,6 +83,8 @@ MAX_RESTARTS = 3  # errors in the flight loop after which it is not started agai
 PLACED_GRACE_S = 15.0  # after putting the glider near a cloud, a new flight's message keeps the sky
 ENABLED_LABEL = "Enabled"
 CLOUD_STYLE_TITLE = "Cloud style"
+HOTSPOTS_TITLE = "Hotspot flight"
+NORMAL_FLIGHT_LABEL = "None: a normal flight"
 PACKAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLOUD_STYLES = os.path.join(PACKAGE_DIR, "assets", "clouds")
 # The pilot's cloud styles, beside the package in PythonPlugins/ (`styles.py`).
@@ -288,6 +291,10 @@ class PythonInterface:
                                     lambda text: print(f"{TAG} {text}"), fallback_path=standard)
         self.injector.is_wet = self.clouds.sky.is_wet  # one probe for both
         self.injector.heights = self.clouds.heights
+        self.hotspots_folder = os.path.join(folder, "hotspots")
+        self.hotspot_files = self.find_hotspot_files()
+        self.hotspot_note = ""  # why a hotspot flight chosen is not flown, for the status line
+        self.use_hotspots()
         self.hud = Hud(self.settings, lambda text: print(f"{TAG} {text}"))
         self.eligible = False
         self.acf_path = ""
@@ -394,6 +401,12 @@ class PythonInterface:
                 xp.appendMenuItem(submenu, style.label, len(self.choices))
                 self.choices.append(("cloud_style", style.key))
             self.submenus.append((submenu, "cloud_style", tuple(style.key for style in self.styles)))
+        item = xp.appendMenuItem(self.menu, HOTSPOTS_TITLE, None)
+        submenu = xp.createMenu(HOTSPOTS_TITLE, self.menu, item, self.on_choice, None)
+        for label, value in [(NORMAL_FLIGHT_LABEL, "")] + [(name, name) for name in self.hotspot_files]:
+            xp.appendMenuItem(submenu, label, len(self.choices))
+            self.choices.append(("hotspots", value))
+        self.submenus.append((submenu, "hotspots", ("",) + tuple(self.hotspot_files)))
         xp.appendMenuSeparator(self.menu)
         self.status_item = xp.appendMenuItem(self.menu, "Starting", None)
         xp.enableMenuItem(self.menu, self.status_item, 0)
@@ -453,6 +466,38 @@ class PythonInterface:
                 self.new_wind()
             self.hud.reset_instruments()
             self.next_slow = 0.0
+
+    # --- hotspot flight -------------------------------------------------------
+
+    def find_hotspot_files(self):
+        """The hotspot files, once at start. The folder is made if it is missing, so that it is
+        there to put a file in."""
+        try:
+            os.makedirs(self.hotspots_folder, exist_ok=True)
+        except OSError as exc:
+            print(f"{TAG} could not make {self.hotspots_folder}: {exc}")
+        files = hotspot_files_in(self.hotspots_folder)
+        print(f"{TAG} hotspot files: " + (", ".join(files) or "none") + f" (in {self.hotspots_folder})")
+        return files
+
+    def use_hotspots(self):
+        """The hotspot flight chosen in the settings, or a normal flight: from the next slow update,
+        a new sky."""
+        name = self.settings.hotspots
+        self.injector.hotspots, self.hotspot_note = None, ""
+        self.clouds.clear()  # another sky
+        if not name:
+            print(f"{TAG} normal flight")
+            return
+        try:
+            found = load_hotspots(os.path.join(self.hotspots_folder, name))
+        except OSError as exc:
+            self.hotspot_note = f"Normal flight: hotspot file {name} not found"
+            print(f"{TAG} hotspot file {name} could not be read ({exc}); a normal flight")
+            return
+        self.injector.hotspots = found
+        print(f"{TAG} hotspot flight: {len(found)} hotspots from {name}"
+              + (f", {found.skipped} lines skipped" if found.skipped else ""))
 
     # --- cloud styles ---------------------------------------------------------
 
@@ -687,6 +732,8 @@ class PythonInterface:
                 print(f"{TAG} {attr} = {getattr(self.settings, attr)}")
             if attr == "cloud_style":
                 self.use_cloud_style()
+            if attr == "hotspots":
+                self.use_hotspots()
             if self.settings.zi_m != zi and not self.settings.weather_base_enabled:
                 self.clouds.clear()
             self.next_slow = 0.0
@@ -719,13 +766,19 @@ class PythonInterface:
             return "Starting"
         zi, zi_now = injector.zi_m, injector.zi_now_m
         alive = injector.nearest.alive
+        hotspot = injector.hotspots is not None
         if alive == 0:
             if st.sun_enabled and injector.sun_elevation_deg < SUN_MIN_DEG:
                 return f"No thermals: the sun is under {SUN_MIN_DEG:.0f} degrees"
-            return "No thermals within reach"
+            if hotspot:
+                return "Hotspot flight: no hotspot working within reach"
+            return self.hotspot_note or "No thermals within reach"
+        if self.hotspot_note:
+            return self.hotspot_note
+        what = "Hotspot flight" if hotspot else "Active"
         if round(zi_now) < round(zi):
-            return f"Active: {alive} thermals within reach, zi {zi_now:.0f} m, {zi:.0f} m by mid-afternoon"
-        return f"Active: {alive} thermals within reach, zi {zi:.0f} m"
+            return f"{what}: {alive} thermals within reach, zi {zi_now:.0f} m, {zi:.0f} m by mid-afternoon"
+        return f"{what}: {alive} thermals within reach, zi {zi:.0f} m"
 
     def update_status(self):
         if self.status_item is None:

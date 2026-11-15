@@ -66,6 +66,10 @@ the seed and the date, raises the number of thermals a tile draws and their stre
 and lowers both in bad ones; the sky as a whole keeps as many. Off in a `FieldConfig` by default, so
 the tools and tests that give none get the sky as before.
 
+A hotspot flight (`ThermalField` with `hotspots`, `hotspots.py`): thermals only where a file of
+hotspots says they start, and no random field. Those are placed on the ground and carried into
+the air's frame by `air_at`, so the field asks `ground_at` where the glider is over the ground.
+
 Not modeled yet: terrain triggers. Ground where no
 thermal is born (the adapter: water) is excluded with an optional `accept(lat, lon, birth)`
 predicate, which never shifts the random stream; nor does the sun.
@@ -111,6 +115,9 @@ CARRIER_MIN_LIFE_S = 720.0
 LIFT_TOP_ZZI = 1.0 / 1.1
 
 BLUE_STREAM = 1  # last part of the key of the second random stream, for thinning
+
+HOTSPOT_KEY = "hotspot"  # first part of a loaded hotspot's key, beside the tiles' (i, j, slot)
+HOTSPOT_MARGIN_M = 500.0  # a hotspot's thermals start within 250 m of it (`hotspots.RADIUS_M`)
 
 # Below a thermal's floor, in a valley deeper than the sky's level: lift as at this height (m),
 # so a thermal still comes from the ground under it, weakly, and nothing jumps at the floor.
@@ -420,6 +427,25 @@ def generate_tile(config, i, j, slot, accept=None, cycle=None):
     return thermals
 
 
+def hotspot_keys(hotspots, config, range_m, t, lat, lon, ground_at=None):
+    """The (HOTSPOT_KEY, hotspot, slot) whose thermals can be within range_m of (lat, lon) in the
+    air at time t, for a hotspot flight.
+
+    A thermal alive now was born in this slot or the one before, over the ground that was under
+    this air then: the ground under (lat, lon) at those times, every half slot, each with the
+    range around it (the wind moves the air less than 10 km in half a slot up to 11 m/s).
+    ground_at(lat, lon, t) carries a point of the air to the ground; None: no wind.
+    """
+    s = math.floor(t / config.slot_s)
+    reach = range_m + HOTSPOT_MARGIN_M
+    found = set()
+    for k in range(5):
+        when = t - 0.5 * k * config.slot_s
+        glat, glon = (lat, lon) if ground_at is None else ground_at(lat, lon, when)
+        found.update(hotspots.near(glat, glon, reach))
+    return {(HOTSPOT_KEY, index, slot) for index in found for slot in (s - 1, s)}
+
+
 class ThermalField:
     """Thermals around the player, kept in a spatial grid in the local frame.
 
@@ -427,18 +453,31 @@ class ThermalField:
     call `lift_at` per sample point per frame.
     """
 
-    def __init__(self, config, frame, accept=None):
+    def __init__(self, config, frame, accept=None, hotspots=None, air_at=None, ground_at=None):
+        """hotspots: a `hotspots.HotspotSet` for a hotspot flight, its thermals only; None for the
+        random field. air_at(lat, lon, t) and ground_at(lat, lon, t) carry a point between the
+        ground and the air's frame at time t (the wind's drift); None: no wind."""
         self.config = config
         self.frame = frame
         self.accept = accept
-        self._tiles = {}  # (i, j, slot) -> list of Thermal
+        self.hotspots = hotspots
+        self.air_at = air_at
+        self.ground_at = ground_at
+        self._tiles = {}  # (i, j, slot), or (HOTSPOT_KEY, hotspot, slot) -> list of Thermal
         self._grid = {}  # (cx, cy) -> list of Thermal
         # Effective full-size updrafts per m2 for the environment sink (Eq. 21):
         # life-cycle average of strength * radius^2 times the mean flux of a thermal.
         # With areas, more thermals are stronger too, so the mean flux is higher (`areas.MEAN_FLUX`).
-        self._flux_density = (config.density_per_km2 * 1e-6 * MEAN_LIFE_FLUX
-                              * mean_flux_gain(config)
-                              * (AREAS_MEAN_FLUX if config.areas is not None else 1.0))
+        # A hotspot flight's: its own thermals, all carriers, over the file's area.
+        if hotspots is not None:
+            from .hotspots import carrier_mean_flux  # here: hotspots.py imports this module
+            sky = config.sky
+            self._flux_density = (hotspots.alive_per_km2() * 1e-6 * MEAN_LIFE_FLUX
+                                  * carrier_mean_flux(config) * sky.carrier_gain * sky.carrier_stretch ** 2)
+        else:
+            self._flux_density = (config.density_per_km2 * 1e-6 * MEAN_LIFE_FLUX
+                                  * mean_flux_gain(config)
+                                  * (AREAS_MEAN_FLUX if config.areas is not None else 1.0))
         self._max_stretch = config.sky.max_stretch
         # The share of a full day's thermals alive, which scales the sink between them. 1 with
         # no sun; with it, set by `update`.
@@ -460,6 +499,8 @@ class ThermalField:
 
     def wanted_keys(self, t, lat, lon):
         c = self.config
+        if self.hotspots is not None:
+            return self._wanted_hotspots(t, lat, lon)
         m, n = radii_of_curvature(lat)
         tile_h = math.radians(c.tile_deg) * m
         tile_w = math.radians(c.tile_deg) * n * max(math.cos(math.radians(lat)), 1e-6)
@@ -472,6 +513,14 @@ class ThermalField:
                 for i in range(i0 - di, i0 + di + 1)
                 for j in range(j0 - dj, j0 + dj + 1)
                 for slot in (s - 1, s)}
+
+    def _wanted_hotspots(self, t, lat, lon):
+        return hotspot_keys(self.hotspots, self.config, self.config.range_m, t, lat, lon, self.ground_at)
+
+    def _generate(self, key):
+        if key[0] == HOTSPOT_KEY:
+            return self.hotspots.generate(self.config, key[1], key[2], self.air_at, self.cycle)
+        return generate_tile(self.config, *key, accept=self.accept, cycle=self.cycle)
 
     def update(self, t, lat, lon):
         """Load tiles and slots around (lat, lon) at time t, drop the rest.
@@ -491,7 +540,7 @@ class ThermalField:
             changed = True
         for key in wanted:
             if key not in self._tiles:
-                thermals = generate_tile(self.config, *key, accept=self.accept, cycle=self.cycle)
+                thermals = self._generate(key)
                 for th in thermals:
                     th.e, th.n = self.frame.to_enu(th.lat, th.lon)
                     self._grid_add(th)

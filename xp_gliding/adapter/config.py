@@ -33,7 +33,7 @@ DEFAULTS = {
     "lean_enabled": False,  # thermals lean with the wind's layers (a first guess, not flown)
     "wind_at_clouds": False,  # the sky moves with the wind at the clouds, not at the glider
     "sun_enabled": True,  # the daily cycle: none born with the sun low, w* follows the day (engine/daycycle.py)
-    "areas_enabled": True,  # good and bad areas: the thermals' number and strength vary over tens of km
+    "areas_enabled": False,  # off by default (2026-11-15: the easy sky first); good and bad areas: the thermals' number and strength vary over tens of km
     "roll_enabled": True,  # gust roll moment from the spanwise lift gradient
     "helix_enabled": True,  # cancel the climbing-turn overbanking of the energy force
     "markers_enabled": False,  # training mode: draw a ring and a column over nearby thermals
@@ -42,6 +42,9 @@ DEFAULTS = {
     # since, say, is drawn as the standard style and kept, for when it is back. Billow light by
     # default since 1.1.1, standard before; a saved choice is kept.
     "cloud_style": "billow-light",
+    # A hotspot flight: a file's name in Output/xp-gliding/hotspots/, whose hotspots are the only
+    # thermals (engine/hotspots.py); "" for a normal flight. A file not there gives a normal flight.
+    "hotspots": "",
     "blue_day": False,  # a blue day: the thermals that would carry a cloud climb as usual, with none
     "hud_enabled": True,  # soaring HUD: vario, netto, average, height to the top, centring aid
     "hud_units": "metric",  # a name in UNIT_NAMES: the HUD's vario in m/s and TOP in m, or knots and feet
@@ -174,8 +177,10 @@ def _checked(key, value):
         return None
     if key in NAMES:
         return (value, False) if isinstance(value, str) and value in NAMES[key] else None
-    if isinstance(default, str):  # a folder's name
-        return (value, False) if isinstance(value, str) and value.strip() and len(value) <= 200 else None
+    if isinstance(default, str):  # a folder's or a file's name; "" only where that is the default
+        if isinstance(value, str) and len(value) <= 200 and (value.strip() or value == default):
+            return value, False
+        return None
     try:
         number = type(default)(value)
     except (TypeError, ValueError, OverflowError):

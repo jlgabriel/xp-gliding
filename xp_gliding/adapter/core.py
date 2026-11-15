@@ -47,8 +47,11 @@ The daily cycle (`engine/daycycle.py`, unless `sun_enabled` is off): no thermal 
 low, and the w* in use is the menu's times the share of the day's peak at this hour (`Injector.wstar_ms`)
 for the lift, the markers and the lean. X-Plane's cloud layers at the aircraft take a share of it,
 and rain all of it, over a few minutes (`engine/shade.py`, always on: a clear sky changes nothing).
-Good and bad areas (`engine/areas.py`, setting `areas_enabled`, on by default) vary the number and
+Good and bad areas (`engine/areas.py`, setting `areas_enabled`, off by default) vary the number and
 strength of the thermals over tens of kilometres, from the seed and the date.
+A hotspot flight (`Injector.hotspots`, from the setting `hotspots`) has thermals only from a file's
+hotspots (`engine/hotspots.py`) in place of the random field, and no areas; they are born over the
+ground and placed in the air with the drift (`AirDrift.to_air_at`).
 Each thermal is also as deep as the day was at its birth
 (`FieldConfig.depth_cycle`): zi above is the afternoon's, and `Injector.zi_now_m` the moment's. None is born over
 water (`Injector.accept_thermal`). A thermal keeps its place in the air,
@@ -277,6 +280,9 @@ class Injector:
         self.nearest = Nearest()
         self.is_wet = None  # is_wet(lat, lon), set by the plugin: the terrain is not ours to read
         self.heights = None  # clouds.CloudHeights, set by the plugin: the lift ends with its cloud
+        # A hotspot flight's hotspots (`engine/hotspots.HotspotSet`), set by the plugin from the
+        # setting `hotspots`; None: a normal flight, the random field.
+        self.hotspots = None
         self._last_place = None  # (t, lat, lon) at the last slow update
         self.floors_us = self.floors_us_max = 0.0  # the last time thermals got their floors
         self.water_checked = self.water_rejected = 0  # thermals asked about, and left out
@@ -416,16 +422,20 @@ class Injector:
         """
         st = self.settings
         lat, lon = self.drift.to_air(s.lat, s.lon)
+        hotspots = self.hotspots
+        areas = st.areas_enabled and hotspots is None  # the areas shape the random field only
         key = (st.seed, s.day, st.range_m, st.sky, self.zi_m, st.sun_enabled, st.blue_day,
-               st.areas_enabled)
+               areas, id(hotspots))
         new_sky = self.jumped = self._jumped(s)
         if self.field is None or key != self._field_key:
             new_sky = True
             self.frame = LocalFrame(lat, lon)
             config = FieldConfig(seed=st.seed, day=s.day, range_m=st.range_m, zi_m=self.zi_m,
                                  sky=sky_named(st.sky), sun_min_deg=SUN_MIN_DEG if st.sun_enabled else None,
-                                 depth_cycle=st.sun_enabled, areas=st.areas_enabled)
-            self.field = ThermalField(config, self.frame, self.accept_thermal if self.is_wet else None)
+                                 depth_cycle=st.sun_enabled, areas=areas)
+            self.field = ThermalField(config, self.frame, self.accept_thermal if self.is_wet else None,
+                                      hotspots=hotspots, air_at=self.drift.to_air_at,
+                                      ground_at=self.drift.to_ground_at)
             self._field_key = key
         elif self.frame.distance_to_origin(lat, lon) > st.recentre_m:
             self.frame = LocalFrame(lat, lon)

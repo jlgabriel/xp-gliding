@@ -17,8 +17,11 @@ thermal's `gain`, `clouds.cloud_scale`), and fewer, smaller ones where it is wor
   each thermal born in it has `strength(q)` = 1 + `STRENGTH_SPAN` q times its gain, both read at
   the tile's centre (2 km, a fifth of the smallest octave: the step between neighbours is a few
   per cent). Marked, by Juan Luis's choice: the best 15% of the map has about 1.6 times the
-  thermals and 1.2 times the strength, the worst 15% about 0.4 and 0.8. Both average 1, so the
-  sky as a whole holds as many thermals as before.
+  thermals and 1.2 times the strength, the worst 15% about 0.4 and 0.8. The density never falls
+  below `DENSITY_FLOOR`: an area with no thermals at all over 20 km left half the sky without a
+  cloud, which read as a fault from the air (Juan Luis at Vallenar, 2026-11-15), so the worst
+  areas thin out to a few weak thermals under small clouds instead. Both average about 1, so the
+  sky as a whole holds about as many thermals as before.
 - The areas are in the air's frame, as the thermals are: with wind they drift with it, as an air
   mass does. They are not the ground: that would be terrain triggers, not modeled
   yet.
@@ -42,7 +45,7 @@ NOISE_STD = 0.41  # of the two octaves together, measured over the globe (tests 
 Q_LIMIT = 3.0
 DENSITY_SPAN = 0.58  # q at the best 15% is about 1.05: 1.6 times the thermals
 STRENGTH_SPAN = 0.19  # and 1.2 times their strength
-MEAN_FLUX = 1.0 + DENSITY_SPAN * STRENGTH_SPAN  # mean of density * strength, q standard
+DENSITY_FLOOR = 0.2  # the worst areas keep a fifth of the thermals (reached at q about -1.38)
 CACHE_LIMIT = 4096  # lattice values and tiles kept, each
 
 
@@ -116,4 +119,19 @@ class Areas:
 
 def factors(q):
     """(density, strength) for an area of quality q: the thermals' number and strength, times."""
-    return max(0.0, 1.0 + DENSITY_SPAN * q), max(0.0, 1.0 + STRENGTH_SPAN * q)
+    return max(DENSITY_FLOOR, 1.0 + DENSITY_SPAN * q), max(0.0, 1.0 + STRENGTH_SPAN * q)
+
+
+def _mean_flux(step=0.001):
+    """Mean of density * strength with q a standard normal within `Q_LIMIT` (the floor included)."""
+    total = weight = 0.0
+    for k in range(int(round(2.0 * Q_LIMIT / step)) + 1):
+        q = -Q_LIMIT + k * step
+        p = math.exp(-0.5 * q * q)
+        density, strength = factors(q)
+        total += p * density * strength
+        weight += p
+    return total / weight
+
+
+MEAN_FLUX = _mean_flux()  # the field's sink takes it into account

@@ -1,6 +1,6 @@
 # Pilot guide
 
-How to install XP-Gliding, make a first flight and read its sky. This guide is for version 1.1.1. Its known limits are listed at the end.
+How to install XP-Gliding, make a first flight and read its sky. This guide is for version 1.2. Its known limits are listed at the end.
 
 ![A Laminar ASK 21 banked in a climbing turn over Santiago, Chile, with small cumulus around it and hills beyond. The HUD on the left reads +2.3 m/s](images/climbing-among-cumulus.jpg)
 
@@ -12,7 +12,7 @@ How to install XP-Gliding, make a first flight and read its sky. This guide is f
 
 ## Installing
 
-1. Download `xp-gliding-1.1.1.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
+1. Download `xp-gliding-1.2.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
 2. Close X-Plane.
 3. From the unzipped folder, copy `PI_xp_gliding.py`, the whole `xp_gliding` folder and the `xp-gliding-cloud-styles` folder into `X-Plane 12/Resources/plugins/PythonPlugins/`. They must sit side by side there. The last one is for cloud styles of your own, and the plugin makes it if it is missing. `README.txt` and `LICENSE` do not need to be copied.
 4. Start X-Plane. *Plugins → XP-Gliding* appears in the menu.
@@ -44,7 +44,7 @@ In calm air the sky is the same every time for the same place, date, time and se
 - **A cloud means a thermal.** Each of the plugin's clouds sits over a thermal. A few thermals have no cloud, and they are weaker.
 - **Clouds are born with their thermal and outlive it.** A thermal lives between 5 and 30 minutes, growing and then fading, and never vanishes at once. A full cloud has a thermal at its best. A cloud that thins has a thermal that is weakening, and it stays a few minutes after its thermal has died, fading. A thin cloud may have nothing left under it.
 - **A bigger cloud usually means a stronger thermal.** This holds on average when the two are compared offline, and in the three thermals flown by hand to check it, which is too few to rely on.
-- **Some areas are better than others.** Over tens of kilometres the air varies: where it is good there are more thermals, stronger, under more and bigger clouds; where it is poor there are few, weaker, under few small clouds, and some stretches have almost none. Choosing where to fly by the look of the sky pays. Each date has its own map, and with wind the areas drift with it.
+- **Some areas are better than others,** with *Good and bad areas* ticked (off by default). Over tens of kilometres the air varies: where it is good there are more thermals, stronger, under more and bigger clouds; where it is poor there are few, weaker, under few small clouds, though never with none at all. Choosing where to fly by the look of the sky pays. Each date has its own map, and with wind the areas drift with it.
 - **Everything moves with the wind.** Thermals and clouds drift with X-Plane's wind, as the glider does, so a circle needs no correction for it, even while the ground passes underneath. In strong wind a thermal can carry you towards high ground.
 - **A climb ends near its cloud.** The lift fades towards the cloud's base, and usually stops some way under it.
 - **Clouds keep to a level for the area,** and stand higher where the ground under them, or along their drift, would reach them.
@@ -73,7 +73,7 @@ A small panel on the left of the screen. The vario readings and the centring arr
 
 Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next session, and each switch is also a command you can bind to a key or a joystick button in X-Plane's keyboard or joystick settings.
 
-![The XP-Gliding menu with its default settings: the switches with a dot where they are on, then the submenus from Day to Cloud style, and the status line at the bottom](images/menu.png)
+![The XP-Gliding menu with its default settings: the switches with a dot where they are on, then the submenus from Day to Hotspot flight, and the status line at the bottom](images/menu.png)
 
 | Item | What it does | Command |
 | --- | --- | --- |
@@ -81,7 +81,7 @@ Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next
 | Thermals | The lift, keeping the clouds and the rest | `xp_gliding/thermals/toggle` |
 | Sharper thermal edges (experiment) | A jolt when you fly into lift and out of it, bumps at a thermal's edge (more low down), a ring of sink around each thermal, and twice the sink between thermals. Gliding between clouds costs more, and the edge tells you where the lift is. The climb in the thermal is the same. Off by default, so you can learn the thermals first; tick it when you want rougher air, and untick it in flight to compare | `xp_gliding/edge/toggle` |
 | Daily cycle | The thermals follow the sun. None is born with the sun under 10°. They start weak and low a little after sunrise and grow stronger and deeper through the morning; the strength of the day below is reached around 1 pm solar time, and they weaken through the afternoon. Each thermal keeps the depth of the hour it was born: around 10 am solar time they end at less than half the afternoon's height, and they reach it by mid-afternoon. The early morning is blue: the first cumulus come between about 10 and 10:40 am solar time, at about half the afternoon's base, and the base rises to it by mid-afternoon. Solar time is not your clock: at Santiago in November, solar noon is at 13:26 local time, so the first clouds come around 11:30. Off: the same strength and depth all day and night, as in 0.1. On by default | `xp_gliding/day/cycle/toggle` |
-| Good and bad areas | The thermals' number and strength vary over tens of kilometres: in the best areas about 1.6 times as many as on average and a fifth stronger, in the worst about 0.4 times as many and a fifth weaker. The sky as a whole holds as many thermals as with it off. Each date has its own map. Off: the same sky everywhere. On by default | `xp_gliding/day/areas/toggle` |
+| Good and bad areas | The thermals' number and strength vary over tens of kilometres: in the best areas about 1.6 times as many as on average and a fifth stronger, in the worst about 0.4 times as many and a fifth weaker, and never fewer than a fifth as many, so no stretch of sky is left without clouds. The sky as a whole holds as many thermals as with it off. Each date has its own map. Off: the same sky everywhere. Off by default, so you start with the easier sky; tick it when you want choosing where to fly to matter | `xp_gliding/day/areas/toggle` |
 | Thermals follow the wind | The wind carries thermals, clouds and markers. On by default | `xp_gliding/wind/toggle` |
 | Thermals lean with the wind (experiment) | Lift upwind of the cloud when low. Off by default, best left off | `xp_gliding/lean/toggle` |
 | Sky moves with the wind at the clouds (experiment) | Makes a climb much harder in changing wind. Off by default, best left off | `xp_gliding/wind/clouds/toggle` |
@@ -99,12 +99,26 @@ Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next
 | Seed of the sky | Another arrangement of thermals | |
 | Units on the HUD | Metric (m/s and m, the default) or aviation (knots and feet). The wind is in knots with both | |
 | Cloud style | How the cumulus look, as a livery for the sky: *Billow light* (the default), *Billow*, *Standard*, *Cotton*, *Cauliflower* and *Popcorn*, and any style you install. Only the look changes, never where the clouds are or what they say about their thermals. See [Cloud styles](cloud-styles.md). The command, not in the menu, steps to the next style, for a key to compare them | `xp_gliding/clouds/style/next` |
+| Hotspot flight | *None: a normal flight* (the default), or a file of hotspots: then the only thermals are the ones its hotspots start (see *A hotspot flight* below). The files found when X-Plane starts are listed | |
 
 Markers appear for up to 20 thermals within 3 km with at least 1.5 m/s at the core. The colour shows the lift at the core at your height: pale below 2 m/s, yellow from 2, orange from 3, and red from 4.
 
 Choosing another sky, seed, depth or cloud style in flight replaces the clouds at once, and new ones fill in.
 
 The menu's last line, greyed out, says what the plugin is doing: how many thermals are within reach and the depth of the day in use (with *Daily cycle* on, the depth now and the afternoon's), or why there are none.
+
+## A hotspot flight
+
+A normal flight has thermals everywhere, drawn by the plugin. A hotspot flight has thermals only where a file says pilots find them, and none anywhere else: it is the sky of a site you know, as sparse as the file is.
+
+1. Open [thermal.kk7.ch](https://thermal.kk7.ch/), a map of thermal hotspots worked out from paragliding and hang-gliding tracks, and move it to the area you want to fly.
+2. Under *Download currently visible hotspots*, choose *Comma Separated List (csv)*. The file has the hotspots in view.
+3. Put the file in `Output/xp-gliding/hotspots/` inside your X-Plane folder (the plugin makes the folder the first time it starts), and restart X-Plane.
+4. Choose the file in *Plugins → XP-Gliding → Hotspot flight*.
+
+Each hotspot works in cycles, one thermal at a time, and its probability is the share of the time it has one: a hotspot of 100% almost always (a short pause now and then), one of 60% a little more than half the time. Each starts within 250 m of its hotspot, then drifts with the wind, and each carries a cloud, so you find them as in a normal flight. The daily cycle, the wind, the clouds, the HUD and *Put me near a cloud* work as in a normal flight; *Good and bad areas* does not apply. Where the file has no hotspots there are no thermals: kk7 has data where those pilots fly, and none for many places. The menu's last line says *Hotspot flight* while you fly one.
+
+A file of your own works too: one line per hotspot with latitude, longitude, altitude in metres and probability in percent, separated by commas; a first line that is not a hotspot is skipped. The data on thermal.kk7.ch is under its own licence (CC BY-NC-SA 4.0), so the plugin brings no file: download your own.
 
 ## When there are no thermals
 
@@ -118,6 +132,8 @@ First look at the last line of *Plugins → XP-Gliding*.
 | *No thermals: Thermals is unticked* | Tick *Thermals* |
 | *No thermals: the sun is under 10 degrees* | Fly by day, or move X-Plane's clock. The first thermals come about an hour after sunrise, and the first clouds late in the morning, solar time |
 | *No thermals within reach* | Over a wide stretch of water, or far out at sea, there are none. Fly towards land |
+| *Hotspot flight: no hotspot working within reach* | In a hotspot flight there are thermals only at the file's hotspots. Fly towards them, use *Put me near a cloud*, or choose *None: a normal flight* in *Hotspot flight* |
+| *Normal flight: hotspot file … not found* | The file chosen in *Hotspot flight* is no longer in `Output/xp-gliding/hotspots/`: put it back and restart X-Plane, or choose another |
 | *Stopped by an error, see XPPython3Log.txt* | Start a new flight, or untick and tick *Enabled*, and [report it](#reporting-a-problem) |
 | *Active: … thermals within reach* | The plugin is working. If no clouds show, tick *Cumulus clouds*; if the climb feels weak, check that the airbrakes are closed |
 
