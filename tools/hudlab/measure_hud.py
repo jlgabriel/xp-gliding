@@ -15,6 +15,8 @@ lab also times its own draw callback, which is far more precise where it applies
 it to start shown; the lab's modes stay off. The window is captured at the end of each method
 into `--capture DIR` (X-Plane's own screenshot leaves 2D windows out).
 Mode 7 (imgui) goes last on purpose: never use XPPython3's "Reload scripts" after it.
+Modes 9 and 10 (Panel Graphics) need XPPython3 4.8.0 on X-Plane 12.4.4; against the window the
+HUD uses today: `--modes 8 9 10`.
 
 Measurement tool, not part of the plugin. License: GPL-3.0-or-later.
 """

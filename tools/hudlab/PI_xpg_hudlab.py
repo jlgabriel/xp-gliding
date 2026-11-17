@@ -18,6 +18,14 @@ its window. GPU cost and main-thread CPU are read from outside by the driver.
 imgui is imported only when its mode is first used: XPPython3's docs warn that reloading scripts
 after using it crashes the simulator, so never reload with this plugin once that mode ran.
 
+Modes 9 and 10 use X-Plane 12.4.4's Panel Graphics (XPLMPanelGraphics, SDK 440), which
+XPPython3 has from 4.8.0. They draw in a window of their own, since a window's content type
+(OpenGL or Panel Graphics) is fixed when it is made, and all their text goes through Panel
+Graphics fonts: XPLMDrawString does not draw in such a window. Under an older XPPython3 or
+X-Plane the lab says so in the log at start and refuses those two modes; the others work.
+Polygons are wound clockwise, because X-Plane 12.4 fills only clockwise ones (XPPython3's
+samples say so).
+
 License: GPL-3.0-or-later.
 """
 
@@ -45,7 +53,30 @@ MODES = {
     6: "avionics popup: xpgl, on demand at 10 Hz",
     7: "window: imgui",
     8: "window: GL display list for the static part, xpgl TrueType text",
+    9: "window: Panel Graphics, all drawn each frame, Panel Graphics text",
+    10: "window: Panel Graphics, static part retained, Panel Graphics text",
 }
+PANEL_GRAPHICS_MODES = (9, 10)
+
+
+def panel_graphics_available():
+    """True when both XPPython3 (4.8.0 or later) and X-Plane (12.4.4 or later) have Panel Graphics.
+
+    makeColor needs no draw phase, so it is a safe probe outside a callback.
+    """
+    if not hasattr(xp, "WindowContentTypePanelGraphics") or not hasattr(xp, "makeColor"):
+        return False
+    try:
+        xp.makeColor(1.0, 1.0, 1.0, 1.0)
+    except Exception:
+        return False
+    return True
+
+
+def rectangle_cw(left, bottom, width, height):
+    """A rectangle's corners in clockwise order, y up."""
+    return [(left, bottom), (left, bottom + height), (left + width, bottom + height),
+            (left + width, bottom)]
 
 
 class Stats:
@@ -85,6 +116,13 @@ class PythonInterface:
         self.device = None
         self.device_demand = None
         self.big = self.small = None
+        self.pg_ok = panel_graphics_available()
+        self.pg_window = None
+        self.pg_font = None
+        self.pg_static = None  # the retained drawing of mode 10, recorded in its first draw
+        self.pg_colors = {}
+        xp.log("[hudlab] Panel Graphics " + ("available: modes 9 and 10 can run" if self.pg_ok else
+               "not available (needs XPPython3 4.8.0 and X-Plane 12.4.4): modes 9 and 10 refused"))
         self.published = {"draw_us_p50": 0.0, "draw_us_p99": 0.0, "draws_per_s": 0.0,
                           "errors": 0.0}
         self.refs = [
@@ -104,6 +142,16 @@ class PythonInterface:
     def XPluginEnable(self):
         self.big = xpgl.loadFont(FONT, 34)
         self.small = xpgl.loadFont(FONT, 14)
+        if self.pg_ok and self.pg_font is None:
+            self.pg_colors = {
+                "scrim": xp.makeColor(0.0, 0.0, 0.0, 0.45),
+                "tick": xp.makeColor(1.0, 1.0, 1.0, 0.9),
+                "needle": xp.makeColor(1.0, 0.8, 0.1, 1.0),
+                "marker": xp.makeColor(0.3, 1.0, 0.4, 1.0),
+                "text": xp.makeColor(1.0, 1.0, 1.0, 1.0),
+            }
+            self.pg_font = xp.createFont(xp.CharSetASCII)
+            xp.fontAddFace(self.pg_font, xp.getSystemPath() + FONT)
         xp.scheduleFlightLoop(self.loop, ON_DEMAND_PERIOD_S, 1)
         return 1
 
@@ -112,6 +160,16 @@ class PythonInterface:
         xp.scheduleFlightLoop(self.loop, 0, 1)
 
     def XPluginStop(self):
+        # A retained drawing goes before the font it may hold.
+        if self.pg_static is not None:
+            xp.destroyRetainedDrawing(self.pg_static)
+            self.pg_static = None
+        if self.pg_window is not None:
+            xp.destroyWindow(self.pg_window)
+            self.pg_window = None
+        if self.pg_font is not None:
+            xp.destroyFont(self.pg_font)
+            self.pg_font = None
         xp.destroyFlightLoop(self.loop)
         for ref in self.refs:
             xp.unregisterDataAccessor(ref)
@@ -158,10 +216,15 @@ class PythonInterface:
     def set_mode(self, mode):
         if mode not in MODES or mode == self.mode:
             return
+        if mode in PANEL_GRAPHICS_MODES and not self.pg_ok:
+            xp.log(f"[hudlab] mode {mode} refused: no Panel Graphics here")
+            return
         self.hide_all()
         self.mode = mode
         if mode in (1, 2, 3, 4, 8):
             self.show_window()
+        elif mode in PANEL_GRAPHICS_MODES:
+            self.show_pg_window()
         elif mode == 5:
             self.show_device(False)
         elif mode == 6:
@@ -174,6 +237,8 @@ class PythonInterface:
     def hide_all(self):
         if self.window is not None:
             xp.setWindowIsVisible(self.window, 0)
+        if self.pg_window is not None:
+            xp.setWindowIsVisible(self.pg_window, 0)
         if self.imgui_window is not None:
             xp.setWindowIsVisible(self.imgui_window.windowID, 0)
         for device in (self.device, self.device_demand):
@@ -186,6 +251,14 @@ class PythonInterface:
                 LEFT, TOP, LEFT + W, TOP - H, 1, self.draw_window,
                 decoration=xp.WindowDecorationNone, layer=xp.WindowLayerFlightOverlay)
         xp.setWindowIsVisible(self.window, 1)
+
+    def show_pg_window(self):
+        if self.pg_window is None:
+            self.pg_window = xp.createWindowEx(
+                LEFT, TOP, LEFT + W, TOP - H, 1, self.draw_pg_window,
+                decoration=xp.WindowDecorationNone, layer=xp.WindowLayerFlightOverlay,
+                contentType=xp.WindowContentTypePanelGraphics)
+        xp.setWindowIsVisible(self.pg_window, 1)
 
     def show_device(self, on_demand):
         device = self.device_demand if on_demand else self.device
@@ -232,6 +305,13 @@ class PythonInterface:
             self.timed(self.scene_gl_list, left, bottom)
         elif self.mode == 8:
             self.timed(self.scene_gl_ttf, left, bottom)
+
+    def draw_pg_window(self, windowID, refCon):
+        left, _, _, bottom = xp.getWindowGeometry(windowID)
+        if self.mode == 9:
+            self.timed(self.scene_pg, left, bottom)
+        elif self.mode == 10:
+            self.timed(self.scene_pg_retained, left, bottom)
 
     def draw_device(self, refCon):
         def scene():
@@ -340,6 +420,43 @@ class PythonInterface:
         xpgl.drawText(self.big, left + 56, bottom + H // 2, a)
         xpgl.drawText(self.small, left + 56, bottom + 30, b)
         xpgl.drawText(self.small, left + 56, bottom + 12, c)
+
+    def static_pg(self, left, bottom):
+        c = self.pg_colors
+        xp.polygon(c["scrim"], rectangle_cw(left, bottom, W, H))
+        ticks = []
+        for i in range(11):
+            ty = bottom + 12 + i * (H - 24) / 10
+            ticks += [(left + 6, ty), (left + (26 if i % 5 == 0 else 18), ty)]
+        xp.lines(c["tick"], ticks)
+
+    def moving_pg(self, left, bottom):
+        c, font = self.pg_colors, self.pg_font
+        a, b, t = self.texts()
+        y = self.needle_y(bottom)
+        xp.polygon(c["needle"], [(left + 28, y), (left + 48, y + 7), (left + 48, y - 7)])
+        xp.polygon(c["marker"], rectangle_cw(left + 6, y + 10, 20, 4))
+        xp.fontDrawString(font, c["text"], 34.0, left + 56, bottom + H // 2, a, xp.JustLeft)
+        xp.fontDrawString(font, c["text"], 14.0, left + 56, bottom + 30, b, xp.JustLeft)
+        xp.fontDrawString(font, c["text"], 14.0, left + 56, bottom + 12, t, xp.JustLeft)
+
+    def scene_pg(self, left, bottom):
+        self.static_pg(left, bottom)
+        self.moving_pg(left, bottom)
+
+    def scene_pg_retained(self, left, bottom):
+        if self.pg_static is None:
+            # Recorded inside a draw phase, where Panel Graphics has its context, at the origin.
+            xp.beginRetainedDrawing()
+            try:
+                self.static_pg(0, 0)
+            finally:
+                self.pg_static = xp.endRetainedDrawing()
+        xp.transformPush()
+        xp.transformTranslate(left, bottom)
+        xp.drawRetained(self.pg_static)
+        xp.transformPop()
+        self.moving_pg(left, bottom)
 
     def scene_imgui(self):
         imgui = self.imgui
