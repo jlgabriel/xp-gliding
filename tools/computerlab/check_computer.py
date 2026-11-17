@@ -5,6 +5,7 @@ Usage:
     python tools/computerlab/check_computer.py status
     python tools/computerlab/check_computer.py keytest        # click in the window, then P
     python tools/computerlab/check_computer.py drag 200 -100  # move it by its title bar (px)
+    python tools/computerlab/check_computer.py popout         # click its pop-out button
     python tools/computerlab/check_computer.py measure --poll 5 [--pairs 5 --seconds 12]
     python tools/computerlab/check_computer.py shot out.png
 
@@ -98,6 +99,13 @@ def keytest(api):
           + ("THE SIM GOT THE KEY" if p1 != p0 else "the sim did NOT get the key"))
 
 
+def popout():
+    """Click the pop-out button at the right end of the window's title bar."""
+    left, top, right, bottom = window_rect()
+    click(*screen(right - 9, top + 22))
+    print("clicked the pop-out button")
+
+
 def drag(dx, dy):
     """Drag the window by its title bar, just above its top edge, by dx, dy screen pixels."""
     left, top, right, bottom = window_rect()
@@ -142,6 +150,7 @@ def main(argv=None):
     sub = parser.add_subparsers(dest="what", required=True)
     sub.add_parser("status")
     sub.add_parser("keytest")
+    sub.add_parser("popout")
     p = sub.add_parser("drag")
     p.add_argument("dx", type=int)
     p.add_argument("dy", type=int)
@@ -158,6 +167,8 @@ def main(argv=None):
         print(json.dumps(status(api), indent=1))
     elif args.what == "keytest":
         keytest(api)
+    elif args.what == "popout":
+        popout()
     elif args.what == "drag":
         drag(args.dx, args.dy)
     elif args.what == "measure":

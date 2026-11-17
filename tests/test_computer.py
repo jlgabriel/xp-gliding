@@ -60,6 +60,17 @@ def add_browser(xp):
     xp.windowIsPoppedOut = lambda wid: xp.windows[wid]["popped"]
     xp.getScreenBoundsGlobal = lambda: (0, 1440, 2560, 0)
     xp.takeKeyboardFocus = lambda wid: xp.calls_log.append(("focus", wid))
+    xp.WindowPositionFree = "free"
+
+    def set_mode(wid, mode, index=-1):
+        assert mode == "free"
+        xp.windows[wid]["popped"] = 0
+
+    def set_geometry(wid, left, top, right, bottom):
+        xp.windows[wid]["geometry"] = [left, top, right, bottom]
+
+    xp.setWindowPositioningMode = set_mode
+    xp.setWindowGeometry = set_geometry
 
 
 def start(tmp_path, monkeypatch, browser=True, config=None):
@@ -279,6 +290,27 @@ def test_a_moved_window_is_saved_once_it_stays_put(plugin):
     for _ in range(20):
         tick(pi)
     assert pi.settings.computer_window == [180, 1200, 660, 780]
+
+
+def test_a_popped_out_window_is_put_back_inside_x_plane(plugin, capsys):
+    pi, xp, data = plugin
+    choose(xp, "Flight Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    placed = list(window["geometry"])
+    window["popped"] = 1  # the pilot popped it out, and X-Plane moved it far out of its desktop
+    window["geometry"] = [100010, 430, 100490, 10]
+    for _ in range(5):
+        tick(pi)
+    assert window["popped"] == 0 and window["geometry"] == placed
+    window["popped"] = 1  # again: put back again, said once in the log
+    for _ in range(5):
+        tick(pi)
+    assert window["popped"] == 0
+    assert capsys.readouterr().out.count("kept inside X-Plane") == 1
+    for _ in range(20):
+        tick(pi)
+    assert saved(pi)["computer_window"] == []  # its place was never the popped-out one
 
 
 def test_after_a_click_the_keyboard_goes_back_to_the_sim(plugin):

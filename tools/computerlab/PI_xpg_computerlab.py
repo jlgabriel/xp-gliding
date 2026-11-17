@@ -62,6 +62,7 @@ CMDS = {
     22: "focus_blur",     # the page blurs itself after each pointer release
     23: "kb_zero",        # once: takeKeyboardFocus(0), whatever hasKeyboardFocus says
     24: "kb_cycle",       # once: takeKeyboardFocus(window), then takeKeyboardFocus(0)
+    25: "os_wider",       # popped out: its OS window 300 px wider (setWindowGeometryOS)
 }
 
 
@@ -252,6 +253,10 @@ class PythonInterface:
             self.settings["pan"] = name == "pan_on"
         elif name in ("push_on", "push_off"):
             self.settings["push"] = name == "push_on"
+        elif name == "os_wider":
+            if xp.windowIsPoppedOut(self.window):
+                left, top, right, bottom = xp.getWindowGeometryOS(self.window)
+                xp.setWindowGeometryOS(self.window, left, top, right + 300, bottom)
         elif name == "kb_zero":
             xp.takeKeyboardFocus(0)
         elif name == "kb_cycle":

@@ -48,7 +48,8 @@ XPLANE = os.environ.get("XPLANE_DIR", "D:/Laminar/XP12-Last-Release/X-Plane 12")
 CMDS = {"create_raw": 1, "create_uri": 2, "destroy": 3, "show": 4, "hide": 5, "big": 6,
         "small": 7, "popout": 8, "float": 9, "refresh": 10, "rate2": 11, "rate5": 12,
         "rate10": 13, "pan_on": 14, "pan_off": 15, "push_on": 16, "push_off": 17,
-        "late_function": 18, "rate0": 19, "focus_none": 20, "focus_release": 21, "focus_blur": 22, "kb_zero": 23, "kb_cycle": 24}
+        "late_function": 18, "rate0": 19, "focus_none": 20, "focus_release": 21, "focus_blur": 22, "kb_zero": 23, "kb_cycle": 24,
+        "os_wider": 25}
 PORT = 8765
 def one_pixel_png():
     def chunk(kind, data):
@@ -279,6 +280,28 @@ def poke(api):
     print("  keys", after["keys"][len(before["keys"]):])
 
 
+def shot_os(title, path):
+    """Capture the OS window with this title (a popped-out X-Plane window), brought to the front."""
+    from PIL import ImageGrab
+
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    user32 = ctypes.windll.user32
+    hwnd = user32.FindWindowW(None, title)
+    if not hwnd:
+        raise SystemExit(f"no window titled {title!r}")
+    user32.keybd_event(0x12, 0, 0, 0)
+    user32.keybd_event(0x12, 0, 2, 0)
+    user32.SetForegroundWindow(hwnd)
+    time.sleep(0.6)
+    r = wintypes.RECT()
+    user32.GetClientRect(hwnd, ctypes.byref(r))
+    pt = wintypes.POINT(0, 0)
+    user32.ClientToScreen(hwnd, ctypes.byref(pt))
+    box = (pt.x, pt.y, pt.x + r.right, pt.y + r.bottom)
+    ImageGrab.grab(bbox=box, all_screens=True).save(path)
+    print("client area on screen", box, "size", (r.right, r.bottom))
+
+
 def keytest(api, click=True, between=()):
     """Click inside the lab window, then press P: does the sim still get the key?
 
@@ -357,6 +380,9 @@ def main(argv=None):
     p.add_argument("--between", nargs="*", default=[], choices=sorted(CMDS))
     p = sub.add_parser("shot")
     p.add_argument("path")
+    p = sub.add_parser("shotos")
+    p.add_argument("path")
+    p.add_argument("--title", default="XP-Gliding computer lab")
     args = parser.parse_args(argv)
     if args.what == "install":
         install(args.xplane)
@@ -374,6 +400,8 @@ def main(argv=None):
         poke(XPlaneWebAPI())
     elif args.what == "shot":
         capture_window(xplane_pid(), args.path)
+    elif args.what == "shotos":
+        shot_os(args.title, args.path)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,8 @@ only this instrument is shown. It reads nothing of the engine's thermals: what i
 glider can observe. Every second tick (5 Hz) it builds the snapshot, only while its window exists.
 
 The window, found by measuring (2026-11-17, X-Plane 12.4.4, XPPython3 4.8.0):
+- stays inside X-Plane: popped out into a window of its own, X-Plane draws a corner of the page,
+  enlarged, so a popped-out Flight Computer is put back at the next look (`_keep_in`);
 - exists only while the Flight Computer is wanted: closing it in any way destroys it. Its close box
   only hides it, and a hidden page keeps running and costing, so the next tick sees it hidden,
   saves its place, destroys it and unticks the Flight Computer;
@@ -99,6 +101,7 @@ class Computer:
         self._seen_geometry = None
         self._seen_since = 0.0
         self._placed = None  # where the window was put or last saved: a place only a move changes
+        self._popped_logged = False
         ref = xp.findDataRef
         self._lat = ref("sim/flightmodel/position/latitude")
         self._lon = ref("sim/flightmodel/position/longitude")
@@ -190,6 +193,8 @@ class Computer:
             xp.takeKeyboardFocus(window)
             xp.takeKeyboardFocus(0)
         if look:
+            if xp.windowIsPoppedOut(window):
+                self._keep_in(window)
             self._watch_geometry(window, now)
         self._watch_load(window, now)
         self._ticks += 1
@@ -225,6 +230,19 @@ class Computer:
         self._seen_since = now
         self._placed = list(rect)
         xp.windowSetURL(window, self.url)
+
+    def _keep_in(self, window):
+        """Popped out into a window of its own, X-Plane 12.4.4 draws a browser window's page wrong:
+        a corner of it, enlarged and blurred, while the page itself measures the right size
+        (measured 2026-11-17; reloading does not help). So it goes back inside X-Plane, at its
+        last place and size, until X-Plane draws it right."""
+        xp.setWindowPositioningMode(window, xp.WindowPositionFree, -1)
+        if self._placed is not None:
+            xp.setWindowGeometry(window, *self._placed)
+        if not self._popped_logged:
+            self._popped_logged = True
+            self.log("Flight Computer: kept inside X-Plane; popped out, X-Plane 12.4.4 does not draw "
+                     "its page right")
 
     def _close(self):
         window = self.window

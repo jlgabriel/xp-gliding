@@ -71,7 +71,7 @@ A small panel on the left of the screen. The vario readings and the centring arr
 
 ## The Flight Computer
 
-The other instrument, in place of the HUD: a window of its own that you can move, resize and pop out of X-Plane, with the same readings as the HUD, larger, and room for more to come. Choose it in *Plugins → XP-Gliding → Instrument*. It needs X-Plane 12.4.4 and XPPython3 4.8.0 or later, since its window is X-Plane's built-in browser; with anything earlier the menu greys it out and the HUD stays.
+The other instrument, in place of the HUD: a window of its own that you can move and resize, with the same readings as the HUD, larger, and room for more to come. Choose it in *Plugins → XP-Gliding → Instrument*. It needs X-Plane 12.4.4 and XPPython3 4.8.0 or later, since its window is X-Plane's built-in browser; with anything earlier the menu greys it out and the HUD stays.
 
 A strip across the top always shows the total energy rate, with a bar whose half height is 5 m/s or 10 kt, the 30 s average and the altitude above sea level. Below it, the FLIGHT view shows the rest:
 
@@ -88,7 +88,7 @@ The numbers grow and shrink with the window, so a small window in a corner still
 
 The readings are the HUD's own: the two instruments never disagree. Like the HUD, they use only what a glider could sense. *Units* in the menu sets both.
 
-Where you leave the window, and its size, are kept for the next session. Its close box closes the Flight Computer (choose it again in the menu to bring it back). A click in the window leaves the keyboard with X-Plane, so your keys and their commands work as before.
+Where you leave the window, and its size, are kept for the next session. Its close box closes the Flight Computer (choose it again in the menu to bring it back). It stays inside X-Plane's window: its pop-out button puts it back at once, because X-Plane 12.4.4 draws a popped-out browser window wrong (a corner of the page, enlarged). A click in the window leaves the keyboard with X-Plane, so your keys and their commands work as before.
 
 ## The menu
 
