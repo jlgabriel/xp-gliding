@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- Computer lab page: checks what a local page can do inside X-Plane's browser window.
+     Measurement tool, not part of the plugin. License: GPL-3.0-or-later. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XP-Gliding computer lab</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+</head>
+<body>
+<header>
+  <span id="status">starting</span>
+  <span id="rtt"></span>
+</header>
+<div id="map"></div>
+<pre id="log"></pre>
+<script>window.inlineClassicOk = true;</script>
+<script type="module">window.inlineModuleOk = true;</script>
+<script type="module" src="mod.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="app.js"></script>
+</body>
+</html>
