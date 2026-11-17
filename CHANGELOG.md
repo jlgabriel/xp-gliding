@@ -5,6 +5,7 @@ What changes for a pilot in each version. Each release on [GitHub](https://githu
 ## Unreleased
 
 - **Works in X-Plane 12.4.4.** Version 1.2 was flown in X-Plane 12.4.4 under Vulkan with nothing changed: the plugin starts, its clouds and HUD show, and a uniform lift of 2 m/s makes the ASK 21 climb 2.00 m/s faster than in still air, as in 12.4.3. Nothing to update.
+- **A lighter HUD.** With X-Plane 12.4.4 and XPPython3 4.8.0 or later, the HUD draws with Panel Graphics, X-Plane's newer 2D drawing. It looks the same, and costs about 33 µs a frame instead of about 0.3 ms. With an earlier X-Plane or XPPython3 it draws as before, and if Panel Graphics ever fails it goes back to the old way by itself and notes it in `XPPython3Log.txt`. XPPython3 updates from its own menu, *Plugins → XPPython3*, or from [its page](https://xppython3.readthedocs.io/).
 
 ## 1.2 — 2026-11-15
 

@@ -7,7 +7,7 @@ How to install XP-Gliding, make a first flight and read its sky. This guide is f
 ## What you need
 
 - **X-Plane 12.** The plugin has been flown in versions 12.4.3 and 12.4.4 under Vulkan, on Windows 11. Other versions and systems have not been tried.
-- **[XPPython3](https://xppython3.readthedocs.io/),** the plugin that runs Python plugins in X-Plane. Install it as its page explains, and start X-Plane once, so that it creates the folder `Resources/plugins/PythonPlugins/`. Version 4.7.1 has been tried. Nothing else is needed.
+- **[XPPython3](https://xppython3.readthedocs.io/),** the plugin that runs Python plugins in X-Plane. Install it as its page explains, and start X-Plane once, so that it creates the folder `Resources/plugins/PythonPlugins/`. Versions 4.7.1 and 4.8.0 have been tried. With 4.8.0 or later on X-Plane 12.4.4, the HUD draws with X-Plane's newer Panel Graphics and costs much less. With an earlier version it draws as before. Nothing else is needed.
 - **A glider.** The reference is the Laminar ASK 21 that comes with X-Plane. The HpH 304S Shark has been tried too, by script: it gets the lift and its HUD shows no netto. A motor glider gets in through the menu (see [The menu](#the-menu)).
 
 ## Installing

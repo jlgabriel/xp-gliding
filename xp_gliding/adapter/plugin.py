@@ -164,6 +164,7 @@ DATAREFS = (
     ("hud/aid_amp_ms", "hud", "aid.amp_ms", "f", 0),
     ("hud/sample_us", "hud", "sample_us", "f", 0),
     ("hud/draw_us", "hud", "draw_us", "f", 0),
+    ("hud/panel_graphics", "hud", "panel_graphics", "i", 1),  # 1: Panel Graphics; write 0 for OpenGL
     ("seed", "settings", "seed", "i", 1),
     ("wstar_ms", "settings", "wstar_ms", "f", 1),
     ("zi_m", "settings", "zi_m", "f", 1),  # the setting; day/zi_m is the one in use

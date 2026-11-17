@@ -2,14 +2,18 @@
 
 A flight loop of its own samples the aircraft ten times a second, updates the
 instruments and formats the text, so nothing of this runs in the frames between.
-A window in the flight overlay layer draws the result every frame: the static
-part from a GL display list, the rest as a few GL primitives and strings already
-made. Under Vulkan X-Plane gives plugins an OpenGL context of their own, and
-drawing in a window is the supported way to use it (measured in X-Plane 12.4.3,
-2026-11-04: ~75 us a frame for a test scene, against ~500 us through xpgl or imgui;
-X-Plane 12.4.4's native Panel Graphics are the next step). Small
-text uses X-Plane's own font, because TrueType through xpgl costs ~18 us per
-glyph from Python; only the big TE reading pays for it.
+A window in the flight overlay layer draws the result every frame, the shapes and
+strings already made, in one of two ways:
+
+- Panel Graphics (`PanelDrawer`), X-Plane 12.4.4's native 2D drawing, where both X-Plane 12.4.4
+  and XPPython3 4.8.0 have it: the static part recorded once and replayed, the rest each frame,
+  all text in TrueType. Measured on 2026-11-17 for a scene like this one: 26-33 us a draw.
+- OpenGL (`GLDrawer`) everywhere else, and if Panel Graphics fails, to start or while drawing:
+  then the HUD says so in the log and draws with OpenGL until X-Plane restarts. Under Vulkan
+  X-Plane gives plugins an OpenGL context of their own, and drawing in a window is the supported
+  way to use it. The static part is a GL display list; small text uses X-Plane's own font,
+  because TrueType through xpgl costs ~18 us per glyph from Python, so only the big TE reading
+  pays for it (433 us a draw for that same scene, 2026-11-17).
 
 It never touches the forces, and a failure here only hides the panel: an
 exception must not leave a draw callback, because XPPython3 stops calling it.
@@ -48,6 +52,13 @@ AID_MIN_AMP_MS = 1.2
 AID_FULL_AMP_MS = 3.0
 SOLVE_EVERY = 5  # samples between CentringAid solutions
 FONT_BIG = "Resources/fonts/Roboto-Bold.ttf"
+FONT_SMALL = "Resources/fonts/Roboto-Regular.ttf"  # Panel Graphics only: OpenGL uses X-Plane's own font
+BIG_PX = 34.0
+SMALL_PX = 12.0  # Roboto at 12 is about as wide as X-Plane's own font: 14 was 18 % wider (2026-11-17)
+TEXT_X = 66  # the text's left edge
+TE_Y = HEIGHT - 44  # the big number's baseline
+TEXT_Y = HEIGHT - 70  # the first small line's
+LINE_PX = 20
 KT_TO_KMH = 1.852
 FT_PER_M = 1.0 / 0.3048
 
@@ -121,11 +132,10 @@ class Hud:
         self.draw_us = 0.0
         self.failed = False
         self.window = None
-        self.static_list = None
-        self.static_units = None  # the units the static list was drawn for
+        self.drawer = None  # PanelDrawer or GLDrawer, made with the window
+        self.prefer_panel = True  # False once Panel Graphics failed, or when asked for OpenGL
+        self._rebuild = False  # a new window and drawer, asked anywhere, made by the next tick
         self.units = UNITS["metric"]
-        self.GL = self.xpgl = None
-        self.font_big = None
         self._samples = 0
         self._te_y = self._netto_y = self._average_y = tape_y(0.0, 1.0)
         self._arrow = None
@@ -162,9 +172,7 @@ class Hud:
 
     def stop(self):
         xp.destroyFlightLoop(self.loop)
-        if self.window is not None:
-            xp.destroyWindow(self.window)
-            self.window = None
+        self._drop_drawing()
 
     def set_top(self, nearest_base_m, level_m):
         """The nearest drawn cloud's base (m MSL, -1: none), and the sky's level (None: no sky yet)."""
@@ -185,17 +193,50 @@ class Hud:
         self.thermal.reset()
 
     def _load_drawing(self):
-        # Only in the simulator: tests have no OpenGL, and fonts need X-Plane.
-        from OpenGL import GL
-        from XPPython3 import xpgl
-
-        self.GL, self.xpgl = GL, xpgl
-        self.font_big = xpgl.loadFont(FONT_BIG, 34)
+        """The window and what draws in it: Panel Graphics where X-Plane and XPPython3 have it,
+        else OpenGL. A window's content type is fixed when it is made, so each drawer has its own."""
+        drawer = None
+        if self.prefer_panel and panel_graphics_available():
+            try:
+                drawer = PanelDrawer()
+            except Exception:
+                self.prefer_panel = False
+                self.log("HUD: Panel Graphics failed to start, drawing with OpenGL:\n"
+                         + traceback.format_exc())
+        if drawer is None:
+            drawer = GLDrawer()
         left, _, _, bottom = xp.getScreenBoundsGlobal()
         x, y = left + MARGIN_LEFT, bottom + MARGIN_BOTTOM
+        # Named only for Panel Graphics: XPPython3 before 4.8.0 knows no contentType.
+        extra = {"contentType": xp.WindowContentTypePanelGraphics} if drawer.panel else {}
         self.window = xp.createWindowEx(x, y + HEIGHT, x + WIDTH, y, 1, self.on_draw,
                                         decoration=xp.WindowDecorationNone,
-                                        layer=xp.WindowLayerFlightOverlay)
+                                        layer=xp.WindowLayerFlightOverlay, **extra)
+        self.drawer = drawer
+        self.log(f"HUD drawn with {drawer.name}")
+
+    def _drop_drawing(self):
+        if self.window is not None:
+            xp.destroyWindow(self.window)
+            self.window = None
+        if self.drawer is not None:
+            drawer, self.drawer = self.drawer, None
+            try:
+                drawer.release()
+            except Exception:  # a drawer that failed may not free cleanly; the HUD goes on
+                self.log(f"HUD: freeing its {drawer.name} drawing failed:\n" + traceback.format_exc())
+
+    @property
+    def panel_graphics(self):
+        """1 while the HUD draws with Panel Graphics. Writing 0 moves it to OpenGL and 1 back, where
+        X-Plane has Panel Graphics (dataref `xp_gliding/hud/panel_graphics`, for checks)."""
+        return int(self.drawer is not None and self.drawer.panel)
+
+    @panel_graphics.setter
+    def panel_graphics(self, value):
+        if bool(value) != self.prefer_panel:
+            self.prefer_panel = bool(value)
+            self._rebuild = True
 
     def _show(self, visible):
         if self.window is not None:
@@ -223,6 +264,9 @@ class Hud:
         st = self.settings
         # Enabled is the plugin's whole effect, the HUD included (docs/pilot-guide.md).
         wanted = st.enabled and st.hud_enabled and self.eligible and not self.failed
+        if self._rebuild:
+            self._rebuild = False
+            self._drop_drawing()
         if wanted and self.window is None:
             self._load_drawing()
         self._show(wanted)
@@ -285,115 +329,252 @@ class Hud:
     # --- every frame ----------------------------------------------------------------
 
     def on_draw(self, windowID, refCon):
-        if self.failed:
+        if self.failed or self._rebuild:
             return
         t0 = time.perf_counter()
         try:
             left, _, _, bottom = xp.getWindowGeometry(windowID)
-            self.draw(left, bottom)
+            self.drawer.draw(self, left, bottom)
         except Exception:
-            self._fail("its draw callback")
+            if self.drawer is not None and self.drawer.panel:
+                # Never destroy a window from its own draw callback: the next tick does it.
+                self.prefer_panel = False
+                self._rebuild = True
+                self.log("HUD: Panel Graphics failed while drawing, back to OpenGL:\n"
+                         + traceback.format_exc())
+            else:
+                self._fail("its draw callback")
             return
         self.draw_us += 0.02 * ((time.perf_counter() - t0) * 1e6 - self.draw_us)
 
-    def draw(self, left, bottom):
+
+def panel_graphics_available():
+    """Panel Graphics needs both XPPython3 4.8.0 and X-Plane 12.4.4 (SDK 440).
+
+    makeColor needs no draw phase, so it is a safe probe anywhere: on X-Plane before 12.4.4 it
+    raises, and XPPython3 before 4.8.0 has none of it.
+    """
+    if not hasattr(xp, "WindowContentTypePanelGraphics") or not hasattr(xp, "makeColor"):
+        return False
+    try:
+        xp.makeColor(1.0, 1.0, 1.0, 1.0)
+    except Exception:
+        return False
+    return True
+
+
+def clockwise(points):
+    """The polygon wound clockwise, y up: X-Plane 12.4's Panel Graphics fills only those."""
+    area = 0.0
+    for (x0, y0), (x1, y1) in zip(points, points[1:] + points[:1]):
+        area += x0 * y1 - x1 * y0
+    return points if area <= 0.0 else points[::-1]
+
+
+def tick_marks(units):
+    """The tape's marks and its spine, as pairs of points in the panel's own coordinates."""
+    points = []
+    for v in range(-units.tape, units.tape + 1):
+        y = tape_y(v, units.tape)
+        points += [(TAPE_X, y), (TAPE_X + (22 if v == 0 else 14 if v % units.major == 0 else 8), y)]
+    return points + [(TAPE_X, TAPE_BOTTOM), (TAPE_X, TAPE_TOP)]
+
+
+def dial_points():
+    """The centring aid's circle, 40 points."""
+    return [(AID_X + AID_RADIUS * math.sin(2.0 * math.pi * i / 40),
+             AID_Y + AID_RADIUS * math.cos(2.0 * math.pi * i / 40)) for i in range(40)]
+
+
+def mark_triangles(hud):
+    """The moving triangles, each (colour, three points), in the panel's own coordinates."""
+    y = hud._te_y
+    marks = [(AMBER, [(TAPE_X + 24, y), (TAPE_X + 46, y + 8), (TAPE_X + 46, y - 8)])]
+    y = hud._netto_y
+    marks.append((GREEN, [(TAPE_X + 2, y), (TAPE_X + 14, y + 5), (TAPE_X + 14, y - 5)]))
+    y = hud._average_y
+    marks.append((WHITE, [(TAPE_X + 46, y), (TAPE_X + 54, y + 4), (TAPE_X + 54, y - 4)]))
+    if hud._arrow is not None:
+        dx, dy = hud._arrow
+        marks.append((CYAN, [(AID_X + dx, AID_Y + dy), (AID_X - dy * 0.25, AID_Y + dx * 0.25),
+                             (AID_X + dy * 0.25, AID_Y - dx * 0.25)]))
+    if hud._wind_arrow is not None:
+        dx, dy = hud._wind_arrow
+        marks.append((WHITE, [(WIND_X + dx, WIND_Y + dy),
+                              (WIND_X + 0.3 * dx - 0.4 * dy, WIND_Y + 0.3 * dy + 0.4 * dx),
+                              (WIND_X + 0.3 * dx + 0.4 * dy, WIND_Y + 0.3 * dy - 0.4 * dx)]))
+    return marks
+
+
+def wind_shaft(hud):
+    """The wind arrow's shaft, two points, or None when calm."""
+    if hud._wind_arrow is None:
+        return None
+    dx, dy = hud._wind_arrow
+    return [(WIND_X - dx, WIND_Y - dy), (WIND_X + 0.3 * dx, WIND_Y + 0.3 * dy)]
+
+
+def text_lines(hud):
+    """The small lines of text, top down, each LINE_PX under the last: (colour, text)."""
+    return ((GREEN, hud._netto_text), (WHITE, hud._average_text),
+            (hud._thermal_color, hud._thermal_text), (WHITE, hud._top_text),
+            (WHITE, hud._wind_text))  # the wind just above its arrow
+
+
+class PanelDrawer:
+    """X-Plane 12.4.4's Panel Graphics: the static part recorded once and replayed, the rest each frame.
+
+    Measured on 2026-11-17 against the OpenGL way below, for a scene like this one: 26-33 us a
+    draw against 433, as sharp. All text goes through Panel Graphics fonts, since XPLMDrawString
+    does not draw in a Panel Graphics window.
+    """
+
+    panel = True
+    name = "Panel Graphics"
+
+    def __init__(self):
+        system = xp.getSystemPath()
+        self.big = xp.createFont(xp.CharSetASCII)
+        xp.fontAddFace(self.big, system + FONT_BIG)
+        self.small = xp.createFont(xp.CharSetASCII)
+        xp.fontAddFace(self.small, system + FONT_SMALL)
+        self.colors = {c: xp.makeColor(*c, 1.0) for c in (WHITE, AMBER, GREEN, CYAN, GREY)}
+        self.scrim = xp.makeColor(*SCRIM)
+        self.tick = xp.makeColor(1.0, 1.0, 1.0, 0.9)
+        self.dial = xp.makeColor(1.0, 1.0, 1.0, 0.6)
+        self.static = None  # the retained drawing, made in the first draw for these units
+        self.static_units = None
+
+    def release(self):
+        # A retained drawing goes before the fonts it may hold.
+        if self.static is not None:
+            xp.destroyRetainedDrawing(self.static)
+            self.static = None
+        for font in (self.big, self.small):
+            xp.destroyFont(font)
+
+    def draw_static(self, units):
+        xp.polygon(self.scrim, clockwise([(0, 0), (WIDTH, 0), (WIDTH, HEIGHT), (0, HEIGHT)]))
+        xp.lines(self.tick, tick_marks(units))
+        xp.lineLoop(self.dial, dial_points())
+        xp.lines(self.dial, [(AID_X, AID_Y + AID_RADIUS), (AID_X, AID_Y + AID_RADIUS + 6)])  # the nose, up
+
+    def draw(self, hud, left, bottom):
+        if self.static is not None and self.static_units is not hud.units:
+            xp.destroyRetainedDrawing(self.static)  # the units changed: a new tape
+            self.static = None
+        if self.static is None:
+            # Recorded inside a draw phase, where Panel Graphics has its context.
+            self.static_units = hud.units
+            xp.beginRetainedDrawing()
+            try:
+                self.draw_static(hud.units)
+            finally:
+                self.static = xp.endRetainedDrawing()
+        colors = self.colors
+        xp.transformPush()
+        try:
+            xp.transformTranslate(left, bottom)
+            xp.drawRetained(self.static)
+            shaft = wind_shaft(hud)
+            if shaft is not None:
+                xp.lines(colors[WHITE], shaft)
+            for color, points in mark_triangles(hud):
+                xp.polygon(colors[color], clockwise(points))
+            xp.fontDrawString(self.big, colors[AMBER], BIG_PX, TEXT_X, TE_Y, hud._te_text, xp.JustLeft)
+            y = TEXT_Y
+            for color, text in text_lines(hud):
+                xp.fontDrawString(self.small, colors[color], SMALL_PX, TEXT_X, y, text, xp.JustLeft)
+                y -= LINE_PX
+        finally:
+            xp.transformPop()
+
+
+class GLDrawer:
+    """OpenGL in a window: for X-Plane before 12.4.4 or XPPython3 before 4.8.0, or when Panel
+    Graphics fails. The static part is a GL display list, the big number TrueType through xpgl,
+    the small text X-Plane's own font."""
+
+    panel = False
+    name = "OpenGL"
+
+    def __init__(self):
+        # Only in the simulator: tests have no OpenGL, and fonts need X-Plane.
+        from OpenGL import GL
+        from XPPython3 import xpgl
+
+        self.GL, self.xpgl = GL, xpgl
+        self.font_big = xpgl.loadFont(FONT_BIG, int(BIG_PX))
+        self.static_list = None
+        self.static_units = None  # the units the static list was drawn for
+
+    def release(self):
+        if self.static_list is not None:
+            self.GL.glDeleteLists(self.static_list, 1)
+            self.static_list = None
+
+    def draw(self, hud, left, bottom):
         GL = self.GL
         xp.setGraphicsState(alphaBlending=1)
         # X-Plane leaves its own state here: additive blending, and faces culled so that this
         # module's counterclockwise polygons would not draw at all.
         GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
         GL.glDisable(GL.GL_CULL_FACE)
-        if self.static_list is not None and self.static_units is not self.units:
+        if self.static_list is not None and self.static_units is not hud.units:
             GL.glDeleteLists(self.static_list, 1)  # the units changed: a new tape
             self.static_list = None
         if self.static_list is None:
-            self.static_units = self.units
+            self.static_units = hud.units
             self.static_list = GL.glGenLists(1)
             GL.glNewList(self.static_list, GL.GL_COMPILE)
-            self.draw_static()
+            self.draw_static(hud.units)
             GL.glEndList()
         GL.glPushMatrix()
         GL.glTranslatef(left, bottom, 0.0)
         GL.glCallList(self.static_list)
-        self.draw_marks()
+        self.draw_marks(hud)
         GL.glPopMatrix()
-        x = left + 66
-        self.xpgl.drawText(self.font_big, x, bottom + HEIGHT - 44, self._te_text, "L", AMBER)
-        y = bottom + HEIGHT
-        xp.drawString(GREEN, x, y - 70, self._netto_text, None, xp.Font_Proportional)
-        xp.drawString(WHITE, x, y - 90, self._average_text, None, xp.Font_Proportional)
-        xp.drawString(self._thermal_color, x, y - 110, self._thermal_text, None, xp.Font_Proportional)
-        xp.drawString(WHITE, x, y - 130, self._top_text, None, xp.Font_Proportional)
-        xp.drawString(WHITE, x, y - 150, self._wind_text, None, xp.Font_Proportional)  # just above its arrow
+        x = left + TEXT_X
+        self.xpgl.drawText(self.font_big, x, bottom + TE_Y, hud._te_text, "L", AMBER)
+        y = bottom + TEXT_Y
+        for color, text in text_lines(hud):
+            xp.drawString(color, x, y, text, None, xp.Font_Proportional)
+            y -= LINE_PX
 
-    def draw_static(self):
+    def draw_static(self, units):
         GL = self.GL
         GL.glColor4f(*SCRIM)
         GL.glBegin(GL.GL_QUADS)
-        GL.glVertex2f(0, 0)
-        GL.glVertex2f(WIDTH, 0)
-        GL.glVertex2f(WIDTH, HEIGHT)
-        GL.glVertex2f(0, HEIGHT)
+        for x, y in ((0, 0), (WIDTH, 0), (WIDTH, HEIGHT), (0, HEIGHT)):
+            GL.glVertex2f(x, y)
         GL.glEnd()
         GL.glColor4f(1.0, 1.0, 1.0, 0.9)
         GL.glBegin(GL.GL_LINES)
-        units = self.static_units
-        for v in range(-units.tape, units.tape + 1):
-            y = tape_y(v, units.tape)
-            GL.glVertex2f(TAPE_X, y)
-            GL.glVertex2f(TAPE_X + (22 if v == 0 else 14 if v % units.major == 0 else 8), y)
-        GL.glVertex2f(TAPE_X, TAPE_BOTTOM)
-        GL.glVertex2f(TAPE_X, TAPE_TOP)
+        for x, y in tick_marks(units):
+            GL.glVertex2f(x, y)
         GL.glEnd()
         GL.glColor4f(1.0, 1.0, 1.0, 0.6)
         GL.glBegin(GL.GL_LINE_LOOP)
-        for i in range(40):
-            angle = 2.0 * math.pi * i / 40
-            GL.glVertex2f(AID_X + AID_RADIUS * math.sin(angle), AID_Y + AID_RADIUS * math.cos(angle))
+        for x, y in dial_points():
+            GL.glVertex2f(x, y)
         GL.glEnd()
         GL.glBegin(GL.GL_LINES)  # the nose, up
         GL.glVertex2f(AID_X, AID_Y + AID_RADIUS)
         GL.glVertex2f(AID_X, AID_Y + AID_RADIUS + 6)
         GL.glEnd()
 
-    def draw_marks(self):
+    def draw_marks(self, hud):
         GL = self.GL
-        GL.glBegin(GL.GL_TRIANGLES)
-        y = self._te_y
-        GL.glColor3f(*AMBER)
-        GL.glVertex2f(TAPE_X + 24, y)
-        GL.glVertex2f(TAPE_X + 46, y + 8)
-        GL.glVertex2f(TAPE_X + 46, y - 8)
-        y = self._netto_y
-        GL.glColor3f(*GREEN)
-        GL.glVertex2f(TAPE_X + 2, y)
-        GL.glVertex2f(TAPE_X + 14, y + 5)
-        GL.glVertex2f(TAPE_X + 14, y - 5)
-        y = self._average_y
-        GL.glColor3f(*WHITE)
-        GL.glVertex2f(TAPE_X + 46, y)
-        GL.glVertex2f(TAPE_X + 54, y + 4)
-        GL.glVertex2f(TAPE_X + 54, y - 4)
-        GL.glEnd()
-        arrow = self._arrow
-        if arrow is not None:
-            dx, dy = arrow
-            GL.glColor3f(*CYAN)
-            GL.glBegin(GL.GL_TRIANGLES)
-            GL.glVertex2f(AID_X + dx, AID_Y + dy)
-            GL.glVertex2f(AID_X - dy * 0.25, AID_Y + dx * 0.25)
-            GL.glVertex2f(AID_X + dy * 0.25, AID_Y - dx * 0.25)
-            GL.glEnd()
-        arrow = self._wind_arrow
-        if arrow is not None:
-            dx, dy = arrow
+        shaft = wind_shaft(hud)
+        if shaft is not None:
             GL.glColor3f(*WHITE)
             GL.glBegin(GL.GL_LINES)
-            GL.glVertex2f(WIND_X - dx, WIND_Y - dy)
-            GL.glVertex2f(WIND_X + 0.3 * dx, WIND_Y + 0.3 * dy)
+            for x, y in shaft:
+                GL.glVertex2f(x, y)
             GL.glEnd()
-            GL.glBegin(GL.GL_TRIANGLES)
-            GL.glVertex2f(WIND_X + dx, WIND_Y + dy)
-            GL.glVertex2f(WIND_X + 0.3 * dx - 0.4 * dy, WIND_Y + 0.3 * dy + 0.4 * dx)
-            GL.glVertex2f(WIND_X + 0.3 * dx + 0.4 * dy, WIND_Y + 0.3 * dy - 0.4 * dx)
-            GL.glEnd()
+        GL.glBegin(GL.GL_TRIANGLES)
+        for color, points in mark_triangles(hud):
+            GL.glColor3f(*color)
+            for x, y in points:
+                GL.glVertex2f(x, y)
+        GL.glEnd()

@@ -96,7 +96,9 @@ The training markers show up to 20 thermals within 3 km with at least 1.5 m/s at
 
 ## Cost
 
-Measured in X-Plane 12.4.3 on Windows 11: the flight loop takes 140 to 195 µs a frame, and the HUD about 0.3 ms, most of it in drawing text. A frame at 60 frames per second lasts 16.7 ms.
+Measured in X-Plane 12.4.3 on Windows 11: the flight loop takes 140 to 195 µs a frame. A frame at 60 frames per second lasts 16.7 ms.
+
+The HUD draws in one of two ways. With X-Plane 12.4.4 and XPPython3 4.8.0 or later it uses Panel Graphics, X-Plane's own 2D drawing: its fixed part is recorded once and replayed, and all its text is TrueType. Elsewhere it draws with OpenGL, its fixed part from a display list and the large number in TrueType through XPPython3. Measured by script in X-Plane 12.4.4 under Vulkan, the Laminar ASK 21 in straight flight, switching between the two in the same flight: about 33 µs a frame in our draw callback with Panel Graphics, against about 280 µs with OpenGL, most of it the large number. If Panel Graphics fails, the HUD says so in `XPPython3Log.txt` and goes on with OpenGL until X-Plane restarts. Both ways show the same panel.
 
 ## Known limits of the design
 

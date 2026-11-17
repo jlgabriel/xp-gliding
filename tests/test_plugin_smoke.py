@@ -806,6 +806,106 @@ def test_a_failing_draw_stops_the_hud_and_nothing_else(plugin):
     assert dataref(xp, "active") == 1
 
 
+class FakeDrawer:
+    """Stands for PanelDrawer or GLDrawer: the fake `xp` has no drawing."""
+
+    def __init__(self, panel, fail_draw=False, fail_start=False):
+        if fail_start:
+            raise RuntimeError("no Panel Graphics today")
+        self.panel, self.name, self.fail_draw, self.released, self.draws = panel, str(panel), fail_draw, 0, 0
+
+    def draw(self, hud, left, bottom):
+        if self.fail_draw:
+            raise RuntimeError("Panel Graphics broke")
+        self.draws += 1
+
+    def release(self):
+        self.released += 1
+
+
+def hud_drawing(pi, xp, data, monkeypatch, available=True, fail_draw=False, fail_start=False):
+    """The HUD of a glider in flight, with fake drawers; the windows made, by content type."""
+    hud = pi.hud
+    module = sys.modules[type(hud).__module__]
+    monkeypatch.setattr(module, "panel_graphics_available", lambda: available)
+    monkeypatch.setattr(module, "PanelDrawer", lambda: FakeDrawer(True, fail_draw, fail_start))
+    monkeypatch.setattr(module, "GLDrawer", lambda: FakeDrawer(False))
+    xp.WindowContentTypePanelGraphics = "panel"
+    windows = []
+    xp.getScreenBoundsGlobal = lambda: (0, 1440, 2560, 0)
+    xp.createWindowEx = lambda *args, **kw: windows.append(kw.get("contentType", "gl")) or len(windows)
+    xp.getWindowGeometry = lambda window: (20, 600, 190, 300)
+    xp.setWindowIsVisible = lambda window, visible: None
+    xp.destroyWindow = lambda window: windows.append(f"destroyed {window}")
+    hud.set_aircraft("ASK21.acf", True)
+    pi.settings.hud_enabled = True
+    return hud, windows
+
+
+def test_the_hud_draws_with_panel_graphics_where_it_can(plugin, monkeypatch):
+    pi, xp, data = plugin
+    hud, windows = hud_drawing(pi, xp, data, monkeypatch)
+    hud.tick()
+    hud.on_draw(1, None)
+    assert windows == ["panel"] and hud.drawer.panel and hud.drawer.draws == 1
+    assert dataref(xp, "hud/panel_graphics") == 1
+
+
+def test_the_hud_draws_with_opengl_without_panel_graphics(plugin, monkeypatch):
+    pi, xp, data = plugin
+    hud, windows = hud_drawing(pi, xp, data, monkeypatch, available=False)
+    hud.tick()
+    hud.on_draw(1, None)
+    assert windows == ["gl"] and not hud.drawer.panel and hud.drawer.draws == 1
+    assert dataref(xp, "hud/panel_graphics") == 0
+
+
+def test_panel_graphics_failing_to_start_leaves_the_hud_in_opengl(plugin, monkeypatch):
+    pi, xp, data = plugin
+    hud, windows = hud_drawing(pi, xp, data, monkeypatch, fail_start=True)
+    hud.tick()
+    assert windows == ["gl"] and not hud.drawer.panel and not hud.failed
+
+
+def test_panel_graphics_failing_while_drawing_falls_back_to_opengl(plugin, monkeypatch):
+    pi, xp, data = plugin
+    hud, windows = hud_drawing(pi, xp, data, monkeypatch, fail_draw=True)
+    hud.tick()
+    panel = hud.drawer
+    hud.on_draw(1, None)  # fails: the window stays until the next tick, which is not in a draw
+    assert windows == ["panel"] and not hud.failed
+    hud.on_draw(1, None)  # nothing more is drawn or logged meanwhile
+    hud.tick()
+    assert windows == ["panel", "destroyed 1", "gl"] and panel.released == 1
+    hud.on_draw(2, None)
+    assert not hud.drawer.panel and hud.drawer.draws == 1 and not hud.failed
+    hud.tick()  # and it stays in OpenGL
+    assert windows == ["panel", "destroyed 1", "gl"]
+
+
+def test_the_dataref_moves_the_hud_between_panel_graphics_and_opengl(plugin, monkeypatch):
+    pi, xp, data = plugin
+    hud, windows = hud_drawing(pi, xp, data, monkeypatch)
+    hud.tick()
+    dataref(xp, "hud/panel_graphics", 0)
+    hud.on_draw(1, None)  # not drawn: its window goes at the next tick
+    hud.tick()
+    assert windows == ["panel", "destroyed 1", "gl"] and dataref(xp, "hud/panel_graphics") == 0
+    dataref(xp, "hud/panel_graphics", 1)
+    hud.tick()
+    assert windows[3:] == ["destroyed 3", "panel"] and dataref(xp, "hud/panel_graphics") == 1
+
+
+def test_panel_graphics_polygons_are_wound_clockwise(plugin):
+    pi, xp, data = plugin
+    module = sys.modules[type(pi.hud).__module__]
+    ccw = [(0, 0), (10, 0), (10, 10)]
+    assert module.clockwise(ccw) == ccw[::-1]
+    assert module.clockwise(ccw[::-1]) == ccw[::-1]
+    for _, points in module.mark_triangles(pi.hud):
+        assert module.clockwise(points) in (points, points[::-1])
+
+
 # --- cumulus ---------------------------------------------------------------------------
 
 def clouds_tick(pi, data):
