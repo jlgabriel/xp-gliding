@@ -1,5 +1,6 @@
-// XP-Gliding Flight Computer: the strip and the FLIGHT view, drawn from one snapshot.
-// Text goes in with textContent only. Classic script, Chromium 117. License: GPL-3.0-or-later.
+// XP-Gliding Flight Computer: the strip and the FLIGHT view, drawn from one snapshot, and the text
+// sized to fill their cells. Text goes in with textContent only. Classic script, Chromium 117.
+// License: GPL-3.0-or-later.
 "use strict";
 
 var xpg = window.xpg || {};
@@ -11,8 +12,8 @@ xpg.flight = (function () {
   var shownUnits = null;
 
   function find() {
-    var ids = ["strip-te", "strip-avg", "strip-alt", "te", "te-bar", "netto", "avg", "thm", "msl", "agl",
-               "ias", "gs", "wind", "wind-arrow", "top"];
+    var ids = ["strip-te", "strip-avg", "strip-alt", "te-bar", "netto", "thm", "agl", "ias", "gs", "top",
+               "wind", "wind-arrow"];
     els = {};
     ids.forEach(function (id) { els[id] = document.getElementById(id); });
   }
@@ -60,22 +61,59 @@ xpg.flight = (function () {
     }
     document.body.classList.toggle("stale", !s.valid);
     set("strip-te", f.climb(s.te_ms, u));
+    bar(s.te_ms, s.units);
     set("strip-avg", f.climb(s.avg_ms, u));
     set("strip-alt", f.height(s.msl_m, u, false));
-    set("te", f.climb(s.te_ms, u));
-    bar(s.te_ms, s.units);
     set("netto", f.climb(s.netto_ms, u));
-    set("avg", f.climb(s.avg_ms, u));
     set("thm", s.thm_valid ? f.climb(s.thm_ms, u) : "--");
     els.thm.classList.toggle("left", s.thm_valid && !s.thm_active);
-    set("msl", f.height(s.msl_m, u, false));
     set("agl", f.height(s.agl_m, u, false));
     set("ias", f.speed(s.ias_ms, u));
     set("gs", f.speed(s.gs_ms, u));
+    set("top", f.height(s.top_m, u, true));
     set("wind", f.wind(s.wind_from_deg, s.wind_ms));
     windArrow(s);
-    set("top", f.height(s.top_m, u, true));
   }
 
-  return {draw: draw};
+  // --- sizes -------------------------------------------------------------------------
+  // Measured from the cells, so the numbers fill them in any window (see app.css). A number is
+  // at most half its cell's height, and narrow enough for its widest reading: five characters and
+  // a small unit ("+3080 ft", "-14.4 kt", about 3.6 times the font size), seven and an arrow for
+  // the wind ("179° 12 kt").
+
+  var PAD = 12;  // a cell's padding and border, both sides
+
+  function px(v, lo, hi) {
+    return Math.max(lo, Math.min(hi, v)).toFixed(1) + "px";
+  }
+
+  function size(el) {
+    var r = el.closest(".cell").getBoundingClientRect();
+    return {w: r.width - PAD, h: r.height};
+  }
+
+  function fit() {
+    if (!els) find();
+    var cell = size(els.netto);
+    var strip = size(els["strip-avg"]);
+    var wind = size(els.wind);
+    var label = Math.max(10, Math.min(20, cell.w * 0.12, cell.h * 0.19));
+    var value = Math.min(cell.w / 3.6, (cell.h - label) * 0.62);
+    var barW = Math.max(5, Math.min(12, strip.w * 0.05));
+    var stripLabel = Math.max(10, Math.min(20, strip.w * 0.12, strip.h * 0.19));
+    var stripValue = Math.min((strip.w - barW - 4) / 3.6, (strip.h - stripLabel) * 0.62);
+    var windValue = Math.min(value, wind.w / 6.4, (wind.h - label) * 0.62);
+    var style = document.documentElement.style;
+    style.setProperty("--label", px(label, 10, 20));
+    style.setProperty("--value", px(value, 12, 72));
+    style.setProperty("--unit", px(value * 0.42, 8, 24));
+    style.setProperty("--strip", px(stripValue, 12, 72));
+    style.setProperty("--strip-unit", px(stripValue * 0.42, 8, 24));
+    style.setProperty("--wind", px(windValue, 11, 72));
+    style.setProperty("--arrow", px(windValue, 11, 60));
+    style.setProperty("--inner-gap", px(value * 0.15, 2, 10));
+    style.setProperty("--bar", px(barW, 5, 12));
+  }
+
+  return {draw: draw, fit: fit};
 })();

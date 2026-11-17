@@ -42,8 +42,10 @@ xpg.format = (function () {
     return withSign ? signed(v, 0) : v.toFixed(0);
   }
 
+  // Never below zero: X-Plane's indicated airspeed goes negative with the wind from behind on the
+  // ground, which no airspeed indicator shows.
   function speed(ms, u) {
-    return known(ms) ? (ms * u.perSpeed).toFixed(0) : NONE;
+    return known(ms) ? (Math.max(0, ms) * u.perSpeed).toFixed(0) : NONE;
   }
 
   function degrees(deg) {

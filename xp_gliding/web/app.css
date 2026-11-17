@@ -1,6 +1,14 @@
 /* XP-Gliding Flight Computer. Chromium 117 (X-Plane 12.4.4's browser): no CSS newer than that,
    so no nesting, no @scope. The colours keep the HUD's meanings: TE amber, netto green, average
-   white, the last thermal grey once left. License: GPL-3.0-or-later. */
+   white, the last thermal grey once left.
+
+   Sizes: the text is sized from the cells themselves, so a reading fills its cell whatever the
+   window's shape and size: a small window keeps large numbers. flight.js measures the cells and
+   sets the --label, --value, ... variables below. Container query units (cqi, cqh) would do it in
+   CSS, and did in a desktop Chromium, but in X-Plane 12.4.4's browser every size fell to its
+   clamp's minimum (seen 2026-11-17), so they are not used. Each cell is a label on top and one
+   line under it: the number and, smaller beside it, its unit.
+   License: GPL-3.0-or-later. */
 
 :root {
   --bg: #0b0f14;
@@ -12,7 +20,7 @@
   --green: #4dff73;
   --grey: #9aa3ab;
   --sink: #5aa9ff;
-  --gap: clamp(3px, 0.8vmin, 8px);
+  --gap: clamp(2px, 0.6vmin, 6px);
 }
 
 * { box-sizing: border-box; }
@@ -28,9 +36,10 @@ html, body {
   overflow: hidden;
 }
 
+/* The strip is as tall as one row of the view below it, which has 4, 3 or 2 rows (see #flight). */
 body {
   display: grid;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 4fr) auto;
   gap: var(--gap);
   padding: var(--gap);
 }
@@ -38,36 +47,53 @@ body {
 .cell {
   background: var(--cell);
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: clamp(2px, 0.8vmin, 8px) clamp(4px, 1.2vmin, 10px);
+  border-radius: 5px;
+  padding: 2px 5px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
+/* Bold (700), not 600: X-Plane's browser drew 600 as regular for these labels (2026-11-17). */
 .label {
   color: var(--dim);
-  font-size: clamp(9px, 2.4vmin, 14px);
-  letter-spacing: 0.06em;
+  font-size: var(--label, 12px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
   white-space: nowrap;
+}
+
+/* The number and its unit, on one line, filling what the label leaves. */
+.reading {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--inner-gap, 4px);
 }
 
 .value {
-  font-size: clamp(16px, 6vmin, 40px);
+  font-size: var(--value, 22px);
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1;
   white-space: nowrap;
 }
-
-.value.big { font-size: clamp(24px, 11vmin, 72px); }
 
 .unit {
   color: var(--dim);
-  font-size: clamp(8px, 2vmin, 12px);
+  font-size: var(--unit, 10px);
+  font-weight: 700;
   white-space: nowrap;
+  align-self: flex-end;
+  padding-bottom: 0.35em;
 }
+
+#strip .value { font-size: var(--strip, 22px); }
+#strip .unit { font-size: var(--strip-unit, 10px); }
+.wind .value { font-size: var(--wind, 22px); }
 
 .te { color: var(--amber); }
 .netto { color: var(--green); }
@@ -75,53 +101,43 @@ body {
 .thm.left { color: var(--grey); }
 .stale .value { color: var(--dim); }
 
-/* The strip: always there, whatever the view. */
 #strip {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--gap);
+  min-height: 0;
 }
 
-#strip .value { font-size: clamp(16px, 7vmin, 44px); }
-
-/* FLIGHT: ten cells, the vario two rows tall. Two columns when tall and narrow, three in a window
-   about square (the default 480 x 420), four once wide. Rows share the height, never overflow it. */
+/* FLIGHT: seven cells, the wind two columns wide. Two columns while tall and narrow (4 rows),
+   three about square (3 rows), four once wide (2 rows). Rows share the height, never overflow. */
 #flight {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-auto-rows: minmax(0, 1fr);
+  grid-auto-flow: row dense;
   gap: var(--gap);
   min-height: 0;
 }
 
-@media (min-aspect-ratio: 4/5) {
+.wind { grid-column: span 2; }
+
+@media (min-aspect-ratio: 3/4) {
+  body { grid-template-rows: minmax(0, 1fr) minmax(0, 3fr) auto; }
   #flight { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
-@media (min-aspect-ratio: 3/2) {
+@media (min-aspect-ratio: 8/5) {
+  body { grid-template-rows: minmax(0, 1fr) minmax(0, 2fr) auto; }
   #flight { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
-.vario { grid-row: span 2; }
-
-.vario-row, .wind-row {
-  display: flex;
-  align-items: center;
-  gap: clamp(4px, 1.5vmin, 12px);
-  min-height: 0;
-}
-
-.vario-row {
-  flex: 1;
-  align-items: stretch;
-  padding: 2px 0;
-}
-
-.vario-row .value { align-self: center; }
+.vario .reading { align-items: stretch; }
+.vario .reading .value { align-self: center; }
 
 .bar {
   position: relative;
-  width: clamp(8px, 2.5vmin, 18px);
+  width: var(--bar, 8px);
+  margin: 2px 0;
   background: #0d1218;
   border: 1px solid var(--line);
   border-radius: 3px;
@@ -149,8 +165,8 @@ body {
 .bar .fill.down { background: var(--sink); }
 
 .arrow {
-  width: clamp(16px, 6vmin, 40px);
-  height: clamp(16px, 6vmin, 40px);
+  width: var(--arrow, 20px);
+  height: var(--arrow, 20px);
   fill: var(--text);
   flex: none;
 }
@@ -159,8 +175,10 @@ body {
 
 #status {
   color: var(--dim);
-  font-size: clamp(8px, 2vmin, 11px);
+  font-size: clamp(9px, 2.4vmin, 13px);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+#status:empty { display: none; }

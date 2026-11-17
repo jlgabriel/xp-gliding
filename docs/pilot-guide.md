@@ -73,18 +73,18 @@ A small panel on the left of the screen. The vario readings and the centring arr
 
 The other instrument, in place of the HUD: a window of its own that you can move, resize and pop out of X-Plane, with the same readings as the HUD, larger, and room for more to come. Choose it in *Plugins → XP-Gliding → Instrument*. It needs X-Plane 12.4.4 and XPPython3 4.8.0 or later, since its window is X-Plane's built-in browser; with anything earlier the menu greys it out and the HUD stays.
 
-A strip across the top always shows the total energy rate, the 30 s average and the altitude. Below it, the FLIGHT view:
+A strip across the top always shows the total energy rate, with a bar whose half height is 5 m/s or 10 kt, the 30 s average and the altitude above sea level. Below it, the FLIGHT view shows the rest:
 
 | Item | What it shows |
 | --- | --- |
-| `TE`, large, and the bar | Total energy rate, as the HUD's large number. The bar's half height is 5 m/s, or 10 kt |
 | `NETTO` | The air's own motion, as the HUD's `NET`; `--` for a glider without a measured polar |
-| `AVG 30 s` | The average climb over the last 30 s |
 | `THM` | The climb since you began circling in this thermal, grey once you have left it, as on the HUD |
-| `ALT MSL`, `AGL` | Height above sea level and above the ground, m, or feet to the nearest 10 |
+| `AGL` | Height above the ground, m, or feet to the nearest 10 |
 | `IAS`, `GS` | Indicated airspeed and ground speed, km/h, or knots |
-| `WIND` | Where the wind comes from and its speed in knots, with an arrow pointing where it goes, relative to the nose |
 | `TOP` | Height up to the nearest thermal's cloud, as on the HUD; `--` with *Thermals* off |
+| `WIND` | Where the wind comes from and its speed in knots, with an arrow pointing where it goes, relative to the nose |
+
+The numbers grow and shrink with the window, so a small window in a corner still reads well.
 
 The readings are the HUD's own: the two instruments never disagree. Like the HUD, they use only what a glider could sense. *Units* in the menu sets both.
 

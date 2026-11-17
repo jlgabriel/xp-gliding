@@ -10,7 +10,9 @@
   function snapshot() {
     var t = (Date.now() - t0) / 1000;
     var turn = (t * 360 / 22) % 360;  // a 22 s circle
-    var te = 2.0 + 1.6 * Math.sin((turn - 130) * Math.PI / 180) + 0.2 * Math.sin(t * 1.7);
+    // Every third 10 s a steep dive, for the widest readings (-14.4 kt fits the default window).
+    var dive = Math.floor(t / 10) % 3 === 2;
+    var te = dive ? -7.41 : 2.0 + 1.6 * Math.sin((turn - 130) * Math.PI / 180) + 0.2 * Math.sin(t * 1.7);
     return {
       t: t, valid: t > 1.5, units: Math.floor(t / 20) % 2 ? "aviation" : "metric", view: "flight", poll_hz: 5,
       lat: -33.45, lon: -70.55, msl_m: 1450 + 1.8 * t, agl_m: 850 + 1.8 * t,

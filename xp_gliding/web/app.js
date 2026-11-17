@@ -90,5 +90,10 @@ window.xpg = xpg;
     setTimeout(start, WAIT_MS);
   }
 
+  // The text follows the window's size (flight.js); a resize from X-Plane's frame reaches the page
+  // as the viewport's (X-Plane resizes it, never scales it).
+  xpg.flight.fit();
+  window.addEventListener("resize", xpg.flight.fit);
+
   start();
 })();
