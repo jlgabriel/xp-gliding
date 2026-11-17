@@ -2,6 +2,10 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## Unreleased
+
+- **Works in X-Plane 12.4.4.** Version 1.2 was flown in X-Plane 12.4.4 under Vulkan with nothing changed: the plugin starts, its clouds and HUD show, and a uniform lift of 2 m/s makes the ASK 21 climb 2.00 m/s faster than in still air, as in 12.4.3. Nothing to update.
+
 ## 1.2 — 2026-11-15
 
 - **Hotspot flight.** *Plugins → XP-Gliding → Hotspot flight* flies the sky of a site from a file of thermal hotspots, in place of the plugin's own sky. Download the hotspots of the area you want from [thermal.kk7.ch](https://thermal.kk7.ch/) (*Download currently visible hotspots → csv*), put the file in `Output/xp-gliding/hotspots/` in your X-Plane folder and restart X-Plane; the file is then listed in the submenu. The thermals are only where the file says pilots find them, and none elsewhere. Each hotspot works in cycles, one thermal at a time, and has one for the share of the time its probability says: a hotspot of 100% almost always, one of 60% a little more than half the time. Each thermal carries a cloud and drifts with the wind, and the daily cycle, the HUD, the training markers and *Put me near a cloud* work as in a normal flight. Where the file has no hotspots there are no thermals. *None: a normal flight* brings the plugin's sky back. How it works: [pilot guide](docs/pilot-guide.md#a-hotspot-flight).
