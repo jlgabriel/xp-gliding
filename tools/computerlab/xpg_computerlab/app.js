@@ -12,7 +12,7 @@ var xpgLab = (function () {
 
   var S = {
     seq: 0, started: performance.now(),
-    rate: 5, pan: false, pollTimer: null,
+    rate: 5, pan: false, blur: false, blurs: 0, pollTimer: null,
     rtts: [], pingsOk: 0, pingsErr: 0, lastPingErr: "",
     intervals: 0, rafs: 0,
     ev: {wheel: 0, pointerdown: 0, pointermove: 0, pointerup: 0, click: 0, keydown: 0,
@@ -112,6 +112,15 @@ var xpgLab = (function () {
     S.ev.keydown++;
     if (S.ev.keys.length < 20) S.ev.keys.push(e.key);
   }, true);
+  // Focus mode "blur": give the keyboard up after every click, so keys go back to the sim.
+  window.addEventListener("pointerup", function () {
+    if (!S.blur) return;
+    setTimeout(function () {
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+      window.blur();
+      S.blurs++;
+    }, 0);
+  }, true);
   window.addEventListener("focus", function () { S.ev.focus++; });
   window.addEventListener("blur", function () { S.ev.blur++; });
   document.addEventListener("visibilitychange", function () {
@@ -131,6 +140,7 @@ var xpgLab = (function () {
       S.pingsOk++;
       if (r && r.rate !== undefined && r.rate !== S.rate) setRate(r.rate);
       if (r && r.pan !== undefined) S.pan = r.pan;
+      if (r && r.blur !== undefined) S.blur = r.blur;
     }, function (e) {
       S.pingsErr++;
       S.lastPingErr = String(e);
@@ -171,7 +181,7 @@ var xpgLab = (function () {
       rtt: stats(S.rtts),
       push: {n: S.push.n, gap: stats(S.push.gaps)},
       tiles: S.tiles, probe: S.probe, resources: resources(),
-      ev: S.ev, errors: S.errors.slice(-10)
+      ev: S.ev, blurs: S.blurs, errors: S.errors.slice(-10)
     };
     S.intervals = 0;
     S.rafs = 0;

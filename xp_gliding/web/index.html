@@ -1,0 +1,50 @@
+<!doctype html>
+<!-- XP-Gliding Flight Computer: the page shown in X-Plane's browser window (adapter/computer.py).
+     Classic scripts only: X-Plane's browser refuses module scripts and fetch() on file:// pages.
+     For a desktop browser, open index.html?dev to draw from a fake simulator (dev/fake.js).
+     License: GPL-3.0-or-later. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XP-Gliding Flight Computer</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header id="strip">
+  <div class="cell te"><span class="label">TE</span><span class="value" id="strip-te">--</span><span class="unit" data-unit="climb"></span></div>
+  <div class="cell avg"><span class="label">AVG</span><span class="value" id="strip-avg">--</span><span class="unit" data-unit="climb"></span></div>
+  <div class="cell alt"><span class="label">ALT</span><span class="value" id="strip-alt">--</span><span class="unit" data-unit="height"></span></div>
+</header>
+<main id="flight" class="view">
+  <section class="cell vario">
+    <span class="label">TE</span>
+    <div class="vario-row">
+      <div class="bar" aria-hidden="true"><div class="zero"></div><div class="fill" id="te-bar"></div></div>
+      <span class="value big te" id="te">--</span>
+    </div>
+    <span class="unit" data-unit="climb"></span>
+  </section>
+  <section class="cell"><span class="label">NETTO</span><span class="value netto" id="netto">--</span><span class="unit" data-unit="climb"></span></section>
+  <section class="cell"><span class="label">AVG 30 s</span><span class="value avg" id="avg">--</span><span class="unit" data-unit="climb"></span></section>
+  <section class="cell"><span class="label">THM</span><span class="value thm" id="thm">--</span><span class="unit" data-unit="climb"></span></section>
+  <section class="cell"><span class="label">ALT MSL</span><span class="value" id="msl">--</span><span class="unit" data-unit="height"></span></section>
+  <section class="cell"><span class="label">AGL</span><span class="value" id="agl">--</span><span class="unit" data-unit="height"></span></section>
+  <section class="cell"><span class="label">IAS</span><span class="value" id="ias">--</span><span class="unit" data-unit="speed"></span></section>
+  <section class="cell"><span class="label">GS</span><span class="value" id="gs">--</span><span class="unit" data-unit="speed"></span></section>
+  <section class="cell wind">
+    <span class="label">WIND</span>
+    <div class="wind-row">
+      <svg class="arrow" id="wind-arrow" viewBox="-10 -10 20 20" aria-hidden="true"><path d="M0,-8 L4,1 L1,1 L1,8 L-1,8 L-1,1 L-4,1 Z"/></svg>
+      <span class="value" id="wind">--</span>
+    </div>
+    <span class="unit">from / kt</span>
+  </section>
+  <section class="cell"><span class="label">TOP</span><span class="value" id="top">--</span><span class="unit" data-unit="height"></span></section>
+</main>
+<footer id="status">starting</footer>
+<script src="format.js"></script>
+<script src="flight.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -18,14 +18,19 @@ strings already made, in one of two ways:
 It never touches the forces, and a failure here only hides the panel: an
 exception must not leave a draw callback, because XPPython3 stops calling it.
 
-Units: the menu's *Units on the HUD* (`hud_units`) gives the vario in m/s and TOP in m, or in
+Units: the menu's *Units* (`hud_units`, for the Flight Computer too) gives the vario in m/s and TOP in m, or in
 knots and feet, as glider varios read where altitudes are in feet (Juan Luis, 2026-11-11). The
 wind is in knots either way, as in X-Plane's weather settings. Only the text and the tape change:
 everything is worked out in SI, and the datarefs stay in m/s.
 AVG is the climb over the last 30 s; THM the climb since the glider began circling in this thermal,
 greyed once it has left, until the next (`vario.ThermalAverage`).
 TOP is how far the clouds are, up from the glider: to the nearest one drawn, or to the sky's level.
-Plugins > XP-Gliding > Soaring HUD toggles it, as does the command `xp_gliding/hud/toggle`.
+Plugins > XP-Gliding > Instrument chooses it, or the Flight Computer, or neither; the command
+`xp_gliding/hud/toggle` toggles it.
+
+The Flight Computer (`computer.py`) reads these same instruments, so the two never disagree and
+nothing is sampled twice: they are sampled while either instrument is wanted (`also_wanted`, which
+the computer sets), and this panel is shown only while the HUD itself is.
 """
 
 import math
@@ -128,6 +133,8 @@ class Hud:
         self.aid = CentringAid(lag_s=self.vario.tau_s)
         self.thermal = ThermalAverage()
         self.eligible = False
+        self.also_wanted = False  # the Flight Computer wants the instruments, the HUD shown or not
+        self.top_m = None  # TOP, up from the glider to the clouds (m), for the Flight Computer
         self.sample_us = 0.0
         self.draw_us = 0.0
         self.failed = False
@@ -263,13 +270,15 @@ class Hud:
     def tick(self):
         st = self.settings
         # Enabled is the plugin's whole effect, the HUD included (docs/pilot-guide.md).
-        wanted = st.enabled and st.hud_enabled and self.eligible and not self.failed
+        working = st.enabled and self.eligible and not self.failed
+        shown = working and st.hud_enabled
+        wanted = working and (st.hud_enabled or self.also_wanted)
         if self._rebuild:
             self._rebuild = False
             self._drop_drawing()
-        if wanted and self.window is None:
+        if shown and self.window is None:
             self._load_drawing()
-        self._show(wanted)
+        self._show(shown)
         if not wanted:
             return
         if xp.getDatai(self._replay):
@@ -318,6 +327,7 @@ class Hud:
             top_m = self.top_msl_m - msl_m
         else:
             top_m = height_to_top(self.zi_m, getf(self._agl), sky_named(self.settings.sky).cloud_base_zzi)
+        self.top_m = top_m
         self._top_text = "TOP " + units.height_text(top_m)
         wind_x, wind_z = getf(self._wind_x), getf(self._wind_z)
         self._wind_arrow = wind_arrow(wind_x, wind_z, psi)

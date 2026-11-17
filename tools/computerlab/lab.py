@@ -7,6 +7,7 @@ Usage:
     python tools/computerlab/lab.py state [--full]
     python tools/computerlab/lab.py measure --a destroy --b create_uri pan_on [--pairs 4]
     python tools/computerlab/lab.py poke                       # mouse and a Shift key on the window
+    python tools/computerlab/lab.py keytest                    # click, then P: does the sim pause?
     python tools/computerlab/lab.py shot out.png
 
 `serve` answers the page's two probe images on 127.0.0.1:8765 and logs each request's
@@ -15,8 +16,9 @@ may be cached for a day, so a later X-Plane start that shows it without a reques
 HTTP cache persisted. `measure` alternates two settings of the lab, each held `--seconds`,
 and compares X-Plane's main-thread CPU, the CPU of its child processes (CEF runs there), and
 X-Plane's GPU time estimate: the frame rate cap hides small costs in the frame time.
-`poke` moves the real mouse over the lab window and presses Shift, so only run it while nobody
-is using the computer.
+`poke` moves the real mouse over the lab window and presses Shift, and `keytest` clicks in it
+and presses P (the sim's pause key) to see who gets the key; only run them while nobody is
+using the computer.
 
 Measurement tool, not part of the plugin. License: GPL-3.0-or-later.
 """
@@ -46,7 +48,7 @@ XPLANE = os.environ.get("XPLANE_DIR", "D:/Laminar/XP12-Last-Release/X-Plane 12")
 CMDS = {"create_raw": 1, "create_uri": 2, "destroy": 3, "show": 4, "hide": 5, "big": 6,
         "small": 7, "popout": 8, "float": 9, "refresh": 10, "rate2": 11, "rate5": 12,
         "rate10": 13, "pan_on": 14, "pan_off": 15, "push_on": 16, "push_off": 17,
-        "late_function": 18, "rate0": 19}
+        "late_function": 18, "rate0": 19, "focus_none": 20, "focus_release": 21, "focus_blur": 22, "kb_zero": 23, "kb_cycle": 24}
 PORT = 8765
 def one_pixel_png():
     def chunk(kind, data):
@@ -277,6 +279,49 @@ def poke(api):
     print("  keys", after["keys"][len(before["keys"]):])
 
 
+def keytest(api, click=True, between=()):
+    """Click inside the lab window, then press P: does the sim still get the key?
+
+    P is X-Plane's default pause key. Prints whether the pause toggled and whether the page
+    saw the key; a toggled pause is toggled back.
+    """
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    user32 = ctypes.windll.user32
+    pid = xplane_pid()
+    state = read_state()
+    if not state.get("window") or state.get("popped_out"):
+        raise SystemExit("needs the lab window open and not popped out")
+    l, t, r, b = state["geometry"]
+    before = state["last_report"]["ev"]
+    x, y = to_screen(state, pid, (l + r) // 2, t - 40)
+    if click:
+        user32.SetCursorPos(x, y)
+        time.sleep(0.2)
+        user32.mouse_event(0x0002, 0, 0, 0, 0)
+        time.sleep(0.05)
+        user32.mouse_event(0x0004, 0, 0, 0, 0)
+        time.sleep(0.8)
+    send(api, between, 0.5)
+    focus_after_click = read_state()
+    paused0 = api.get("sim/time/paused")
+    user32.keybd_event(0x50, 0, 0, 0)
+    time.sleep(0.05)
+    user32.keybd_event(0x50, 0, 2, 0)
+    time.sleep(1.0)
+    paused1 = api.get("sim/time/paused")
+    if paused1 != paused0:
+        api.command("sim/operation/pause_toggle")
+    time.sleep(2.2)
+    after = read_state()
+    page_keys = after["last_report"]["ev"]["keydown"] - before["keydown"]
+    print(f"focus mode {after['settings'].get('focus')}: sim pause {paused0} -> {paused1} "
+          f"({'SIM GOT THE KEY' if paused1 != paused0 else 'sim did not get the key'}); "
+          f"page keydowns +{page_keys}; clicks +{after['last_report']['ev']['click'] - before['click']}; "
+          f"window focus after click {focus_after_click.get('kb_window')}, "
+          f"focus seen {after.get('focus_seen')}, released {after.get('focus_released')}, "
+          f"page blurs {after['last_report'].get('blurs')}")
+
+
 # --- main ------------------------------------------------------------------------------
 
 def show_state(full):
@@ -307,6 +352,9 @@ def main(argv=None):
     p.add_argument("--seconds", type=float, default=8.0)
     p.add_argument("--settle", type=float, default=3.0)
     sub.add_parser("poke")
+    p = sub.add_parser("keytest")
+    p.add_argument("--no-click", action="store_true")
+    p.add_argument("--between", nargs="*", default=[], choices=sorted(CMDS))
     p = sub.add_parser("shot")
     p.add_argument("path")
     args = parser.parse_args(argv)
@@ -320,6 +368,8 @@ def main(argv=None):
         show_state(args.full)
     elif args.what == "measure":
         measure(XPlaneWebAPI(), args.a, args.b, args.pairs, args.seconds, args.settle)
+    elif args.what == "keytest":
+        keytest(XPlaneWebAPI(), not args.no_click, args.between)
     elif args.what == "poke":
         poke(XPlaneWebAPI())
     elif args.what == "shot":

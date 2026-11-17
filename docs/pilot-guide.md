@@ -7,7 +7,7 @@ How to install XP-Gliding, make a first flight and read its sky. This guide is f
 ## What you need
 
 - **X-Plane 12.** The plugin has been flown in versions 12.4.3 and 12.4.4 under Vulkan, on Windows 11. Other versions and systems have not been tried.
-- **[XPPython3](https://xppython3.readthedocs.io/),** the plugin that runs Python plugins in X-Plane. Install it as its page explains, and start X-Plane once, so that it creates the folder `Resources/plugins/PythonPlugins/`. Versions 4.7.1 and 4.8.0 have been tried. With 4.8.0 or later on X-Plane 12.4.4, the HUD draws with X-Plane's newer Panel Graphics and costs much less. With an earlier version it draws as before. Nothing else is needed.
+- **[XPPython3](https://xppython3.readthedocs.io/),** the plugin that runs Python plugins in X-Plane. Install it as its page explains, and start X-Plane once, so that it creates the folder `Resources/plugins/PythonPlugins/`. Versions 4.7.1 and 4.8.0 have been tried. With 4.8.0 or later on X-Plane 12.4.4, the HUD draws with X-Plane's newer Panel Graphics and costs much less, and the Flight Computer is there. With an earlier version the HUD draws as before and the Flight Computer is greyed out in the menu. Nothing else is needed.
 - **A glider.** The reference is the Laminar ASK 21 that comes with X-Plane. The HpH 304S Shark has been tried too, by script: it gets the lift and its HUD shows no netto. A motor glider gets in through the menu (see [The menu](#the-menu)).
 
 ## Installing
@@ -69,6 +69,27 @@ A small panel on the left of the screen. The vario readings and the centring arr
 | `WIND` | The wind at the glider, in knots with either units, with an arrow pointing where it goes, relative to the nose |
 | Centring arrow | Which way the core lies, when the lift changes enough around the circle to tell. It is most useful 60–100 m off centre, and says little closer in |
 
+## The Flight Computer
+
+The other instrument, in place of the HUD: a window of its own that you can move, resize and pop out of X-Plane, with the same readings as the HUD, larger, and room for more to come. Choose it in *Plugins → XP-Gliding → Instrument*. It needs X-Plane 12.4.4 and XPPython3 4.8.0 or later, since its window is X-Plane's built-in browser; with anything earlier the menu greys it out and the HUD stays.
+
+A strip across the top always shows the total energy rate, the 30 s average and the altitude. Below it, the FLIGHT view:
+
+| Item | What it shows |
+| --- | --- |
+| `TE`, large, and the bar | Total energy rate, as the HUD's large number. The bar's half height is 5 m/s, or 10 kt |
+| `NETTO` | The air's own motion, as the HUD's `NET`; `--` for a glider without a measured polar |
+| `AVG 30 s` | The average climb over the last 30 s |
+| `THM` | The climb since you began circling in this thermal, grey once you have left it, as on the HUD |
+| `ALT MSL`, `AGL` | Height above sea level and above the ground, m, or feet to the nearest 10 |
+| `IAS`, `GS` | Indicated airspeed and ground speed, km/h, or knots |
+| `WIND` | Where the wind comes from and its speed in knots, with an arrow pointing where it goes, relative to the nose |
+| `TOP` | Height up to the nearest thermal's cloud, as on the HUD; `--` with *Thermals* off |
+
+The readings are the HUD's own: the two instruments never disagree. Like the HUD, they use only what a glider could sense. *Units* in the menu sets both.
+
+Where you leave the window, and its size, are kept for the next session. Its close box closes the Flight Computer (choose it again in the menu to bring it back). A click in the window leaves the keyboard with X-Plane, so your keys and their commands work as before.
+
 ## The menu
 
 Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next session, and each switch is also a command you can bind to a key or a joystick button in X-Plane's keyboard or joystick settings.
@@ -87,17 +108,17 @@ Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next
 | Sky moves with the wind at the clouds (experiment) | Makes a climb much harder in changing wind. Off by default, best left off | `xp_gliding/wind/clouds/toggle` |
 | Training markers | A ring at your height over each nearby thermal, and a column up to its cloud | `xp_gliding/markers/toggle` |
 | Cumulus clouds | The plugin's clouds | `xp_gliding/clouds/toggle` |
-| Soaring HUD | The panel above | `xp_gliding/hud/toggle` |
 | Cloud base from X-Plane's weather (experiment) | The clouds' height from the temperature and dew point of the weather you fly, kept between 1000 m and 3500 m above the ground, in place of the depth below, which is greyed out, and of a named day's height (said when you choose one). A cumulus layer set in X-Plane's weather moves it too, though our clouds can sit a few hundred metres off that layer. Off by default | `xp_gliding/day/weather/toggle` |
 | X-Plane's audio vario | X-Plane's own audio vario on or off: the same switch as the AUDIO on the ASK 21's panel, for gliders without one. The tick follows the panel's switch. X-Plane's setting, not saved by the plugin | `xp_gliding/audio_vario/toggle` |
 | Treat this aircraft as a glider | For a motor glider: the plugin acts on the aircraft loaded, with its engine running or not, and remembers it by its file. Ticked and greyed out for a glider | `xp_gliding/aircraft/glider/toggle` |
 | Put me near a cloud | Sets the glider flying 1.5 km from the nearest cloud that will last a few minutes more, on the side you were on, heading for it, a little over halfway from the ground to the cloud's base. Needs *Cumulus clouds* on, and the clouds take a few seconds to form after a flight starts | `xp_gliding/airstart/near_cloud` |
+| Instrument | *Soaring HUD* (the default), *Flight Computer* or *None*: at most one is shown. The two commands turn their instrument on or off, and turning one on turns the other off. *Flight Computer* is greyed out without X-Plane 12.4.4 and XPPython3 4.8.0 | `xp_gliding/hud/toggle`, `xp_gliding/computer/toggle` |
 | Day | A whole day at once, setting the four items below it: *Easy* (wide, strong thermals), *Typical* (the default), *Demanding* (narrower, stronger and higher), *Weak and low*, and *Blue*, a day with the same thermals and no clouds to read. The day you are on is ticked; change one of the items below and none is. With *Cloud base from X-Plane's weather* on, the weather sets the depth instead | |
 | Sky | How wide the thermals are: wide (the default and easiest), medium, or narrow (hardest) | |
 | Strength of the day (w\*) | How strong the thermals are at the best time of the day, with *Daily cycle* on, or all day with it off. 3 m/s by default | |
 | Depth of the thermal layer (zi) | How high they go, and so the height of the clouds: in the afternoon, with *Daily cycle* on. 2000 m by default | |
 | Seed of the sky | Another arrangement of thermals | |
-| Units on the HUD | Metric (m/s and m, the default) or aviation (knots and feet). The wind is in knots with both | |
+| Units | For both instruments: metric (m/s, m and km/h, the default) or aviation (knots, feet and nautical miles). The wind is in knots with both | |
 | Cloud style | How the cumulus look, as a livery for the sky: *Billow light* (the default), *Billow*, *Standard*, *Cotton*, *Cauliflower* and *Popcorn*, and any style you install. Only the look changes, never where the clouds are or what they say about their thermals. See [Cloud styles](cloud-styles.md). The command, not in the menu, steps to the next style, for a key to compare them | `xp_gliding/clouds/style/next` |
 | Hotspot flight | *None: a normal flight* (the default), or a file of hotspots: then the only thermals are the ones its hotspots start (see *A hotspot flight* below). The files found when X-Plane starts are listed | |
 

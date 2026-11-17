@@ -47,7 +47,14 @@ DEFAULTS = {
     "hotspots": "",
     "blue_day": False,  # a blue day: the thermals that would carry a cloud climb as usual, with none
     "hud_enabled": True,  # soaring HUD: vario, netto, average, height to the top, centring aid
-    "hud_units": "metric",  # a name in UNIT_NAMES: the HUD's vario in m/s and TOP in m, or knots and feet
+    # The instruments' units, the HUD's and the Flight Computer's: a name in UNIT_NAMES. Metric: m/s,
+    # m, km/h and km; aviation: knots, feet and nautical miles. The wind is in knots with both.
+    "hud_units": "metric",
+    # The Flight Computer (adapter/computer.py), the other instrument: a browser window with the strip
+    # and its views. Off by default; the menu's Instrument submenu keeps at most one of the two on.
+    "computer_enabled": False,
+    "computer_window": [],  # [left, top, right, bottom] in X-Plane's global coordinates; [] for the default place
+    "computer_view": "flight",  # the view shown, a name in COMPUTER_VIEWS
     "gliders_only": True,  # only act on gliders: filed as one, with no engines, or in also_gliders
     # Aircraft files (.acf names, any case) the pilot treats as gliders from the menu: motor
     # gliders, which their authors file as something else (filed as gliders, X-Plane tows them).
@@ -74,7 +81,9 @@ LIMITS = {
 
 # The settings that take one of a few names. Another name is left out.
 UNIT_NAMES = ("metric", "aviation")
-NAMES = {"sky": tuple(SKIES), "hud_units": UNIT_NAMES}
+COMPUTER_VIEWS = ("flight",)  # MAP and THERMAL join with their stages
+NAMES = {"sky": tuple(SKIES), "hud_units": UNIT_NAMES, "computer_view": COMPUTER_VIEWS}
+WINDOW_LIMIT = 100000  # no coordinate of a saved window is further out than this (pop-out windows go to 100000)
 
 # Named days: each sets the sky, the strength and depth of the day, and whether it is blue, which
 # the submenus after it set one by one. First guesses, to judge by flying. With the weather's cloud
@@ -112,11 +121,35 @@ MENU_CHOICES = (
         ("1000 m", 1000.0), ("1500 m", 1500.0), ("2000 m", 2000.0), ("2500 m", 2500.0), ("3000 m", 3000.0),
     )),
     ("Seed of the sky", "seed", tuple((str(k), k) for k in range(1, 6))),
-    ("Units on the HUD", "hud_units", (
-        ("Metric: m/s and m", "metric"),
-        ("Aviation: knots and feet", "aviation"),
+    ("Units", "hud_units", (
+        ("Metric: m/s, m and km/h", "metric"),
+        ("Aviation: knots, feet and nm", "aviation"),
     )),
 )
+
+# The Instrument submenu: which of the two instruments is shown, at most one (`instrument_of`).
+# Not a setting: it sets hud_enabled and computer_enabled together.
+INSTRUMENTS = (
+    ("Soaring HUD", "hud"),
+    ("Flight Computer", "computer"),
+    ("None", "none"),
+)
+
+
+def instrument_of(settings):
+    """The Instrument submenu's tick: "hud", "computer" or "none"; None when both are on, which only
+    config.json can do (both are then shown, and the submenu ticks neither)."""
+    if settings.hud_enabled and settings.computer_enabled:
+        return None
+    if settings.hud_enabled:
+        return "hud"
+    return "computer" if settings.computer_enabled else "none"
+
+
+def choose_instrument(settings, name):
+    """Show one instrument, or none: the other is turned off."""
+    settings.hud_enabled = name == "hud"
+    settings.computer_enabled = name == "computer"
 
 
 class Settings:
@@ -167,6 +200,16 @@ def _checked(key, value):
     """(value, moved) for a setting, moved if it had to be taken within LIMITS; None if the value
     cannot be one. Switches take true and false, or 1 and 0."""
     default = DEFAULTS[key]
+    if key == "computer_window":  # four whole numbers, left < right and bottom < top, or none
+        if value == []:
+            return [], False
+        if (isinstance(value, list) and len(value) == 4
+                and all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+                        and abs(v) <= WINDOW_LIMIT for v in value)):
+            left, top, right, bottom = (int(round(v)) for v in value)
+            if left < right and bottom < top:
+                return [left, top, right, bottom], False
+        return None
     if isinstance(default, list):
         if isinstance(value, list) and all(isinstance(v, str) for v in value):
             return list(value), False

@@ -44,5 +44,8 @@ def test_the_zip_brings_the_folder_for_the_pilots_cloud_styles(tmp_path):
         readme = z.read(f"{top}/{OWN_FOLDER}/README.txt").decode("utf-8")
     assert {f"{top}/PI_xp_gliding.py", f"{top}/xp_gliding/assets/clouds/standard/cumulus.obj",
             f"{top}/README.txt", f"{top}/LICENSE"} <= names
+    # The Flight Computer's page: every file the page loads.
+    assert {f"{top}/xp_gliding/web/{name}" for name in ("index.html", "app.css", "app.js", "format.js",
+                                                        "flight.js")} <= names
     assert [n for n in names if f"/{OWN_FOLDER}/" in n] == [f"{top}/{OWN_FOLDER}/README.txt"]
     assert "Cloud style" in readme and readme.count("\r\n") == readme.count("\n")

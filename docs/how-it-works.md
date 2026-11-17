@@ -7,7 +7,7 @@ How XP-Gliding builds its sky and puts its lift on a glider, for pilots who want
 The plugin is split in two, and the split is the main design decision.
 
 - **The atmospheric engine** (`xp_gliding/engine/`) decides where the thermals are, how strong, what clouds they carry and how they move. It is pure Python, never talks to X-Plane, and is deterministic: given a seed, a date, a place, a time and how far the wind has carried the air, it gives the same sky on every machine. It is tested and plotted outside the simulator.
-- **The X-Plane adapter** (`xp_gliding/adapter/`) is the only code that talks to X-Plane, through [XPPython3](https://xppython3.readthedocs.io/). Each frame it reads the glider's state and the wind, asks the engine for the lift, and applies it as a force. It also draws the clouds, the training markers and the HUD, and runs the menu.
+- **The X-Plane adapter** (`xp_gliding/adapter/`) is the only code that talks to X-Plane, through [XPPython3](https://xppython3.readthedocs.io/). Each frame it reads the glider's state and the wind, asks the engine for the lift, and applies it as a force. It also draws the clouds, the training markers and the HUD, shows the Flight Computer, and runs the menu.
 
 Positions in the engine are in metres, east, north and up from a local origin, converted from latitude and longitude with the ellipsoid's radii at the origin (the cos(latitude) factor on longitude). The adapter moves the origin when the glider gets 20 km from it, and nothing in the sky moves when it does.
 
@@ -88,9 +88,11 @@ along the airspeed vector, split into the aircraft's axes by its angle of attack
 
 Because the lift is a force, a glider's own instrument that computes netto from its polar may read wrong. X-Plane's total energy reads it right, within 0.03 m/s over 20 s, so its audio vario hears the thermals.
 
-## The HUD and the markers
+## The HUD, the Flight Computer and the markers
 
 The HUD uses only what a glider could sense. Total energy is X-Plane's. Netto subtracts the glider's sink, from a polar measured by script in the Laminar ASK 21, the one glider with a measured polar. The centring arrow comes from how netto changes with heading around the circle, never from where the engine knows the thermal is, and is reliable from about 60 m off centre.
+
+The Flight Computer is a window whose content is X-Plane 12.4.4's built-in browser, showing a page that comes with the plugin (`xp_gliding/web/`). The page only draws: it asks the plugin for the readings five times a second, as one JSON object in SI units, and formats them in the pilot's units. Those readings are the HUD's own instruments, never a second copy, so the two always agree, and they are sampled whenever either instrument is shown. Its own arithmetic lives in `xp_gliding/nav/`, which, like the engine, never talks to X-Plane, and reads nothing of where the engine knows the thermals are: what it shows is what the glider can observe. The window is destroyed whenever the Flight Computer is not shown, since a hidden page in X-Plane's browser keeps running. After a click in it, the plugin hands the keyboard back to X-Plane, which X-Plane's browser would otherwise keep.
 
 The training markers show up to 20 thermals within 3 km with at least 1.5 m/s at their core at the glider's height: the core's own lift, without the neighbours'.
 
@@ -99,6 +101,8 @@ The training markers show up to 20 thermals within 3 km with at least 1.5 m/s at
 Measured in X-Plane 12.4.3 on Windows 11: the flight loop takes 140 to 195 µs a frame. A frame at 60 frames per second lasts 16.7 ms.
 
 The HUD draws in one of two ways. With X-Plane 12.4.4 and XPPython3 4.8.0 or later it uses Panel Graphics, X-Plane's own 2D drawing: its fixed part is recorded once and replayed, and all its text is TrueType. Elsewhere it draws with OpenGL, its fixed part from a display list and the large number in TrueType through XPPython3. Measured by script in X-Plane 12.4.4 under Vulkan, the Laminar ASK 21 in straight flight, switching between the two in the same flight: about 33 µs a frame in our draw callback with Panel Graphics, against about 280 µs with OpenGL, most of it the large number. If Panel Graphics fails, the HUD says so in `XPPython3Log.txt` and goes on with OpenGL until X-Plane restarts. Both ways show the same panel.
+
+The Flight Computer, measured by script in X-Plane 12.4.4 under Vulkan, the Laminar ASK 21 in straight flight, five pairs of 12 s with its window closed and open: its own loop takes about 33 µs, ten times a second. X-Plane's main thread does about 10 to 15 ms more work each second with the window open, which is within the spread between pairs (about 25 ms a second either way), and the same whether the page updates five times a second or not at all, so it is the window's own price. The browser's processes take about 20 ms more each second with the page updating five times a second, and about 1 ms with it still. The GPU time does not change measurably.
 
 ## Known limits of the design
 

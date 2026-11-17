@@ -11,15 +11,17 @@ asks the engine for the lift, and adds the forces (see `core` and `xpio`).
 About once a second it keeps the thermal field loaded around the aircraft and
 re-checks the native thermal setting, and, in frames apart so that they never share
 one, updates the cumulus (`clouds`) and the training markers if they are on (`markers`).
-The soaring HUD runs apart from all this, with its own flight loop (`hud`).
+The soaring HUD runs apart from all this, with its own flight loop (`hud`), and so does the
+Flight Computer (`computer`), the other instrument, which reads the HUD's instruments.
 
 An error in the flight loop stops the plugin's effect: no force, the native thermals back, no
 clouds or markers, and the traceback in XPPython3Log.txt. The menu's first item then says so,
 and the loop starts again from a clean state with a new flight or aircraft, or when the pilot
 unticks and ticks Enabled, up to MAX_RESTARTS times; after that only re-enabling the plugin does.
 
-The Plugins > XP-Gliding menu has the switches below, and submenus to choose the sky, the
-day, by name (`config.DAYS`) or one setting at a time, and the HUD's units (`config.MENU_CHOICES`),
+The Plugins > XP-Gliding menu has the switches below, and submenus to choose the instrument
+(the HUD, the Flight Computer or none, `config.INSTRUMENTS`), the sky, the day, by name
+(`config.DAYS`) or one setting at a time, and the instruments' units (`config.MENU_CHOICES`),
 and the clouds' style, from the styles found when the plugin starts (`styles.py`). What is chosen
 there is saved to `config.json`. Its last item,
 greyed out, says what the plugin is doing and, when there are no thermals, why (`status_line`).
@@ -35,7 +37,9 @@ Commands (also in the menu):
                                (off by default, to compare in shear)
   xp_gliding/markers/toggle    training markers on / off (off by default)
   xp_gliding/clouds/toggle     cumulus on / off
-  xp_gliding/hud/toggle        soaring HUD on / off
+  xp_gliding/hud/toggle        soaring HUD on / off; on turns the Flight Computer off
+  xp_gliding/computer/toggle   Flight Computer on / off; on turns the HUD off (the Instrument
+                               submenu does both; X-Plane 12.4.4 and XPPython3 4.8.0 only)
   xp_gliding/day/weather/toggle  zi from the cloud base in X-Plane's weather, not the menu's
                                (off by default; greys out the zi submenu)
   xp_gliding/audio_vario/toggle  X-Plane's own audio vario on / off, for gliders with no switch
@@ -63,7 +67,9 @@ import xp
 
 from .. import __version__
 from .aircraft import DEFAULT_GEOMETRY, read_acf_geometry
-from .config import DAYS, MENU_CHOICES, day_index, load_settings, save_settings
+from .computer import Computer
+from .config import (DAYS, INSTRUMENTS, MENU_CHOICES, choose_instrument, day_index, instrument_of,
+                     load_settings, save_settings)
 from .core import AircraftState, Injection, Injector, NativeThermalGuard
 from ..engine.airstart import SPEED_MS, clouds_from, pick_cloud, place_near, start_height_m
 from ..engine.sun import SUN_MIN_DEG
@@ -84,6 +90,7 @@ PLACED_GRACE_S = 15.0  # after putting the glider near a cloud, a new flight's m
 ENABLED_LABEL = "Enabled"
 CLOUD_STYLE_TITLE = "Cloud style"
 HOTSPOTS_TITLE = "Hotspot flight"
+INSTRUMENT_TITLE = "Instrument"
 NORMAL_FLIGHT_LABEL = "None: a normal flight"
 PACKAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLOUD_STYLES = os.path.join(PACKAGE_DIR, "assets", "clouds")
@@ -165,6 +172,14 @@ DATAREFS = (
     ("hud/sample_us", "hud", "sample_us", "f", 0),
     ("hud/draw_us", "hud", "draw_us", "f", 0),
     ("hud/panel_graphics", "hud", "panel_graphics", "i", 1),  # 1: Panel Graphics; write 0 for OpenGL
+    # The Flight Computer (adapter/computer.py). Writing computer_enabled leaves the HUD as it is.
+    ("computer_enabled", "settings", "computer_enabled", "i", 1),
+    ("computer/available", "computer", "available", "i", 0),  # X-Plane and XPPython3 have browser windows
+    ("computer/window", "computer", "window_open", "i", 0),
+    ("computer/loaded", "computer", "loaded", "i", 0),  # 1 once its page loaded
+    ("computer/requests", "computer", "requests", "i", 0),  # bridge calls served: the page is alive
+    ("computer/tick_us", "computer", "tick_us", "f", 0),
+    ("computer/poll_hz", "computer", "poll_hz", "i", 1),  # how often the page asks; for the next window
     ("seed", "settings", "seed", "i", 1),
     ("wstar_ms", "settings", "wstar_ms", "f", 1),
     ("zi_m", "settings", "zi_m", "f", 1),  # the setting; day/zi_m is the one in use
@@ -297,6 +312,13 @@ class PythonInterface:
         self.hotspot_note = ""  # why a hotspot flight chosen is not flown, for the status line
         self.use_hotspots()
         self.hud = Hud(self.settings, lambda text: print(f"{TAG} {text}"))
+        self.computer = Computer(self.settings, self.hud, lambda text: print(f"{TAG} {text}"),
+                                 self.settings_changed)
+        if self.settings.computer_enabled and not self.computer.available:
+            # Chosen under a newer X-Plane or XPPython3: the HUD stands in, and the file keeps the
+            # choice until something else is saved.
+            self.settings.computer_enabled = False
+            self.settings.hud_enabled = True
         self.eligible = False
         self.acf_path = ""
         self.acf = ""  # the user's aircraft file name, "" when none is loaded
@@ -353,8 +375,6 @@ class PythonInterface:
              self.on_toggle, "markers_enabled", "Training markers"),
             (xp.createCommand("xp_gliding/clouds/toggle", "XP-Gliding: cumulus on/off"),
              self.on_toggle, "clouds_enabled", "Cumulus clouds"),
-            (xp.createCommand("xp_gliding/hud/toggle", "XP-Gliding: soaring HUD on/off"),
-             self.on_toggle, "hud_enabled", "Soaring HUD"),
             (xp.createCommand("xp_gliding/day/weather/toggle",
                               "XP-Gliding: cloud base from X-Plane's weather, not the menu's zi"),
              self.on_toggle, "weather_base_enabled", "Cloud base from X-Plane's weather (experiment)"),
@@ -377,6 +397,13 @@ class PythonInterface:
                                                "XP-Gliding: put the glider in the air near a cloud")
         xp.registerCommandHandler(self.near_cloud_cmd, self.on_near_cloud, 1, None)
         xp.appendMenuItemWithCommand(self.menu, "Put me near a cloud", self.near_cloud_cmd)
+        # The instruments' switches are not menu items: the Instrument submenu chooses between them.
+        self.instrument_cmds = (
+            (xp.createCommand("xp_gliding/hud/toggle", "XP-Gliding: soaring HUD on/off"), "hud"),
+            (xp.createCommand("xp_gliding/computer/toggle", "XP-Gliding: Flight Computer on/off"), "computer"),
+        )
+        for cmd, name in self.instrument_cmds:
+            xp.registerCommandHandler(cmd, self.on_instrument_toggle, 1, name)
         self.next_style_cmd = xp.createCommand("xp_gliding/clouds/style/next", "XP-Gliding: next cloud style")
         xp.registerCommandHandler(self.next_style_cmd, self.on_next_style, 1, None)
         xp.appendMenuSeparator(self.menu)
@@ -386,6 +413,15 @@ class PythonInterface:
         # pass plain numbers or functions kept alive elsewhere.
         self.choices = []
         self.zi_item = None  # greyed out while the weather sets zi
+        item = xp.appendMenuItem(self.menu, INSTRUMENT_TITLE, None)
+        submenu = xp.createMenu(INSTRUMENT_TITLE, self.menu, item, self.on_choice, None)
+        for label, name in INSTRUMENTS:
+            xp.appendMenuItem(submenu, label, len(self.choices))
+            self.choices.append(("instrument", name))
+        self.submenus.append((submenu, "instrument", tuple(name for _, name in INSTRUMENTS)))
+        if not self.computer.available:
+            computer_index = next(k for k, (_, name) in enumerate(INSTRUMENTS) if name == "computer")
+            xp.enableMenuItem(submenu, computer_index, 0)
         for title, attr, options in MENU_CHOICES:
             item = xp.appendMenuItem(self.menu, title, None)
             if attr == "zi_m":
@@ -418,7 +454,10 @@ class PythonInterface:
 
     def XPluginStop(self):
         xp.destroyFlightLoop(self.loop)
+        self.computer.stop()
         self.hud.stop()
+        for cmd, name in self.instrument_cmds:
+            xp.unregisterCommandHandler(cmd, self.on_instrument_toggle, 1, name)
         for cmd, handler, attr, _ in self.commands:
             xp.unregisterCommandHandler(cmd, handler, 1, attr)
         xp.unregisterCommandHandler(self.audio_cmd, self.on_audio_toggle, 1, None)
@@ -439,6 +478,7 @@ class PythonInterface:
         self.load_aircraft()
         xp.scheduleFlightLoop(self.loop, -1, 1)
         self.hud.enable()
+        self.computer.enable()
         return 1
 
     def XPluginDisable(self):
@@ -446,6 +486,7 @@ class PythonInterface:
         self.guard.release()
         self.markers.shutdown()
         self.clouds.shutdown()
+        self.computer.disable()
         self.hud.disable()
         self.status.active = 0
         self.out.clear()
@@ -614,6 +655,24 @@ class PythonInterface:
             self.save()
         return 1
 
+    def on_instrument_toggle(self, commandRef, phase, name):
+        """The HUD's or the Flight Computer's command: on or off, and on turns the other off."""
+        if phase == xp.CommandBegin:
+            attr = f"{name}_enabled"
+            if getattr(self.settings, attr):
+                setattr(self.settings, attr, False)
+            elif name == "hud" or self.computer.available:
+                choose_instrument(self.settings, name)
+            print(f"{TAG} instrument: {instrument_of(self.settings)}")
+            self.settings_changed()
+        return 1
+
+    def settings_changed(self):
+        """Something chosen outside the menu (the Flight Computer's window, its close box): saved,
+        and the menu's ticks follow."""
+        self.refresh_menu()
+        self.save()
+
     def on_audio_toggle(self, commandRef, phase, refcon):
         """X-Plane's own audio vario, on or off: the same switch as the AUDIO on the ASK 21's panel.
         It is X-Plane's, so the plugin does not save it; the menu's tick follows the panel."""
@@ -720,7 +779,12 @@ class PythonInterface:
         try:
             attr, value = self.choices[itemRef]
             zi = self.settings.zi_m
-            if attr == "day":
+            if attr == "instrument":
+                if value == "computer" and not self.computer.available:
+                    return
+                choose_instrument(self.settings, value)
+                print(f"{TAG} instrument: {value}")
+            elif attr == "day":
                 label, values = DAYS[value]
                 self.settings.update(values)
                 print(f"{TAG} day: {label} ({', '.join(f'{k} = {v}' for k, v in values.items())})")
@@ -794,6 +858,8 @@ class PythonInterface:
         make (None, no tick, when they make none), or the cloud style drawn."""
         if attr == "day":
             return day_index(self.settings)
+        if attr == "instrument":
+            return instrument_of(self.settings)
         if attr == "cloud_style":  # the style drawn, which is the standard one if the chosen one failed
             return next((s.key for s in self.styles if s.object_path == self.clouds.object_path), None)
         return getattr(self.settings, attr)

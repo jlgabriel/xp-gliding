@@ -57,6 +57,11 @@ CMDS = {
     17: "push_off",
     18: "late_function",  # add a function after the URL was set: expected to be ignored
     19: "rate0",       # the page stops polling
+    20: "focus_none",     # keyboard focus left as CEF and X-Plane leave it
+    21: "focus_release",  # the flight loop hands focus back: takeKeyboardFocus(0) when the window has it
+    22: "focus_blur",     # the page blurs itself after each pointer release
+    23: "kb_zero",        # once: takeKeyboardFocus(0), whatever hasKeyboardFocus says
+    24: "kb_cycle",       # once: takeKeyboardFocus(window), then takeKeyboardFocus(0)
 }
 
 
@@ -76,7 +81,9 @@ class PythonInterface:
         self.report_count = 0
         self.last_report = None
         self.last_report_t = None
-        self.settings = {"rate": 5, "pan": False, "push": False}
+        self.settings = {"rate": 5, "pan": False, "push": False, "focus": "none"}
+        self.focus_seen = 0      # loop ticks that found the window holding the keyboard
+        self.focus_released = 0  # takeKeyboardFocus(0) calls made
         self.pushes = 0
         self.push_us_sum = 0.0
         self.next_state = 0.0
@@ -165,7 +172,8 @@ class PythonInterface:
             ident = threading.get_ident()
             self.ping_threads[ident] = self.ping_threads.get(ident, 0) + 1
             seq = json.loads(json_str)
-            out = json.dumps({"seq": seq, "rate": self.settings["rate"], "pan": self.settings["pan"]})
+            out = json.dumps({"seq": seq, "rate": self.settings["rate"], "pan": self.settings["pan"],
+                              "blur": self.settings["focus"] == "blur"})
         except Exception:
             out = '{"error": "lab_ping failed"}'
         us = (time.perf_counter() - t0) * 1e6
@@ -188,6 +196,11 @@ class PythonInterface:
             self.main_ident = threading.get_ident()
             while self.cmd_queue:
                 self.run(self.cmd_queue.pop(0))
+            if self.window is not None and xp.hasKeyboardFocus(self.window):
+                self.focus_seen += 1
+                if self.settings["focus"] == "release":
+                    xp.takeKeyboardFocus(0)
+                    self.focus_released += 1
             if self.settings["push"] and self.window is not None and self.loads:
                 t0 = time.perf_counter()
                 xp.windowInjectScript(self.window, "xpgLab.onPush(%d)" % self.pushes)
@@ -239,6 +252,14 @@ class PythonInterface:
             self.settings["pan"] = name == "pan_on"
         elif name in ("push_on", "push_off"):
             self.settings["push"] = name == "push_on"
+        elif name == "kb_zero":
+            xp.takeKeyboardFocus(0)
+        elif name == "kb_cycle":
+            xp.takeKeyboardFocus(self.window)
+            self.event({"kind": "kb", "window_after_take": xp.hasKeyboardFocus(self.window)})
+            xp.takeKeyboardFocus(0)
+        elif name.startswith("focus_"):
+            self.settings["focus"] = name[6:]
         elif name == "late_function":
             xp.windowAddBrowserFunction(self.window, "lab_late", lambda w, j, r: '"late"')
 
@@ -270,11 +291,15 @@ class PythonInterface:
             "pushes": self.pushes,
             "push_us_mean": self.push_us_sum / self.pushes if self.pushes else None,
             "reports": self.report_count,
+            "focus_seen": self.focus_seen,
+            "focus_released": self.focus_released,
+            "kb_xplane": xp.hasKeyboardFocus(0),
             "last_report_t": self.last_report_t,
             "last_report": self.last_report,
         }
         if w is not None:
             state["visible"] = xp.getWindowIsVisible(w)
+            state["kb_window"] = xp.hasKeyboardFocus(w)
             state["popped_out"] = xp.windowIsPoppedOut(w)
             state["geometry"] = list(xp.getWindowGeometry(w))
             if state["popped_out"]:

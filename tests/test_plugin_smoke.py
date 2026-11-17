@@ -70,7 +70,8 @@ DATA = {
 
 
 OWN_STYLES = "xp-gliding-cloud-styles"  # in the fake X-Plane's folder, for the pilot's cloud styles
-ADAPTER_MODULES = ("xp_gliding.adapter.xpio", "xp_gliding.adapter.hud", "xp_gliding.adapter.styles",
+ADAPTER_MODULES = ("xp_gliding.adapter.xpio", "xp_gliding.adapter.hud", "xp_gliding.adapter.computer",
+                   "xp_gliding.adapter.styles",
                    "xp_gliding.adapter.plugin")
 
 
@@ -1735,7 +1736,6 @@ MENU_SWITCHES = (
     ("Sky moves with the wind at the clouds (experiment)", "xp_gliding/wind/clouds/toggle", "wind_at_clouds"),
     ("Training markers", "xp_gliding/markers/toggle", "markers_enabled"),
     ("Cumulus clouds", "xp_gliding/clouds/toggle", "clouds_enabled"),
-    ("Soaring HUD", "xp_gliding/hud/toggle", "hud_enabled"),
     ("Cloud base from X-Plane's weather (experiment)", "xp_gliding/day/weather/toggle", "weather_base_enabled"),
 )
 MENU_SUBMENUS = (
@@ -1747,7 +1747,7 @@ MENU_SUBMENUS = (
     ("Depth of the thermal layer (zi)", "zi_m", (("1000 m", 1000.0), ("1500 m", 1500.0), ("2000 m", 2000.0),
                                                  ("2500 m", 2500.0), ("3000 m", 3000.0))),
     ("Seed of the sky", "seed", tuple((str(k), k) for k in range(1, 6))),
-    ("Units on the HUD", "hud_units", (("Metric: m/s and m", "metric"), ("Aviation: knots and feet", "aviation"))),
+    ("Units", "hud_units", (("Metric: m/s, m and km/h", "metric"), ("Aviation: knots, feet and nm", "aviation"))),
 )
 
 
@@ -1757,7 +1757,7 @@ def test_the_menu_is_in_the_order_of_the_pilot_guide(plugin):
     assert labels[:-1] == ([label for label, _, _ in MENU_SWITCHES] + ["X-Plane's audio vario",
                                                                      "Treat this aircraft as a glider",
                                                                      "Put me near a cloud"]
-                           + ["Day"] + [title for title, _, _ in MENU_SUBMENUS] + ["Cloud style", "Hotspot flight"])
+                           + ["Instrument", "Day"] + [title for title, _, _ in MENU_SUBMENUS] + ["Cloud style", "Hotspot flight"])
     assert labels[-1] == status_line(xp)  # the status line closes it
 
 
