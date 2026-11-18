@@ -8,6 +8,9 @@
    CSS, and did in a desktop Chromium, but in X-Plane 12.4.4's browser every size fell to its
    clamp's minimum (seen 2026-11-17), so they are not used. Each cell is a label on top and one
    line under it: the number and, smaller beside it, its unit.
+
+   Under the strip, the tabs and one view: MAP (Leaflet, map.js) or FLIGHT. The body's data-view
+   says which; the other is display: none.
    License: GPL-3.0-or-later. */
 
 :root {
@@ -36,12 +39,54 @@ html, body {
   overflow: hidden;
 }
 
-/* The strip is as tall as one row of the view below it, which has 4, 3 or 2 rows (see #flight). */
+/* The strip is as tall as one row of the FLIGHT view below it, which has 4, 3 or 2 rows (see
+   #flight); the map takes the same room. */
 body {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 4fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto minmax(0, 4fr) auto;
   gap: var(--gap);
   padding: var(--gap);
+}
+
+body > * { grid-column: 1; }
+.view { grid-row: 3; }
+
+body:not([data-view="map"]) #map,
+body:not([data-view="flight"]) #flight { display: none; }
+
+#tabs {
+  display: flex;
+  gap: var(--gap);
+}
+
+#tabs button {
+  flex: 1;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+  background: var(--cell);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 0;
+  cursor: pointer;
+}
+
+/* The simulator's local time, beside the tabs: seen in both views. */
+#clock {
+  flex: none;
+  align-self: center;
+  padding: 0 4px 0 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+body[data-view="map"] #tabs [data-view="map"],
+body[data-view="flight"] #tabs [data-view="flight"] {
+  color: var(--bg);
+  background: var(--dim);
 }
 
 .cell {
@@ -93,6 +138,7 @@ body {
 
 #strip .value { font-size: var(--strip, 22px); }
 #strip .unit { font-size: var(--strip-unit, 10px); }
+#strip .label { font-size: var(--strip-label, 12px); }
 .wind .value { font-size: var(--wind, 22px); }
 
 .te { color: var(--amber); }
@@ -122,12 +168,12 @@ body {
 .wind { grid-column: span 2; }
 
 @media (min-aspect-ratio: 3/4) {
-  body { grid-template-rows: minmax(0, 1fr) minmax(0, 3fr) auto; }
+  body { grid-template-rows: minmax(0, 1fr) auto minmax(0, 3fr) auto; }
   #flight { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (min-aspect-ratio: 8/5) {
-  body { grid-template-rows: minmax(0, 1fr) minmax(0, 2fr) auto; }
+  body { grid-template-rows: minmax(0, 1fr) auto minmax(0, 2fr) auto; }
   #flight { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
@@ -182,3 +228,92 @@ body {
 }
 
 #status:empty { display: none; }
+
+/* --- MAP ------------------------------------------------------------------------------------ */
+
+#map {
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #1d2630;  /* where no tile is: the grid shows on it */
+  font: inherit;
+}
+
+#map .grid-line {
+  stroke: #56677a;
+  stroke-width: 1;
+  fill: none;
+}
+
+#map .track {
+  stroke: #d42cff;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  fill: none;
+}
+
+/* The glider seen from above, nose up before it is turned to the heading. */
+.glider {
+  background: none;
+  border: none;
+}
+
+.glider svg {
+  display: block;
+  overflow: visible;
+}
+
+.glider path {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.glider .outline path { stroke: #000; stroke-width: 5; }
+.glider .body path { stroke: #ffd21a; stroke-width: 2.6; }
+
+#map .leaflet-bar a {
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
+  background: rgba(20, 27, 35, 0.85);
+  color: var(--text);
+  border-bottom-color: var(--line);
+}
+
+/* The wind on the map: an arrow where the air goes, its speed under it. */
+#map .wind-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3px 4px 2px;
+  background: rgba(20, 27, 35, 0.85);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.1;
+  pointer-events: none;
+}
+
+#map .wind-box svg { fill: var(--text); }
+
+#map .follow a { display: flex; align-items: center; justify-content: center; }
+#map .follow svg { fill: none; stroke: var(--dim); stroke-width: 2; }
+#map .follow.on svg { stroke: var(--green); }
+
+/* Always shown, beside the scale: it wraps rather than cover it. */
+#map .leaflet-control-attribution {
+  max-width: calc(100vw - 110px);
+  font-size: 10px;
+  line-height: 1.25;
+  color: #222;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+#map .leaflet-control-scale-line {
+  font-size: 11px;
+  font-weight: 700;
+  color: #111;
+  background: rgba(255, 255, 255, 0.75);
+  border-color: #111;
+}

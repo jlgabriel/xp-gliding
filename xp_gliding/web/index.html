@@ -1,13 +1,15 @@
 <!doctype html>
 <!-- XP-Gliding Flight Computer: the page shown in X-Plane's browser window (adapter/computer.py).
      Classic scripts only: X-Plane's browser refuses module scripts and fetch() on file:// pages.
-     For a desktop browser, open index.html?dev to draw from a fake simulator (dev/fake.js).
+     For a desktop browser, open index.html?dev to draw from a fake simulator (dev/fake.js), and
+     index.html?dev&offline to see the map with no tiles.
      License: GPL-3.0-or-later. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>XP-Gliding Flight Computer</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -23,6 +25,13 @@
   <div class="cell"><span class="label">AVG 30 s</span><div class="reading"><span class="value avg" id="strip-avg">--</span><span class="unit" data-unit="climb"></span></div></div>
   <div class="cell"><span class="label">ALT</span><div class="reading"><span class="value" id="strip-alt">--</span><span class="unit" data-unit="height"></span></div></div>
 </header>
+<nav id="tabs">
+  <button type="button" data-view="map">MAP</button>
+  <button type="button" data-view="flight">FLIGHT</button>
+  <span id="clock" title="Local time in the simulator">--:--</span>
+</nav>
+<!-- MAP: Leaflet draws in it (map.js). -->
+<main id="map" class="view"></main>
 <!-- FLIGHT: what the strip does not show. -->
 <main id="flight" class="view">
   <section class="cell"><span class="label">NETTO</span><div class="reading"><span class="value netto" id="netto">--</span><span class="unit" data-unit="climb"></span></div></section>
@@ -40,8 +49,10 @@
   </section>
 </main>
 <footer id="status">starting</footer>
+<script src="vendor/leaflet/leaflet.js"></script>
 <script src="format.js"></script>
 <script src="flight.js"></script>
+<script src="map.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

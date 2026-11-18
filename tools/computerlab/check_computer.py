@@ -8,11 +8,16 @@ Usage:
     python tools/computerlab/check_computer.py popout         # click its pop-out button
     python tools/computerlab/check_computer.py measure --poll 5 [--pairs 5 --seconds 12]
     python tools/computerlab/check_computer.py shot out.png
+    python tools/computerlab/check_computer.py track [LOG.csv]   # the map's track against the flight log
+    python tools/computerlab/check_computer.py tab map        # click the MAP (or FLIGHT) tab
 
 `measure` alternates the Flight Computer closed (its window destroyed) and open with the page
 polling at `--poll` Hz, and compares X-Plane's main thread, its child processes (CEF) and its GPU
 time estimate, as `lab.py measure` does. The HUD stays off in both, so the open side also carries
 the instruments' sampling, which only the Flight Computer then wants: the instrument's whole cost.
+`track` has the plugin write the Flight Computer's track (`computer/track_dump`) and compares each
+point with the flight log's place at the same simulator time (the newest log unless one is
+given), and says whether the page holds every point (`computer/track_shown`).
 `keytest` and `drag` move the real mouse; only run them while nobody is using the computer.
 Where the window is comes from config.json once it was moved, else from its default place.
 
@@ -20,7 +25,10 @@ Measurement tool, not part of the plugin. License: GPL-3.0-or-later.
 """
 
 import argparse
+import bisect
+import csv
 import ctypes
+import glob
 import json
 import os
 import statistics
@@ -29,10 +37,12 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))  # the repository, for xp_gliding.nav
 
 import lab  # noqa: E402
 from lab import XPLANE, capture_window, main_thread, stretch, to_screen, xplane_pid  # noqa: E402
 from xpweb import XPlaneWebAPI  # noqa: E402
+from xp_gliding.nav.geodesy import distance_m  # noqa: E402
 
 BOUNDS = [0, 1440, 2560, 0]  # X-Plane's global desktop here (the lab's state.json, 2026-11-17)
 DEFAULT = (120, 160, 480, 420)  # computer.py: DEFAULT_OFFSET and DEFAULT_SIZE
@@ -106,6 +116,19 @@ def popout():
     print("clicked the pop-out button")
 
 
+def tab(name):
+    """Click a tab. Where they are follows app.css: the strip one row of the view's 3 (4 when tall,
+    2 when wide), then the tabs, about 22 px high, the two side by side."""
+    left, top, right, bottom = window_rect()
+    width, height = right - left, top - bottom
+    rows = 4 if width / height < 0.75 else 2 if width / height >= 1.6 else 3
+    strip = (height - 5 - 7.5 - 22) / (rows + 1)
+    x = left + width * (0.25 if name == "map" else 0.75)
+    y = top - (2.5 + strip + 2.5 + 11)
+    click(*screen(int(x), int(y)))
+    print("clicked the", name, "tab at", (int(x), int(y)))
+
+
 def drag(dx, dy):
     """Drag the window by its title bar, just above its top edge, by dx, dy screen pixels."""
     left, top, right, bottom = window_rect()
@@ -120,6 +143,53 @@ def drag(dx, dy):
         time.sleep(0.03)
     user32.mouse_event(0x0004, 0, 0, 0, 0)
     print("dragged from", (x, y), "by", (dx, dy))
+
+
+def read_log(path):
+    """(times, lats, lons) of a flight log's rows, in order; paused and replay rows left out."""
+    times, lats, lons = [], [], []
+    with open(path, encoding="utf-8", newline="") as f:
+        rows = csv.DictReader(line for line in f if not line.startswith("#"))
+        for row in rows:
+            if row["paused"] == "1" or row["replay"] == "1":
+                continue
+            times.append(float(row["t_run_s"]))
+            lats.append(float(row["lat_deg"]))
+            lons.append(float(row["lon_deg"]))
+    return times, lats, lons
+
+
+def track(api, log_path):
+    api.set("xp_gliding/computer/track_dump", 1)
+    time.sleep(1.0)
+    with open(os.path.join(XPLANE, "Output", "xp-gliding", "computer-track.json"), encoding="utf-8") as f:
+        dump = json.load(f)
+    if log_path is None:
+        logs = glob.glob(os.path.join(XPLANE, "Output", "xp-gliding", "flightlogs", "flightlog_*.csv"))
+        log_path = max(logs, key=os.path.getmtime)
+    times, lats, lons = read_log(log_path)
+    gaps = []
+    outside = 0
+    for t, lat, lon in dump["points"]:
+        k = bisect.bisect_left(times, t)
+        if k == 0 or k >= len(times):
+            outside += 1
+            continue
+        t0, t1 = times[k - 1], times[k]
+        share = (t - t0) / (t1 - t0) if t1 > t0 else 0.0
+        log_lat = lats[k - 1] + share * (lats[k] - lats[k - 1])
+        log_lon = lons[k - 1] + share * (lons[k] - lons[k - 1])
+        gaps.append(distance_m(lat, lon, log_lat, log_lon))
+    pts = dump["points"]
+    span = distance_m(pts[0][1], pts[0][2], pts[-1][1], pts[-1][2]) if pts else 0.0
+    print(f"track: epoch {dump['epoch']}, {dump['n']} points kept ({len(pts)} held), "
+          f"{pts[-1][0] - pts[0][0]:.0f} s, first to last {span:.0f} m" if pts else "track: empty")
+    print(f"log {os.path.basename(log_path)}: {len(times)} rows; {len(gaps)} points inside it, {outside} outside")
+    if gaps:
+        print(f"  track point to the log's place at its time: median {statistics.median(gaps):.2f} m, "
+              f"max {max(gaps):.2f} m")
+    print("  computer/track_n", api.get("xp_gliding/computer/track_n"), " computer/track_shown (held by the page)",
+          api.get("xp_gliding/computer/track_shown"))
 
 
 def measure(api, poll, pairs, seconds, settle):
@@ -161,6 +231,10 @@ def main(argv=None):
     p.add_argument("--settle", type=float, default=3.0)
     p = sub.add_parser("shot")
     p.add_argument("path")
+    p = sub.add_parser("tab")
+    p.add_argument("name", choices=("map", "flight"))
+    p = sub.add_parser("track")
+    p.add_argument("log", nargs="?")
     args = parser.parse_args(argv)
     api = XPlaneWebAPI()
     if args.what == "status":
@@ -173,6 +247,10 @@ def main(argv=None):
         drag(args.dx, args.dy)
     elif args.what == "measure":
         measure(api, args.poll, args.pairs, args.seconds, args.settle)
+    elif args.what == "tab":
+        tab(args.name)
+    elif args.what == "track":
+        track(api, args.log)
     elif args.what == "shot":
         bring_to_front()
         capture_window(xplane_pid(), args.path)

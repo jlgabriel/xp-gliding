@@ -201,7 +201,7 @@ def test_the_window_is_a_browser_with_its_functions_before_its_page(plugin):
     tick(pi)
     wid, window = the_window(xp)
     assert window["kw"]["contentType"] == "browser" and window["visible"] == 1
-    assert [name for name, _ in window["functions"]] == ["xpg_state", "xpg_do"]
+    assert [name for name, _ in window["functions"]] == ["xpg_setup", "xpg_state", "xpg_track", "xpg_do"]
     assert window["url"].startswith("file:///") and window["url"].endswith("/xp_gliding/web/index.html")
     assert window["title"] == "XP-Gliding Flight Computer"
     assert dataref(xp, "computer/window") == 1
@@ -224,6 +224,7 @@ def test_the_hud_is_hidden_and_its_instruments_run_for_the_computer(plugin):
     assert state["avg_ms"] == pytest.approx(dataref(xp, "hud/average_ms"), abs=0.01)
     assert state["valid"] is True and state["units"] == "metric" and state["poll_hz"] == 5
     assert state["track_deg"] == pytest.approx(0.0) and state["gs_ms"] == pytest.approx(25.0)
+    assert state["local_s"] == data["sim/time/local_time_sec"]  # for the clock
     assert state["ias_ms"] == pytest.approx(48.6 * 0.514444, abs=0.01)
     assert state["top_m"] is not None
     assert dataref(xp, "computer/requests") == 1
@@ -331,10 +332,12 @@ def test_the_page_may_set_its_view_and_nothing_else(plugin):
     choose(xp, "Flight Computer")
     tick(pi)
     wid, window = the_window(xp)
+    assert json.loads(call(window, "xpg_do", {"cmd": "set", "view": "map"}))["ok"] is True
+    assert pi.settings.computer_view == "map" and saved(pi)["computer_view"] == "map"
     assert json.loads(call(window, "xpg_do", {"cmd": "set", "view": "flight"}))["ok"] is True
     assert json.loads(call(window, "xpg_do", {"cmd": "set", "view": "../../etc"}))["ok"] is False
     assert json.loads(call(window, "xpg_do", {"cmd": "delete_everything"}))["ok"] is False
-    assert json.loads(window["functions"][1][1](None, "not json", None))["ok"] is False
+    assert json.loads(dict(window["functions"])["xpg_do"](None, "not json", None))["ok"] is False
     assert pi.settings.computer_view == "flight" and not pi.computer.failed
 
 
@@ -418,3 +421,111 @@ def test_a_slower_poll_reaches_the_page_through_the_snapshot(plugin):
     tick(pi)
     wid, window = the_window(xp)
     assert json.loads(call(window, "xpg_state"))["poll_hz"] == 2
+
+
+# --- the map's track (nav/track.py) and setup ----------------------------------------------------
+
+
+def fly(pi, data, seconds, step=0.1, north_ms=25.0):
+    """The glider flies north at north_ms: the computer's ticks with the simulator's time and place."""
+    for _ in range(round(seconds / step)):
+        data["sim/time/total_running_time_sec"] += step
+        data["sim/flightmodel/position/latitude"] += north_ms * step / 111195.0
+        tick(pi, step)
+
+
+def test_the_page_is_told_the_maps_tiles_and_their_attribution(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Flight Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    setup = json.loads(call(window, "xpg_setup"))
+    assert setup["tiles"] == "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+    assert "OpenStreetMap" in setup["attribution"] and "OpenTopoMap" in setup["attribution"]
+    assert setup["max_zoom"] == 17
+
+
+def test_the_track_is_kept_once_a_second_and_the_page_gets_it_in_pieces(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Flight Computer")
+    fly(pi, data, 10.0)
+    wid, window = the_window(xp)
+    state = json.loads(call(window, "xpg_state"))
+    epoch = pi.computer.track.epoch  # the aircraft's loading started one
+    assert 9 <= state["track_n"] <= 10 and state["track_epoch"] == epoch
+    got = json.loads(call(window, "xpg_track", {"epoch": None, "from": 0}))
+    assert got["epoch"] == epoch and got["from"] == 0 and len(got["points"]) == got["n"] == pi.computer.track.count
+    lats = [lat for lat, lon in got["points"]]
+    assert lats == sorted(lats) and got["points"][0][1] == pytest.approx(-103.217)
+    assert dataref(xp, "computer/track_shown") == got["n"]
+    fly(pi, data, 3.0)
+    more = json.loads(call(window, "xpg_track", {"epoch": epoch, "from": got["n"]}))
+    assert more["from"] == got["n"] and len(more["points"]) == 3
+    assert dataref(xp, "computer/track_n") == got["n"] + 3
+
+
+def test_nothing_is_kept_while_paused_or_in_replay(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Flight Computer")
+    fly(pi, data, 3.0)
+    n = pi.computer.track.count
+    data["sim/time/paused"] = 1
+    fly(pi, data, 3.0)
+    data["sim/time/paused"] = 0
+    data["sim/time/is_in_replay"] = 1
+    fly(pi, data, 3.0)
+    assert pi.computer.track.count == n
+
+
+def test_the_track_is_kept_with_the_window_closed_but_not_with_the_hud_chosen(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Flight Computer")
+    pi.settings.enabled = False  # no window, the Flight Computer still chosen ... but not wanted
+    fly(pi, data, 3.0)
+    assert pi.computer.track.count == 0
+    pi.settings.enabled = True
+    fly(pi, data, 3.0)
+    n = pi.computer.track.count
+    assert n >= 2
+    choose(xp, "Soaring HUD")
+    fly(pi, data, 3.0)
+    assert pi.computer.track.count == n
+
+
+def test_a_jump_seen_by_the_instruments_starts_the_track_again(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Flight Computer")
+    fly(pi, data, 5.0)
+    assert pi.computer.track.count >= 4
+    epoch = pi.computer.track.epoch
+    pi.hud.reset_instruments()  # the plugin saw a jump, a placement or a new flight
+    fly(pi, data, 2.0)
+    wid, window = the_window(xp)
+    assert json.loads(call(window, "xpg_state"))["track_epoch"] == epoch + 1
+    got = json.loads(call(window, "xpg_track", {"epoch": epoch, "from": 5}))
+    assert got["epoch"] == epoch + 1 and got["from"] == 0 and len(got["points"]) == pi.computer.track.count <= 2
+
+
+def test_a_bad_track_request_gets_the_whole_track(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Flight Computer")
+    fly(pi, data, 3.0)
+    wid, window = the_window(xp)
+    function = dict(window["functions"])["xpg_track"]
+    for arg in ("not json", "[1, 2]", '{"from": "x"}'):
+        got = json.loads(function(None, arg, None))
+        assert got["from"] == 0 and len(got["points"]) == pi.computer.track.count
+    assert not pi.computer.failed
+
+
+def test_the_test_pilot_can_write_the_track_to_a_file(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Flight Computer")
+    fly(pi, data, 4.0)
+    dataref(xp, "computer/track_dump", 1)
+    tick(pi)
+    with open(pi.computer.track_path, encoding="utf-8") as f:
+        dumped = json.load(f)
+    assert dumped["n"] == len(dumped["points"]) == pi.computer.track.count
+    t, lat, lon = dumped["points"][0]
+    assert lon == pytest.approx(-103.217) and dataref(xp, "computer/track_dump") == 0

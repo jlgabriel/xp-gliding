@@ -180,6 +180,10 @@ DATAREFS = (
     ("computer/requests", "computer", "requests", "i", 0),  # bridge calls served: the page is alive
     ("computer/tick_us", "computer", "tick_us", "f", 0),
     ("computer/poll_hz", "computer", "poll_hz", "i", 1),  # how often the page asks; for the next window
+    ("computer/track_n", "computer", "track.count", "i", 0),  # the track's points in this epoch
+    ("computer/track_epoch", "computer", "track.epoch", "i", 0),
+    ("computer/track_shown", "computer", "track.sent", "i", 0),  # the points the page holds
+    ("computer/track_dump", "computer", "track_dump", "i", 1),  # write 1: the track to computer-track.json
     ("seed", "settings", "seed", "i", 1),
     ("wstar_ms", "settings", "wstar_ms", "f", 1),
     ("zi_m", "settings", "zi_m", "f", 1),  # the setting; day/zi_m is the one in use
@@ -313,7 +317,7 @@ class PythonInterface:
         self.use_hotspots()
         self.hud = Hud(self.settings, lambda text: print(f"{TAG} {text}"))
         self.computer = Computer(self.settings, self.hud, lambda text: print(f"{TAG} {text}"),
-                                 self.settings_changed)
+                                 self.settings_changed, os.path.join(folder, "computer-track.json"))
         if self.settings.computer_enabled and not self.computer.available:
             # Chosen under a newer X-Plane or XPPython3: the HUD stands in, and the file keeps the
             # choice until something else is saved.

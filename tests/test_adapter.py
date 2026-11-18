@@ -103,6 +103,18 @@ def test_a_hand_edited_settings_file_says_what_it_left_out(tmp_path):
     assert "wstar_ms nan left out" in how and "zi_m 9000 taken to 5000.0" in how
 
 
+def test_the_maps_tiles_must_be_a_web_address_with_the_tiles_place_and_an_attribution():
+    other = "https://tile.example.org/{z}/{x}/{y}.png?key=abc"
+    assert config.Settings({"map_tiles": other}).map_tiles == other
+    for bad in ("file:///C:/{z}/{x}/{y}.png", "https://tile.example.org/{z}/{x}.png", 3,
+                'https://a"onload=x/{z}/{x}/{y}', "https://a b/{z}/{x}/{y}"):
+        assert config.Settings({"map_tiles": bad}).map_tiles == config.DEFAULTS["map_tiles"]
+    assert config.Settings({"map_attribution": " "}).map_attribution == config.DEFAULTS["map_attribution"]
+    assert config.Settings({"map_attribution": "Tiles: someone"}).map_attribution == "Tiles: someone"
+    assert config.Settings({"computer_view": "map"}).computer_view == "map"
+    assert config.Settings({"computer_view": "thermal"}).computer_view == config.DEFAULTS["computer_view"]
+
+
 def test_aircraft_treated_as_gliders_are_kept_by_file_name_in_any_case():
     s = config.Settings({"also_gliders": "VSL SF-25C.acf"})  # not a list: ignored
     assert s.also_gliders == [] and config.DEFAULTS["also_gliders"] == []

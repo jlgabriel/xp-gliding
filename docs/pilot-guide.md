@@ -73,7 +73,21 @@ A small panel on the left of the screen. The vario readings and the centring arr
 
 The other instrument, in place of the HUD: a window of its own that you can move and resize, with the same readings as the HUD, larger, and room for more to come. Choose it in *Plugins → XP-Gliding → Instrument*. It needs X-Plane 12.4.4 and XPPython3 4.8.0 or later, since its window is X-Plane's built-in browser; with anything earlier the menu greys it out and the HUD stays.
 
-A strip across the top always shows the total energy rate, with a bar whose half height is 5 m/s or 10 kt, the 30 s average and the altitude above sea level. Below it, the FLIGHT view shows the rest:
+A strip across the top always shows the total energy rate, with a bar whose half height is 5 m/s or 10 kt, the 30 s average and the altitude above sea level. Below it, two tabs choose the view, MAP or FLIGHT; the one you leave it on is the one it opens with. Beside the tabs is the simulator's local time, which stands still while X-Plane is paused.
+
+### MAP
+
+A topographic map, north up, with the glider on it, turned to its heading, and the track you have flown in magenta. The map follows the glider: it moves at most once a second, in a small step, rather than gliding along all the time, which would cost X-Plane frames. Drag the map and it stops following; the round button at the top right brings it back. Under it, an arrow shows where the wind at the glider is blowing to, with its speed in knots. The + and − buttons, or the mouse wheel, zoom; the zoom you leave is kept. The scale at the bottom left is in km, or in nautical miles with *Units* set to aviation (feet below one mile).
+
+The track keeps one point a second for the last six hours. It is recorded while the Flight Computer is the chosen instrument, whether its window is open or not, and starts again when the glider jumps: a new flight, a move on X-Plane's map, *Put me near a cloud*, a change of time.
+
+The map's tiles come from the internet, from [OpenTopoMap](https://opentopomap.org/) by default: map data © OpenStreetMap contributors and SRTM, map style © OpenTopoMap (CC-BY-SA), as the text in the map's corner says. X-Plane's browser keeps the tiles it has shown on disk, so an area you have flown over shows again without a download. Only the tiles you look at are fetched, never an area in advance. Without a network the map is a dark background with a grid of latitude and longitude, and the glider and the track draw on it as usual; the line under the window then says the tiles are not loading.
+
+Another tile server can be set in `Output/xp-gliding/config.json` with X-Plane closed: `map_tiles` is the tiles' address with `{z}`, `{x}` and `{y}` in it (and `{s}` for servers named a, b and c), and `map_attribution` the text the provider asks to be shown with them. Use a provider whose terms allow it.
+
+### FLIGHT
+
+The readings the strip does not show:
 
 | Item | What it shows |
 | --- | --- |

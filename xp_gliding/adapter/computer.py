@@ -4,8 +4,12 @@ The window's content is X-Plane 12.4.4's browser (CEF, SDK 440, through XPPython
 from `xp_gliding/web/` covers it, and Python owns the data. The page asks for it through two
 functions, registered before the page is loaded as the SDK requires:
 
+  xplane.xpg_setup()     what the page needs once: the map's tiles and their attribution
   xplane.xpg_state()     the state snapshot (`nav/snapshot.py`), JSON; the page polls it at the
                          rate the snapshot gives (`poll_hz`, 5 by default)
+  xplane.xpg_track({epoch, from})
+                         the track's points the page does not have yet (`nav/track.py`); the page
+                         asks when the snapshot's `track_n` or `track_epoch` say there are some
   xplane.xpg_do({cmd})   an action: "release_keys" (after every click on the page, see below),
                          "set" a view, "log" a line from the page
 
@@ -17,6 +21,9 @@ then too. It reads the HUD's instruments (`hud.Hud`: the vario, the 30 s average
 climb, the centring aid), never a second copy, and sets `Hud.also_wanted` so they are sampled while
 only this instrument is shown. It reads nothing of the engine's thermals: what it shows is what the
 glider can observe. Every second tick (5 Hz) it builds the snapshot, only while its window exists.
+While the Flight Computer is the chosen instrument, window open or not, it offers the glider's
+place to the track, which keeps one point a second of simulator time (none paused or in replay),
+and starts the track again when the HUD's instruments start again: a jump or a new flight.
 
 The window, found by measuring (2026-11-17, X-Plane 12.4.4, XPPython3 4.8.0):
 - stays inside X-Plane: popped out into a window of its own, X-Plane draws a corner of the page,
@@ -44,6 +51,7 @@ import traceback
 import xp
 
 from ..nav.snapshot import snapshot_json, track, wind_from
+from ..nav.track import Track
 
 PERIOD_S = 0.1  # as the HUD's sampling
 SNAPSHOT_EVERY = 2  # ticks: 5 Hz
@@ -59,7 +67,8 @@ TITLE = "XP-Gliding Flight Computer"
 KT_TO_MS = 0.514444
 WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
 PAGE = os.path.join(WEB_DIR, "index.html")
-DO_VIEWS = ("flight",)  # what "set view" accepts: the built views (config.COMPUTER_VIEWS)
+DO_VIEWS = ("map", "flight")  # what "set view" accepts: the built views (config.COMPUTER_VIEWS)
+MAX_ZOOM = 17  # the map's closest zoom: OpenTopoMap's last level
 
 
 def browser_available():
@@ -77,7 +86,7 @@ def overlaps(rect, bounds, margin):
 
 
 class Computer:
-    def __init__(self, settings, hud, log, on_settings_changed):
+    def __init__(self, settings, hud, log, on_settings_changed, track_path=None):
         self.settings = settings
         self.hud = hud
         self.log = log
@@ -89,6 +98,10 @@ class Computer:
         self.requests = 0  # bridge calls served, for the test pilot to see the page is alive
         self.tick_us = 0.0
         self.poll_hz = POLL_HZ
+        self.track = Track()
+        self.track_dump = 0  # the test pilot writes 1: the track goes to track_path at the next tick
+        self.track_path = track_path
+        self._resets_seen = hud.resets
         self.url = pathlib.Path(PAGE).as_uri()
         self._state = snapshot_json({})
         self._ticks = 0
@@ -113,6 +126,9 @@ class Computer:
         self._ias = ref("sim/flightmodel/position/indicated_airspeed")
         self._tas = ref("sim/flightmodel/position/true_airspeed")
         self._time = ref("sim/time/total_running_time_sec")
+        self._local = ref("sim/time/local_time_sec")
+        self._paused = ref("sim/time/paused")
+        self._replay = ref("sim/time/is_in_replay")
         self._wind_x = ref("sim/weather/aircraft/wind_now_x_msc")
         self._wind_z = ref("sim/weather/aircraft/wind_now_z_msc")
         self.loop = xp.createFlightLoop(self.on_loop, xp.FlightLoop_Phase_AfterFlightModel, None)
@@ -183,6 +199,7 @@ class Computer:
         if not wanted:
             self._close()
             return
+        self._record()
         if window is None:
             self._open(now)
             window = self.window
@@ -219,7 +236,9 @@ class Computer:
         xp.setWindowTitle(window, TITLE)
         xp.setWindowResizingLimits(window, MIN_SIZE[0], MIN_SIZE[1], MAX_SIZE[0], MAX_SIZE[1])
         # Before the first URL: functions added after it are ignored.
+        xp.windowAddBrowserFunction(window, "xpg_setup", self.on_setup)
         xp.windowAddBrowserFunction(window, "xpg_state", self.on_state)
+        xp.windowAddBrowserFunction(window, "xpg_track", self.on_track)
         xp.windowAddBrowserFunction(window, "xpg_do", self.on_do)
         self._ticks = 0
         self._state = self.snapshot()
@@ -296,6 +315,30 @@ class Computer:
             else:
                 self.log("Flight Computer: the page still does not answer")
 
+    # --- the track -------------------------------------------------------------------
+
+    def _record(self):
+        """Offer the glider's place to the track once a second of simulator time."""
+        if self.hud.resets != self._resets_seen:
+            self._resets_seen = self.hud.resets
+            self.track.restart()
+        if self.track_dump:
+            self.track_dump = 0
+            self._dump_track()
+        t = xp.getDataf(self._time)
+        if not self.track.due(t) or xp.getDatai(self._paused) or xp.getDatai(self._replay):
+            return
+        self.track.add(t, xp.getDatad(self._lat), xp.getDatad(self._lon))
+
+    def _dump_track(self):
+        """For the test pilot: the track as kept, to compare with the flight log."""
+        if not self.track_path:
+            return
+        with open(self.track_path, "w", encoding="utf-8") as f:
+            json.dump({"epoch": self.track.epoch, "start": self.track.start, "n": self.track.count,
+                       "points": self.track.points()}, f)
+        self.log(f"Flight Computer: track written to {self.track_path}")
+
     # --- the snapshot ---------------------------------------------------------------
 
     def snapshot(self):
@@ -306,7 +349,7 @@ class Computer:
         wind_deg, wind_ms = wind_from(getf(self._wind_x), getf(self._wind_z))
         st = self.settings
         values = {
-            "t": getf(self._time),
+            "t": getf(self._time), "local_s": getf(self._local),
             "valid": vario.valid and not hud.failed,
             "units": st.hud_units,
             "view": st.computer_view,
@@ -322,14 +365,35 @@ class Computer:
             "aid_valid": aid.valid, "aid_core_az_deg": aid.core_az_deg, "aid_amp_ms": aid.amp_ms,
             "wind_from_deg": wind_deg, "wind_ms": wind_ms,
             "top_m": hud.top_m if st.thermals_enabled else None,
+            "track_n": self.track.count, "track_epoch": self.track.epoch,
         }
         return snapshot_json(values)
 
     # --- callbacks from the page and from CEF ------------------------------------------
 
+    def on_setup(self, windowID, json_str, refCon):
+        self.requests += 1
+        st = self.settings
+        return json.dumps({"tiles": st.map_tiles, "attribution": st.map_attribution, "max_zoom": MAX_ZOOM})
+
     def on_state(self, windowID, json_str, refCon):
         self.requests += 1
         return self._state
+
+    def on_track(self, windowID, json_str, refCon):
+        """The points the page does not have: it says its epoch and the number of its next point."""
+        try:
+            self.requests += 1
+            try:
+                request = json.loads(json_str)
+            except ValueError:
+                request = None
+            if not isinstance(request, dict):
+                request = {}
+            return self.track.json_from(request.get("epoch"), request.get("from"))
+        except Exception:
+            self._fail("xpg_track")
+            return '{"epoch":-1,"from":0,"n":0,"more":false,"points":[]}'
 
     def on_do(self, windowID, json_str, refCon):
         try:

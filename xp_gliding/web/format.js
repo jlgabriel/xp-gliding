@@ -61,5 +61,14 @@ xpg.format = (function () {
     return degrees(fromDeg) + " " + (ms * KT_PER_MS).toFixed(0);
   }
 
-  return {units: units, known: known, climb: climb, height: height, speed: speed, degrees: degrees, wind: wind};
+  // The simulator's local time of day, from seconds since midnight: "14:05".
+  function clock(s) {
+    if (!known(s)) return "--:--";
+    var m = Math.floor(s / 60) % 1440;
+    if (m < 0) m += 1440;
+    return ("0" + Math.floor(m / 60)).slice(-2) + ":" + ("0" + m % 60).slice(-2);
+  }
+
+  return {units: units, known: known, climb: climb, height: height, speed: speed, degrees: degrees, wind: wind,
+          clock: clock};
 })();

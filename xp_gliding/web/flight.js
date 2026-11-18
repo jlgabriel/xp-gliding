@@ -12,7 +12,7 @@ xpg.flight = (function () {
   var shownUnits = null;
 
   function find() {
-    var ids = ["strip-te", "strip-avg", "strip-alt", "te-bar", "netto", "thm", "agl", "ias", "gs", "top",
+    var ids = ["clock", "strip-te", "strip-avg", "strip-alt", "te-bar", "netto", "thm", "agl", "ias", "gs", "top",
                "wind", "wind-arrow"];
     els = {};
     ids.forEach(function (id) { els[id] = document.getElementById(id); });
@@ -60,6 +60,7 @@ xpg.flight = (function () {
       labelUnits(u);
     }
     document.body.classList.toggle("stale", !s.valid);
+    set("clock", f.clock(s.local_s));
     set("strip-te", f.climb(s.te_ms, u));
     bar(s.te_ms, s.units);
     set("strip-avg", f.climb(s.avg_ms, u));
@@ -92,27 +93,31 @@ xpg.flight = (function () {
     return {w: r.width - PAD, h: r.height};
   }
 
+  // The FLIGHT view is measured only while shown (display: none measures nothing): the page fits
+  // again when it is shown.
   function fit() {
     if (!els) find();
-    var cell = size(els.netto);
+    var style = document.documentElement.style;
     var strip = size(els["strip-avg"]);
-    var wind = size(els.wind);
-    var label = Math.max(10, Math.min(20, cell.w * 0.12, cell.h * 0.19));
-    var value = Math.min(cell.w / 3.6, (cell.h - label) * 0.62);
     var barW = Math.max(5, Math.min(12, strip.w * 0.05));
     var stripLabel = Math.max(10, Math.min(20, strip.w * 0.12, strip.h * 0.19));
     var stripValue = Math.min((strip.w - barW - 4) / 3.6, (strip.h - stripLabel) * 0.62);
+    style.setProperty("--strip", px(stripValue, 12, 72));
+    style.setProperty("--strip-unit", px(stripValue * 0.42, 8, 24));
+    style.setProperty("--bar", px(barW, 5, 12));
+    style.setProperty("--strip-label", px(stripLabel, 10, 20));
+    var cell = size(els.netto);
+    if (cell.w <= 0) return;
+    var wind = size(els.wind);
+    var label = Math.max(10, Math.min(20, cell.w * 0.12, cell.h * 0.19));
+    var value = Math.min(cell.w / 3.6, (cell.h - label) * 0.62);
     var windValue = Math.min(value, wind.w / 6.4, (wind.h - label) * 0.62);
-    var style = document.documentElement.style;
     style.setProperty("--label", px(label, 10, 20));
     style.setProperty("--value", px(value, 12, 72));
     style.setProperty("--unit", px(value * 0.42, 8, 24));
-    style.setProperty("--strip", px(stripValue, 12, 72));
-    style.setProperty("--strip-unit", px(stripValue * 0.42, 8, 24));
     style.setProperty("--wind", px(windValue, 11, 72));
     style.setProperty("--arrow", px(windValue, 11, 60));
     style.setProperty("--inner-gap", px(value * 0.15, 2, 10));
-    style.setProperty("--bar", px(barW, 5, 12));
   }
 
   return {draw: draw, fit: fit};

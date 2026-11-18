@@ -54,7 +54,11 @@ DEFAULTS = {
     # and its views. Off by default; the menu's Instrument submenu keeps at most one of the two on.
     "computer_enabled": False,
     "computer_window": [],  # [left, top, right, bottom] in X-Plane's global coordinates; [] for the default place
-    "computer_view": "flight",  # the view shown, a name in COMPUTER_VIEWS
+    "computer_view": "map",  # the view shown, a name in COMPUTER_VIEWS
+    # The map's tiles: a URL with {z}, {x} and {y} (and {s} for the servers a, b, c), and the text
+    # that must be shown with them. OpenTopoMap's by default: OpenStreetMap's data, CC-BY-SA style.
+    "map_tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    "map_attribution": "Map data: © OpenStreetMap contributors, SRTM | Map style: © OpenTopoMap (CC-BY-SA)",
     "gliders_only": True,  # only act on gliders: filed as one, with no engines, or in also_gliders
     # Aircraft files (.acf names, any case) the pilot treats as gliders from the menu: motor
     # gliders, which their authors file as something else (filed as gliders, X-Plane tows them).
@@ -81,7 +85,7 @@ LIMITS = {
 
 # The settings that take one of a few names. Another name is left out.
 UNIT_NAMES = ("metric", "aviation")
-COMPUTER_VIEWS = ("flight",)  # MAP and THERMAL join with their stages
+COMPUTER_VIEWS = ("map", "flight")  # THERMAL joins with its stage
 NAMES = {"sky": tuple(SKIES), "hud_units": UNIT_NAMES, "computer_view": COMPUTER_VIEWS}
 WINDOW_LIMIT = 100000  # no coordinate of a saved window is further out than this (pop-out windows go to 100000)
 
@@ -209,6 +213,11 @@ def _checked(key, value):
             left, top, right, bottom = (int(round(v)) for v in value)
             if left < right and bottom < top:
                 return [left, top, right, bottom], False
+        return None
+    if key == "map_tiles":  # a web address with the tile's place in it
+        if (isinstance(value, str) and len(value) <= 300 and value.startswith(("https://", "http://"))
+                and all(part in value for part in ("{z}", "{x}", "{y}")) and not any(c in value for c in "\"<> ")):
+            return value, False
         return None
     if isinstance(default, list):
         if isinstance(value, list) and all(isinstance(v, str) for v in value):

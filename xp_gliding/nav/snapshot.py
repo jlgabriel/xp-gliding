@@ -19,6 +19,7 @@ import math
 # key -> decimals kept. Positions to about 0.1 m; the rest to what the page could ever show.
 FIELDS = {
     "t": 2,  # sim running time (s)
+    "local_s": 0,  # the simulator's local time of day (s since midnight), for the clock
     "lat": 6, "lon": 6,  # degrees
     "msl_m": 1, "agl_m": 1,
     "track_deg": 1, "heading_deg": 1,  # true
@@ -33,7 +34,7 @@ FIELDS = {
 }
 FLAGS = ("valid", "thm_valid", "thm_active", "circling", "aid_valid")
 TEXTS = ("units", "view")
-INTS = ("poll_hz",)
+INTS = ("poll_hz", "track_n", "track_epoch")  # track_*: the track's points and epoch (nav/track.py)
 
 
 def _number(value, decimals):

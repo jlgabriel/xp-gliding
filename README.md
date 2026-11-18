@@ -57,6 +57,8 @@ To the Vitacura aerodrome (SCLC), in Santiago, Chile, and its glider pilots.
 
 Inspired by Alex Ferrer's [xplane_thermals](https://github.com/alexferrer/xplane_thermals), which proved that thermal soaring in X-Plane 12 through a plugin is possible.
 
+The Flight Computer's map is drawn with [Leaflet](https://leafletjs.com/) (BSD-2-Clause, included with its licence in `xp_gliding/web/vendor/leaflet/`). Its tiles are not part of the plugin: by default they come from [OpenTopoMap](https://opentopomap.org/) (map style CC-BY-SA), drawn from [OpenStreetMap](https://www.openstreetmap.org/copyright) data (© OpenStreetMap contributors, ODbL) and SRTM elevation data.
+
 ## License
 
 [GPL-3.0-or-later](LICENSE).

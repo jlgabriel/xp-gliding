@@ -1,1 +1,3 @@
 * text=auto eol=lf
+# Third-party files kept byte for byte, as published (their hashes are in SOURCE.txt).
+xp_gliding/web/vendor/** -text

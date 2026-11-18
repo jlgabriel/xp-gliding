@@ -152,6 +152,7 @@ class Hud:
         self._thermal_text = "THM --"
         self._thermal_color = WHITE
         self.top_msl_m = None  # where the clouds are, from the plugin's slow path
+        self.resets = 0  # jumps and new flights seen (reset_instruments)
         self.zi_m = settings.zi_m  # the zi in use, from the plugin's slow path: maybe the weather's
         ref = xp.findDataRef
         self._time = ref("sim/time/total_running_time_sec")
@@ -194,7 +195,9 @@ class Hud:
 
     def reset_instruments(self):
         """The glider jumped (a new flight, the map, the clock): what it did before says nothing
-        about now. Seen 2026-11-07: a placement on the map left AVG at an impossible -7.7 m/s."""
+        about now. Seen 2026-11-07: a placement on the map left AVG at an impossible -7.7 m/s.
+        `resets` counts them, for the Flight Computer's track, which starts again with them."""
+        self.resets += 1
         self.vario.reset()
         self.aid.reset()
         self.thermal.reset()
