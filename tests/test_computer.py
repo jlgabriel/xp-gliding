@@ -561,6 +561,14 @@ def write_tasks(tmp_path, name="short.cup"):
     return folder
 
 
+def load_request(tmp_path, index, file="short.cup"):
+    """The page's load_task for task `index` of `file`, with its key as the list gives it."""
+    from xp_gliding.nav import cup
+    from xp_gliding.nav.task import task_key
+    found = cup.load(str(tmp_path / "Output" / "xp-gliding" / "tasks" / file))
+    return {"cmd": "load_task", "file": file, "index": index, "key": task_key(found.tasks[index])}
+
+
 def state_of(window):
     return json.loads(call(window, "xpg_state"))
 
@@ -582,7 +590,7 @@ def test_the_picker_lists_the_task_files_and_loads_one(plugin, tmp_path):
     assert [(t["index"], t["name"], t["points"]) for t in entry["tasks"]] == [(0, "Short", 3), (1, "Other", 2)]
     assert entry["tasks"][0]["total_m"] == pytest.approx(4000.0, abs=5.0)
     assert listed["current"] is None
-    assert json.loads(call(window, "xpg_do", {"cmd": "load_task", "file": "short.cup", "index": 0}))["ok"]
+    assert json.loads(call(window, "xpg_do", load_request(tmp_path, 0)))["ok"]
     tick(pi), tick(pi)
     task = json.loads(call(window, "xpg_task"))
     assert task["name"] == "Short" and [p["role"] for p in task["points"]] == ["start", "point", "finish"]
@@ -603,7 +611,7 @@ def test_a_task_flown_takes_its_points_in_order(plugin, tmp_path, capsys):
     choose(xp, "Flight Computer")
     tick(pi)
     wid, window = the_window(xp)
-    call(window, "xpg_do", {"cmd": "load_task", "file": "short.cup", "index": 0})
+    call(window, "xpg_do", load_request(tmp_path, 0))
     tick(pi)
     fly(pi, data, 20.0)  # 500 m: across the start line
     assert dataref(xp, "computer/nav_index") == 1 and state_of(window)["nav"]["started"]
@@ -623,7 +631,7 @@ def test_points_by_hand_and_clearing_the_task(plugin, tmp_path):
     choose(xp, "Flight Computer")
     tick(pi)
     wid, window = the_window(xp)
-    call(window, "xpg_do", {"cmd": "load_task", "file": "short.cup", "index": 0})
+    call(window, "xpg_do", load_request(tmp_path, 0))
     tick(pi)
     call(window, "xpg_do", {"cmd": "next_point"})
     call(window, "xpg_do", {"cmd": "next_point"})
@@ -652,7 +660,11 @@ def test_only_a_listed_file_and_a_task_in_it_can_be_loaded(plugin, tmp_path):
                 {"file": "short.cup", "index": "0"}, {"file": "short.cup", "index": True},
                 {"file": "short.cup"}, {"file": None, "index": 0}):
         assert not json.loads(call(window, "xpg_do", {"cmd": "load_task", **bad}))["ok"], bad
-    assert json.loads(call(window, "xpg_do", {"cmd": "load_task", "file": "short.cup", "index": 7}))["ok"]
+    for bad in ({"file": "short.cup", "index": 0}, {"file": "short.cup", "index": 0, "key": ""},
+                {"file": "short.cup", "index": 0, "key": 5}):
+        assert not json.loads(call(window, "xpg_do", {"cmd": "load_task", **bad}))["ok"], bad
+    assert json.loads(call(window, "xpg_do", {"cmd": "load_task", "file": "short.cup", "index": 7,
+                                              "key": "0" * 12}))["ok"]
     tick(pi), tick(pi)
     assert pi.computer.task is None and state_of(window)["task_rev"] == 0 and not pi.computer.failed
 
@@ -669,13 +681,102 @@ def test_the_task_chosen_is_loaded_again_at_start(tmp_path, monkeypatch, capsys)
         pi.XPluginStop()
 
 
+def reorder_tasks(tmp_path, file="short.cup", rename=None):
+    """Swap the file's two tasks, as a pilot editing it would; `rename` renames the first."""
+    path = tmp_path / "Output" / "xp-gliding" / "tasks" / file
+    lines = path.read_text(encoding="utf-8").splitlines()
+    lines[-2], lines[-1] = lines[-1], lines[-2]
+    if rename:
+        lines[-1] = lines[-1].replace('"Short"', f'"{rename}"', 1)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_a_task_moved_in_its_file_after_the_list_is_still_the_one_loaded(plugin, tmp_path):
+    pi, xp, data = plugin
+    write_tasks(tmp_path)
+    choose(xp, "Flight Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    request = load_request(tmp_path, 0)  # "Short" as listed, first in the file
+    reorder_tasks(tmp_path)  # now second
+    call(window, "xpg_do", request)
+    tick(pi), tick(pi)
+    assert pi.computer.task.name == "Short" and json.loads(call(window, "xpg_task"))["name"] == "Short"
+    assert saved(pi)["computer_task"] == "short.cup#1"
+    assert saved(pi)["computer_task_key"] == request["key"]
+    listed = json.loads(call(window, "xpg_tasks"))  # the load made the list again
+    assert listed["current"] == {"file": "short.cup", "index": 1} and listed["note"] == ""
+
+
+def test_a_task_of_the_same_name_with_another_route_is_not_loaded(plugin, tmp_path, capsys):
+    pi, xp, data = plugin
+    write_tasks(tmp_path)
+    choose(xp, "Flight Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    request = load_request(tmp_path, 0)  # "Short": Start, Turn, Goal
+    reorder_tasks(tmp_path, rename="Other")  # both are "Other" now; the one first goes to Goal only
+    reorder_tasks(tmp_path)  # and back in place: the number and the name match, the route not
+    call(window, "xpg_do", request)
+    tick(pi), tick(pi)
+    assert pi.computer.task is None and state_of(window)["task_rev"] == 0
+    listed = json.loads(call(window, "xpg_tasks"))
+    assert listed["current"] is None and "pick it again" in listed["note"]
+    assert "it was changed or removed" in capsys.readouterr().out
+
+
+def test_a_saved_task_is_found_by_its_key_when_its_file_was_reordered(tmp_path, monkeypatch, capsys):
+    write_tasks(tmp_path)
+    key = load_request(tmp_path, 1)["key"]  # "Other"
+    reorder_tasks(tmp_path)  # now first
+    pi, xp, data = start(tmp_path, monkeypatch, config={"computer_enabled": True, "hud_enabled": False,
+                                                         "computer_task": "short.cup#1",
+                                                         "computer_task_key": key})
+    try:
+        assert pi.computer.task.name == "Other"
+        assert "(now task 0 of the file)" in capsys.readouterr().out
+        tick(pi)  # saved by the first tick: at start the plugin cannot save yet
+        assert saved(pi)["computer_task"] == "short.cup#0" and saved(pi)["computer_task_key"] == key
+    finally:
+        pi.XPluginDisable()
+        pi.XPluginStop()
+
+
+def test_a_saved_task_no_longer_in_its_file_is_not_loaded(tmp_path, monkeypatch, capsys):
+    write_tasks(tmp_path)
+    pi, xp, data = start(tmp_path, monkeypatch, config={"computer_enabled": True, "hud_enabled": False,
+                                                         "computer_task": "short.cup#1",
+                                                         "computer_task_key": "0123456789ab"})
+    try:
+        assert pi.computer.task is None
+        assert "was not loaded" in capsys.readouterr().out
+    finally:
+        pi.XPluginDisable()
+        pi.XPluginStop()
+
+
+def test_a_jump_into_the_turn_points_zone_does_not_take_it(plugin, tmp_path):
+    pi, xp, data = plugin
+    write_tasks(tmp_path)
+    choose(xp, "Flight Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    call(window, "xpg_do", load_request(tmp_path, 0))
+    fly(pi, data, 20.0)  # across the start line
+    assert dataref(xp, "computer/nav_index") == 1
+    data["sim/flightmodel/position/latitude"] = START_LAT + 2300.0 / 111195.0  # placed on the turn point
+    pi.hud.reset_instruments()
+    fly(pi, data, 2.0)
+    assert dataref(xp, "computer/nav_index") == 1 and state_of(window)["nav"]["in_zone"]
+
+
 def test_a_jump_does_not_take_the_start(plugin, tmp_path):
     pi, xp, data = plugin
     write_tasks(tmp_path)
     choose(xp, "Flight Computer")
     tick(pi)
     wid, window = the_window(xp)
-    call(window, "xpg_do", {"cmd": "load_task", "file": "short.cup", "index": 0})
+    call(window, "xpg_do", load_request(tmp_path, 0))
     fly(pi, data, 1.0)
     data["sim/flightmodel/position/latitude"] += 600.0 / 111195.0  # placed past the start line
     pi.hud.reset_instruments()

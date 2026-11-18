@@ -25,7 +25,9 @@ the zone is the half-plane on the axis side: behind a start line, beyond a finis
 point is taken the same way: the start on leaving its zone (a line by crossing it within R1 of
 the point), each turn point and the finish on entering theirs. Only the point being flown to is
 looked at, and the start as long as the first turn point is not reached: crossing the start again
-restarts the task.
+restarts the task. Once a point is taken, being in the next one's zone already takes it (zones may
+overlap); after a jump or a step by hand, only an entry seen afterwards does, so a placement on the
+map takes nothing, and a point stepped back to stays so until its zone is left and entered again.
 
 Zone tests use the distance and bearing from the point on the sphere (`geodesy`); a line uses the
 along- and across-track parts of them, fine within the few kilometres of a line.
@@ -36,6 +38,7 @@ pilot can step back and forward by hand, which always wins.
 Pure Python: no `xp`, nothing of the engine.
 """
 
+import hashlib
 import json
 import math
 
@@ -140,6 +143,27 @@ def _ll(p):
     return [round(p[0], 6), round(p[1], 6)]
 
 
+def task_key(taskdef):
+    """What a task is, short: its name and its task points' names and places. A file's tasks may
+    be reordered or edited between the pilot's choice and its loading, so a task is kept by its
+    file, its number and this, and the number is trusted only while this still matches."""
+    text = json.dumps([taskdef.label(), [[p.name, round(p.lat, 6), round(p.lon, 6)] for p in taskdef.points]],
+                      ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
+
+
+def find_task(tasks, index, key):
+    """The number of the task in `tasks` (TaskDefs) that `index` and `key` name, or None: `index`
+    if its key still matches, else the first task with that key. An empty key trusts the index."""
+    if 0 <= index < len(tasks) and (not key or task_key(tasks[index]) == key):
+        return index
+    if key:
+        for i, taskdef in enumerate(tasks):
+            if task_key(taskdef) == key:
+                return i
+    return None
+
+
 def _axis(style, index, points):
     """The centre line's bearing from point `index` into its zone (see the module's table)."""
     last = len(points) - 1
@@ -206,6 +230,7 @@ class Task:
 
     def __init__(self, taskdef, source=""):
         self.name = taskdef.label()
+        self.key = task_key(taskdef)
         self.source = source  # the file it came from, for the page
         self.points = list(taskdef.points)
         self.takeoff, self.landing = taskdef.takeoff, taskdef.landing
@@ -242,7 +267,8 @@ class Progress:
 
     `update` is given the glider's place a few times a second; a line is crossed between the last
     place given and this one (each line's along and across of the last place are kept), so a jump
-    must be followed by `forget_place`: a line is never crossed by a jump."""
+    must be followed by `forget_place`: a line is never crossed by a jump, and a zone is entered
+    only from a place seen outside it after the jump."""
 
     def __init__(self, task):
         self.task = task
@@ -252,10 +278,15 @@ class Progress:
         self.taken = []  # (index, how): "zone", "line" or "hand", the latest last, for the log
         self._lines = {}  # zone index -> (along, across) of the last place, for its line
         self._in = None  # was the last place in the start's zone
+        # Was the last place in the zone of the point flown to: None not known (after a jump or a
+        # step by hand: the next place only sets it); False after a point taken, so being inside
+        # the next zone already takes it.
+        self._point_in = False
 
     def forget_place(self):
         self._lines = {}
         self._in = None
+        self._point_in = None
 
     def update(self, lat, lon):
         """Look at a new place; True if a point was taken."""
@@ -288,6 +319,7 @@ class Progress:
         self.started = True
         self.active = 1
         self._in = None
+        self._point_in = False
         self.taken.append((0, "line" if zone.line else "zone"))
         return True
 
@@ -297,9 +329,12 @@ class Progress:
         if zone.line:
             entered = self._crossing(index, here) == 1
         else:
-            entered = zone.contains(*here)
+            inside = zone.contains(*here)
+            was, self._point_in = self._point_in, inside
+            entered = inside and was is False
         if not entered:
             return False
+        self._point_in = False
         self.taken.append((index, "line" if zone.line else "zone"))
         if index == len(self.task.points) - 1:
             self.finished = True
@@ -325,6 +360,7 @@ class Progress:
                 self.active -= 1
             self.started = self.active > 0
         self._in = None
+        self._point_in = None
         self.taken.append((self.active, "hand"))
 
     def nav(self, lat, lon):

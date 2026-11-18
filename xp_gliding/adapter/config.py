@@ -57,6 +57,8 @@ DEFAULTS = {
     "computer_view": "map",  # the view shown, a name in COMPUTER_VIEWS
     # The task loaded: "file.cup#n", task n (from 0) of a CUP file in Output/xp-gliding/tasks/; "" for none.
     "computer_task": "",
+    # And what it is (nav.task.task_key): n is trusted only while that task still matches it.
+    "computer_task_key": "",
     # The map's tiles: a URL with {z}, {x} and {y} (and {s} for the servers a, b, c), and the text
     # that must be shown with them. OpenTopoMap's by default: OpenStreetMap's data, CC-BY-SA style.
     "map_tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",

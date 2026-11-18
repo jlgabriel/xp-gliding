@@ -16,9 +16,10 @@ functions, registered before the page is loaded as the SDK requires:
   xplane.xpg_task()      the task loaded, whole (`nav/task.py`), asked when `task_rev` changes
   xplane.xpg_do({cmd})   an action: "release_keys" (after every click on the page, see below),
                          "set" a view, "log" a line from the page; for tasks "list_tasks",
-                         "load_task" (a file's name among those listed, never a path, and the
-                         task's number in it), "clear_task", "next_point", "prev_point", all done
-                         by the next tick
+                         "load_task" (a file's name among those listed, never a path, the task's
+                         number in it and its key as listed), "clear_task", "next_point",
+                         "prev_point", all done by the next tick; a load also makes the list
+                         again, so the page sees the file as it now is
 
 Both callbacks return a string built beforehand or queue the work for the next tick, so the page
 costs Python next to nothing. The page never reads the simulator and computes nothing that matters.
@@ -33,8 +34,10 @@ place to the track, which keeps one point a second of simulator time (none pause
 and starts the track again when the HUD's instruments start again: a jump or a new flight. With a
 task loaded it gives the place to the task's progress too (`nav/task.py`) five times a second, which
 takes each point as its zone is reached; a jump makes the progress forget the last place, so no
-line is crossed by it. The task chosen is kept in the settings (`computer_task`, "file.cup#n") and
-loaded again at start, its progress from the start.
+line is crossed by it nor zone entered. The task chosen is kept in the settings (`computer_task`,
+"file.cup#n", and `computer_task_key`, `nav.task.task_key`) and loaded again at start, its progress
+from the start. A file may be edited after the choice: the number is trusted only while the key
+matches, else the task with that key is loaded, and with none nothing is (the pilot picks again).
 
 The window, found by measuring (2026-11-17, X-Plane 12.4.4, XPPython3 4.8.0):
 - stays inside X-Plane: popped out into a window of its own, X-Plane draws a corner of the page,
@@ -63,7 +66,7 @@ import xp
 
 from ..nav import cup
 from ..nav.snapshot import snapshot_json, track, wind_from
-from ..nav.task import Progress, Task
+from ..nav.task import Progress, Task, find_task, task_key
 from ..nav.track import Track
 
 PERIOD_S = 0.1  # as the HUD's sampling
@@ -124,7 +127,9 @@ class Computer:
         self.task_rev = 0  # changes with each task loaded or cleared: the page asks for it again
         self._task_json = NO_TASK % 0
         self.tasks_rev = 0  # changes with each list of the tasks folder made
-        self._tasks_json = '{"rev":0,"folder":"","files":[],"current":null}'
+        self._tasks_json = '{"rev":0,"folder":"","files":[],"current":null,"note":""}'
+        self._list_note = ""  # why the last load failed, shown with the next list
+        self._save_settings = False  # the settings changed at start, before the plugin can save them
         self._actions = []  # the page's task actions, done by the next tick
         self._nav_ticks = 0
         self._nav = None  # the snapshot's nav, the last made
@@ -212,6 +217,9 @@ class Computer:
         return PERIOD_S
 
     def tick(self, now):
+        if self._save_settings:  # the saved task found elsewhere in its file at start
+            self._save_settings = False
+            self.on_settings_changed()
         wanted = self.wanted
         self.hud.also_wanted = wanted
         window = self.window
@@ -409,11 +417,14 @@ class Computer:
             if cmd == "list_tasks":
                 self._list_tasks()
             elif cmd == "load_task":
-                self._load_task(action["file"], action["index"])
+                if not self._load_task(action["file"], action["index"], action["key"]):
+                    self._list_note = "That task is no longer in its file as listed: pick it again."
+                self._list_tasks()
             elif cmd == "clear_task":
                 if self.task is not None:
                     self._set_task(None)
                     self.settings.computer_task = ""
+                    self.settings.computer_task_key = ""
                     self.on_settings_changed()
                     self.log("Flight Computer: task cleared")
             elif self.progress is not None:
@@ -436,21 +447,28 @@ class Computer:
                 entry["error"] = str(exc)
             else:
                 for i, taskdef in enumerate(found.tasks):
-                    entry["tasks"].append({"index": i, "name": taskdef.label(), "points": len(taskdef.points),
+                    entry["tasks"].append({"index": i, "name": taskdef.label(), "key": task_key(taskdef),
+                                           "points": len(taskdef.points),
                                            "total_m": round(Task(taskdef).total_m, 1)})
                 if not found.tasks:
                     entry["error"] = "no tasks in this file"
             files.append(entry)
         current = None
-        if self.task is not None:
-            file, _, index = self.settings.computer_task.rpartition("#")
-            current = {"file": file, "index": int(index) if index.isdigit() else None}
+        if self.task is not None:  # the task loaded, as this list has it: maybe moved, maybe gone
+            file = self.settings.computer_task.rpartition("#")[0]
+            for entry in files:
+                if entry["file"] == file:
+                    current = next(({"file": file, "index": t["index"]} for t in entry["tasks"]
+                                    if t["key"] == self.task.key), None)
         self.tasks_rev += 1
         self._tasks_json = json.dumps({"rev": self.tasks_rev, "folder": self.tasks_folder or "",
-                                       "files": files, "current": current}, separators=(",", ":"))
+                                       "files": files, "current": current, "note": self._list_note},
+                                      separators=(",", ":"))
+        self._list_note = ""
 
-    def _load_task(self, file, index, saved=False):
-        """Load task `index` of `file` (a name in the tasks folder, never a path). True if loaded."""
+    def _load_task(self, file, index, key, saved=False):
+        """Load the task of `file` (a name in the tasks folder, never a path) that `index` and `key`
+        name (`nav.task.find_task`). True if loaded."""
         if file not in self._task_files():
             self.log(f"Flight Computer: no task file {file!r} in {self.tasks_folder}")
             return False
@@ -462,21 +480,28 @@ class Computer:
             return False
         for note in found.notes[:20]:
             self.log(f"Flight Computer: {file}, {note}")
-        if not 0 <= index < len(found.tasks):
-            self.log(f"Flight Computer: {file} has no task {index}")
+        at = find_task(found.tasks, index, key)
+        if at is None:
+            self.log(f"Flight Computer: {file} has no task {index} as chosen (key {key!r}): "
+                     "it was changed or removed")
             return False
-        task = Task(found.tasks[index], file)
+        task = Task(found.tasks[at], file)
         self._set_task(task)
         self.log(f"Flight Computer: task {task.name!r} from {file}: {len(task.points)} points, "
-                 f"{task.total_m / 1000.0:.1f} km")
-        if not saved:
-            self.settings.computer_task = f"{file}#{index}"
-            self.on_settings_changed()
+                 f"{task.total_m / 1000.0:.1f} km" + (f" (now task {at} of the file)" if at != index else ""))
+        if not saved or at != index or key != task.key:
+            self.settings.computer_task = f"{file}#{at}"
+            self.settings.computer_task_key = task.key
+            if saved:  # at start: saved by the first tick
+                self._save_settings = True
+            else:
+                self.on_settings_changed()
         return True
 
     def _load_saved_task(self):
         file, _, index = self.settings.computer_task.rpartition("#")
-        if not file or not index.isdigit() or not self._load_task(file, int(index), saved=True):
+        if (not file or not index.isdigit()
+                or not self._load_task(file, int(index), self.settings.computer_task_key, saved=True)):
             self.log(f"Flight Computer: the task saved ({self.settings.computer_task!r}) was not loaded")
 
     def _set_task(self, task):
@@ -574,11 +599,12 @@ class Computer:
             elif cmd in TASK_ACTIONS:
                 action = {"cmd": cmd}
                 if cmd == "load_task":
-                    file, index = request.get("file"), request.get("index")
+                    file, index, key = request.get("file"), request.get("index"), request.get("key")
                     if (not isinstance(file, str) or not isinstance(index, int) or isinstance(index, bool)
+                            or not isinstance(key, str) or not key or len(key) > 64
                             or file not in self._task_files()):
                         return '{"ok": false, "error": "no such task"}'
-                    action.update(file=file, index=index)
+                    action.update(file=file, index=index, key=key)
                 self._actions.append(action)  # done by the next tick, outside CEF's call
             elif cmd == "log":
                 self.log("Flight Computer page: " + str(request.get("text", ""))[:300])

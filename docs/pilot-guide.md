@@ -106,7 +106,7 @@ The readings are the HUD's own: the two instruments never disagree. Like the HUD
 
 ### TASK
 
-A task from a SeeYou CUP file, to fly without leaving X-Plane. Put CUP files in `Output/xp-gliding/tasks/` in your X-Plane folder (the plugin makes the folder on its first start). Open the TASK tab: it lists each file and the tasks in it, with their length; press one to load it. ↻ reads the folder again, so a file you add while flying shows at once. The task you load is kept and loaded again at the next start, from its beginning.
+A task from a SeeYou CUP file, to fly without leaving X-Plane. Put CUP files in `Output/xp-gliding/tasks/` in your X-Plane folder (the plugin makes the folder on its first start). Open the TASK tab: it lists each file and the tasks in it, with their length; press one to load it. ↻ reads the folder again, so a file you add while flying shows at once. The task you load is kept and loaded again at the next start, from its beginning. If you edit the file in the meantime, the same task is found wherever it now is in the file; if it was changed or removed, nothing is loaded and you choose again.
 
 A CUP file can hold waypoints only, with no task: turn point files for a site or a competition are often like that. Such a file is listed with "no tasks in this file". Make the task in SeeYou (or another program that writes CUP files with tasks) from those waypoints and save it, then put that file in the folder.
 
@@ -115,7 +115,7 @@ The TASK tab shows the task's points, each with the length of the leg to it; the
 - **the start** when you leave its zone, or cross its line going the way of the first leg; crossing it again before the first turn point starts the task again;
 - **each turn point and the finish** when you enter their zones.
 
-*Prev* and *Next* step back and forward by hand, for a point you want to skip or one taken by mistake; *Clear* unloads the task. A move on X-Plane's map, *Put me near a cloud* or a new flight does not take any point or cross any line.
+*Prev* and *Next* step back and forward by hand, for a point you want to skip or one taken by mistake; *Clear* unloads the task. A point you step back to stays the one you fly to until you leave its zone and enter it again. A move on X-Plane's map, *Put me near a cloud* or a new flight does not take any point or cross any line, even when it puts you inside a zone: fly out and back in.
 
 The zones are those the file gives (`ObsZone` lines). A point the file gives no zone gets the plugin's: a start line 2 km long across the first leg, and a 500 m cylinder at each turn point and at the finish. The task is shown and followed, not scored: start opening times, task times and assigned areas in the file are not used, and with several starts (`STARTS=`) only the task's own one is.
 

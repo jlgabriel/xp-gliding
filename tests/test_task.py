@@ -7,7 +7,7 @@ import pytest
 
 from xp_gliding.nav import cup
 from xp_gliding.nav.geodesy import bearing_deg, destination, distance_m
-from xp_gliding.nav.task import Progress, Task, Zone, make_zone
+from xp_gliding.nav.task import Progress, Task, Zone, find_task, make_zone, task_key
 
 HOME = (-33.40, -70.60)
 
@@ -195,6 +195,71 @@ def test_points_by_hand():
     p.step(-1), p.step(-1), p.step(-1)
     assert p.active == 0 and not p.started
     assert p.taken[-1] == (0, "hand")
+
+
+def test_a_jump_into_a_cylinder_takes_nothing_until_it_is_left_and_entered():
+    task = triangle()
+    t1 = (task.points[1].lat, task.points[1].lon)
+    p = Progress(task)
+    p.step(1)  # flying to T1
+    fly(p, [at(HOME, 0.0, 2000.0), at(HOME, 0.0, 3000.0)])
+    p.forget_place()  # placed on the map, inside T1's cylinder
+    for metres in (100.0, 200.0, 300.0):
+        assert not p.update(*at(t1, 90.0, metres))
+    assert p.active == 1
+    fly(p, [at(t1, 90.0, 300.0), at(t1, 90.0, 1000.0), t1])  # out, and in again
+    assert p.active == 2 and p.taken[-1] == (1, "zone")
+
+
+def test_a_point_stepped_back_to_stays_until_its_zone_is_entered_again():
+    task = triangle()
+    t1 = (task.points[1].lat, task.points[1].lon)
+    p = Progress(task)
+    fly(p, [at(HOME, 180.0, 1000.0), t1])
+    assert p.active == 2
+    p.step(-1)  # back to T1, still inside its cylinder
+    fly(p, [t1, at(t1, 90.0, 300.0)])
+    assert p.active == 1
+    fly(p, [at(t1, 90.0, 300.0), at(t1, 90.0, 1000.0), t1])
+    assert p.active == 2
+
+
+def test_a_finish_stepped_back_from_inside_its_cylinder_stays_open():
+    task = triangle()
+    p = Progress(task)
+    p.step(1), p.step(1), p.step(1)  # flying to the finish
+    fly(p, [at(HOME, 90.0, 2000.0), HOME])
+    assert p.finished
+    p.step(-1)
+    fly(p, [HOME, at(HOME, 90.0, 200.0)])
+    assert not p.finished
+    fly(p, [at(HOME, 90.0, 200.0), at(HOME, 90.0, 1000.0), HOME])
+    assert p.finished
+
+
+def test_a_point_taken_inside_the_next_zone_takes_that_too():
+    # T2's 5 km cylinder holds T1's: the glider is inside T2's already when it takes T1.
+    s, t1 = wp("S", *HOME), wp("T1", *at(HOME, 0.0, 10000.0))
+    t2, f = wp("T2", *at((t1.lat, t1.lon), 90.0, 1000.0)), wp("F", *HOME)
+    task = Task(cup.TaskDef("Near", None, [s, t1, t2, f], None, {2: cup.ZoneSpec(r1_m=5000.0)}))
+    p = Progress(task)
+    taken = fly(p, [at(HOME, 180.0, 1000.0), (t1.lat, t1.lon)])
+    assert [i for i, _ in taken] == [0, 1, 2] and p.active == 3
+
+
+def test_a_task_key_tells_tasks_of_the_same_name_apart():
+    s, t, u = wp("S", *HOME), wp("T", *at(HOME, 0.0, 10000.0)), wp("U", *at(HOME, 90.0, 10000.0))
+    north = cup.TaskDef("Same", None, [s, t, s], None)
+    east = cup.TaskDef("Same", None, [s, u, s], None)
+    assert task_key(north) != task_key(east)
+    assert task_key(north) == task_key(cup.TaskDef("Same", None, [s, t, s], None))
+    assert task_key(north) != task_key(cup.TaskDef("Other", None, [s, t, s], None))
+    # Reordered in the file: the number chosen now names the other route, the key finds its own.
+    assert find_task([east, north], 0, task_key(north)) == 1
+    assert find_task([north, east], 0, task_key(north)) == 0
+    assert find_task([east], 0, task_key(north)) is None
+    assert find_task([east], 3, task_key(east)) == 0
+    assert find_task([east, north], 1, "") == 1  # no key (an older save): the number
 
 
 def test_nav_bearing_distance_and_what_is_left():

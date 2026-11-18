@@ -178,7 +178,8 @@ xpg.task = (function () {
     var folder = String(r.folder || "");
     setText(els["task-folder"], folder.replace(/^.*[\\\/](Output[\\\/])/, "$1"));
     els["task-folder"].title = folder;
-    setText(els["task-note"], files.length ? "" :
+    loading = null;  // a load makes the list again: the task, if it loaded, comes with task_rev
+    setText(els["task-note"], files.length ? String(r.note || "") :
       "No CUP files here. Put them in X-Plane's Output/xp-gliding/tasks/ folder and press ↻.");
     drawList();
   }
@@ -202,17 +203,19 @@ xpg.task = (function () {
         var isLoading = loading && loading.file === file.file && loading.index === t.index;
         if (isCurrent) b.classList.add("current");
         if (isLoading) b.classList.add("loading");
-        b.addEventListener("click", pick.bind(null, file.file, t.index));
+        b.addEventListener("click", pick.bind(null, file.file, t.index, String(t.key || "")));
         box.appendChild(b);
       }
     }
   }
 
-  function pick(file, index) {
+  // The key says which task was meant: Python loads it only if the file still has it.
+  function pick(file, index, key) {
     loading = {file: file, index: index};
     current = {file: file, index: index};
     fitNext = true;
-    send({cmd: "load_task", file: file, index: index});
+    listWanted = true;  // Python makes the list again after the load: current as it now is
+    send({cmd: "load_task", file: file, index: index, key: key});
     drawList();
   }
 
