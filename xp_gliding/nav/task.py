@@ -335,9 +335,18 @@ class Progress:
         self.active = 1
         self._in = None
         self._point_in = False
-        self._lines.pop(1, None)
+        self._line_from(1, here)
         self.taken.append((0, "line" if zone.line else "zone"))
         return True
+
+    def _line_from(self, index, here):
+        """Point `index` is now flown to, from `here`, the place that took the one before: its line
+        is crossed from this place on, so a crossing before the next place is not lost."""
+        zone = self.task.zones[index]
+        if zone.line:
+            self._lines[index] = zone.along_across(*here)
+        else:
+            self._lines.pop(index, None)
 
     def _watch_point(self, here):
         index = self.active
@@ -356,7 +365,7 @@ class Progress:
             self.finished = True
         else:
             self.active = index + 1
-            self._lines.pop(self.active, None)  # its line starts from the next place
+            self._line_from(self.active, here)
         return True
 
     def step(self, delta):

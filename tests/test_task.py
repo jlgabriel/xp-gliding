@@ -291,6 +291,20 @@ def test_a_line_crossed_while_another_point_was_flown_to_is_not_crossed_after_ne
     assert angle_between(bearing_deg(*HOME, *t2), finish_axis + 180.0) < 0.1
 
 
+def test_a_finish_line_crossed_right_after_the_last_point_is_taken():
+    # The finish line 600 m east of T1, just past its 500 m cylinder: the sample that takes T1
+    # is on the near side of the line and the next one already beyond it.
+    s, t1 = wp("S", *HOME), wp("T1", *at(HOME, 0.0, 10000.0))
+    here = (t1.lat, t1.lon)
+    f = wp("F", *at(here, 90.0, 600.0))
+    task = Task(cup.TaskDef("Close", None, [s, t1, f], None, {2: cup.ZoneSpec(style=3, r1_m=1000.0, line=True)}))
+    p = Progress(task)
+    p.step(1)  # flying to T1
+    p.update(*at(here, 180.0, 700.0))
+    assert p.update(*at(here, 90.0, 499.0)) and p.active == 2  # T1 taken, 101 m short of the line
+    assert p.update(*at(here, 90.0, 710.0)) and p.finished  # 110 m beyond it: crossed
+
+
 def test_a_task_key_tells_tasks_of_the_same_name_apart():
     s, t, u = wp("S", *HOME), wp("T", *at(HOME, 0.0, 10000.0)), wp("U", *at(HOME, 90.0, 10000.0))
     north = cup.TaskDef("Same", None, [s, t, s], None)
