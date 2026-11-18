@@ -24,7 +24,7 @@ def test_one_point_a_second_of_simulator_time():
     track = Track()
     fly(track, 10.0)
     assert track.count == 10 and track.start == 0
-    times = [t for t, _, _ in track.points()]
+    times = [t for t, _, _, _ in track.points()]
     assert times == pytest.approx([100.0 + k for k in range(10)])
 
 
@@ -47,10 +47,10 @@ def test_a_jump_starts_a_new_epoch():
     fly(track, 5.0)
     assert track.epoch == 0 and track.count == 5
     # Put on the map 30 km away: no glider flies 30 km in a second.
-    t, lat, lon = track.points()[-1]
+    t, lat, lon, _ = track.points()[-1]
     far = destination(lat, lon, 0.0, 30000.0)
-    assert track.add(t + 1.0, *far)
-    assert track.epoch == 1 and track.count == 1 and track.points() == [(t + 1.0, *far)]
+    assert track.add(t + 1.0, *far, 1500.0)
+    assert track.epoch == 1 and track.count == 1 and track.points() == [(t + 1.0, *far, 1500.0)]
 
 
 def test_fast_flight_is_not_a_jump():
@@ -97,8 +97,8 @@ def test_the_page_gets_what_it_does_not_have():
     fly(track, 10.0)
     first = answer(track, None, 0)  # a new page knows no epoch: everything
     assert first["epoch"] == 0 and first["from"] == 0 and first["n"] == 10 and len(first["points"]) == 10
-    lat0, lon0 = track.points()[0][1:]
-    assert first["points"][0] == [pytest.approx(lat0, abs=1e-6), pytest.approx(lon0, abs=1e-6)]
+    lat0, lon0 = track.points()[0][1:3]
+    assert first["points"][0] == [pytest.approx(lat0, abs=1e-6), pytest.approx(lon0, abs=1e-6), None]
     fly(track, 3.0, t0=110.0, lat=track.points()[-1][1], lon=track.points()[-1][2])
     more = answer(track, 0, 10)
     assert more["from"] == 10 and more["n"] == 13 and len(more["points"]) == 3
@@ -148,3 +148,12 @@ def test_due_says_when_a_place_would_be_kept():
     assert not track.due(5.5)
     assert track.due(5.97)  # the 10 Hz tick may land just before the second
     assert track.due(4.0)  # time went back: kept, as a new epoch
+
+
+def test_each_point_carries_its_height_to_the_metre():
+    track = Track()
+    track.add(1.0, -33.45, -70.55, 1234.56)
+    track.add(2.0, -33.45, -70.5497, float("nan"))  # not known: null
+    got = answer(track, 0, 0)
+    assert got["points"] == [[-33.45, -70.55, 1235], [-33.45, -70.5497, None]]
+    assert track.points()[0][3] == 1234.56 and track.points()[1][3] is None

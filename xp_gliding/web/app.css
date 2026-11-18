@@ -245,8 +245,8 @@ body[data-view="flight"] #tabs [data-view="flight"] {
   fill: none;
 }
 
+/* Its colour is the height's (map.js). */
 #map .track {
-  stroke: #d42cff;
   stroke-linejoin: round;
   stroke-linecap: round;
   fill: none;
@@ -279,6 +279,30 @@ body[data-view="flight"] #tabs [data-view="flight"] {
   color: var(--text);
   border-bottom-color: var(--line);
 }
+
+/* The track's legend: the highest height on top, the lowest under, the colours between. */
+#map .track-legend {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 3px;
+  background: rgba(20, 27, 35, 0.85);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
+#map .track-legend .bar {
+  display: flex;
+  flex-direction: column;
+  width: 8px;
+  margin: 2px 0;
+}
+
+#map .track-legend .bar i { display: block; height: 7px; }
 
 /* The wind on the map: an arrow where the air goes, its speed under it. */
 #map .wind-box {

@@ -455,8 +455,9 @@ def test_the_track_is_kept_once_a_second_and_the_page_gets_it_in_pieces(plugin):
     assert 9 <= state["track_n"] <= 10 and state["track_epoch"] == epoch
     got = json.loads(call(window, "xpg_track", {"epoch": None, "from": 0}))
     assert got["epoch"] == epoch and got["from"] == 0 and len(got["points"]) == got["n"] == pi.computer.track.count
-    lats = [lat for lat, lon in got["points"]]
+    lats = [lat for lat, lon, msl in got["points"]]
     assert lats == sorted(lats) and got["points"][0][1] == pytest.approx(-103.217)
+    assert got["points"][0][2] == round(data["sim/flightmodel/position/elevation"])
     assert dataref(xp, "computer/track_shown") == got["n"]
     fly(pi, data, 3.0)
     more = json.loads(call(window, "xpg_track", {"epoch": epoch, "from": got["n"]}))
@@ -527,5 +528,5 @@ def test_the_test_pilot_can_write_the_track_to_a_file(plugin):
     with open(pi.computer.track_path, encoding="utf-8") as f:
         dumped = json.load(f)
     assert dumped["n"] == len(dumped["points"]) == pi.computer.track.count
-    t, lat, lon = dumped["points"][0]
+    t, lat, lon, msl = dumped["points"][0]
     assert lon == pytest.approx(-103.217) and dataref(xp, "computer/track_dump") == 0

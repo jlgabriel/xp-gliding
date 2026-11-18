@@ -170,7 +170,7 @@ def track(api, log_path):
     times, lats, lons = read_log(log_path)
     gaps = []
     outside = 0
-    for t, lat, lon in dump["points"]:
+    for t, lat, lon, _ in dump["points"]:
         k = bisect.bisect_left(times, t)
         if k == 0 or k >= len(times):
             outside += 1

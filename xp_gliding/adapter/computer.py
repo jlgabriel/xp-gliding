@@ -328,7 +328,7 @@ class Computer:
         t = xp.getDataf(self._time)
         if not self.track.due(t) or xp.getDatai(self._paused) or xp.getDatai(self._replay):
             return
-        self.track.add(t, xp.getDatad(self._lat), xp.getDatad(self._lon))
+        self.track.add(t, xp.getDatad(self._lat), xp.getDatad(self._lon), xp.getDatad(self._elevation))
 
     def _dump_track(self):
         """For the test pilot: the track as kept, to compare with the flight log."""

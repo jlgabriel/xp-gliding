@@ -2,7 +2,8 @@
 //
 // Draws what Python sends and computes nothing that matters: the glider at its place, turned to
 // its heading; the wind at the glider, an arrow pointing where it goes (the map is north up) and
-// its speed in knots, as on the HUD; the track as Python kept it (xpg_track, one point a second); raster tiles from the
+// its speed in knots, as on the HUD; the track as Python kept it (xpg_track, one point a second),
+// coloured by height from blue (the flight's lowest) to red (its highest), with a legend; raster tiles from the
 // address in the settings, with their attribution always shown; a lat/lon grid under the tiles,
 // which shows where tiles do not load (no network), so glider and track still have a frame.
 //
@@ -24,6 +25,11 @@ xpg.map = (function () {
   var FOLLOW_OFF_PX = 2;  // the map follows once the glider is this far off its centre
   var DEFAULT_ZOOM = 12;
   var MIN_ZOOM = 5;
+  // The track's colours, low to high, and how its scale moves: in whole steps, never under a
+  // span, so that a climb does not recolour the whole line every second.
+  var TRACK_COLOURS = ["#2f6bff", "#00b4d8", "#22c55e", "#d4d81c", "#ff9a1f", "#ff3b30"];
+  var TRACK_STEP_M = 100;
+  var TRACK_MIN_SPAN_M = 300;
   var GRID_STEPS = [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001];  // degrees
   var GLIDER_SVG =
     '<svg viewBox="-16 -16 32 32" width="32" height="32" aria-hidden="true">' +
@@ -39,7 +45,11 @@ xpg.map = (function () {
   var windArrow = null;
   var windText = null;
   var windTurn = null;
-  var line = null;
+  var trackLayer = null;  // the track's lines, one per run of a colour
+  var held = [];  // every point held, [lat, lon, msl]
+  var lo = null, hi = null;  // the colour scale (m MSL)
+  var seg = null, segPoints = null, segBand = -1;  // the last line, its points and colour
+  var legend = null;
   var grid = null;
   var scale = null;
   var followButton = null;
@@ -210,7 +220,8 @@ xpg.map = (function () {
       tiles.on("tileload", function () { tileLoads++; tileErrors = 0; });
       tiles.addTo(map);
     }
-    line = L.polyline([], {className: "track", interactive: false, weight: 3, smoothFactor: 1}).addTo(map);
+    trackLayer = L.layerGroup().addTo(map);
+    legend = new Legend().addTo(map);
     glider = L.marker([0, 0], {
       icon: L.divIcon({className: "glider", html: GLIDER_SVG, iconSize: [32, 32], iconAnchor: [16, 16]}),
       interactive: false, keyboard: false
@@ -232,6 +243,7 @@ xpg.map = (function () {
     if (unitsShown !== s.units) {
       unitsShown = s.units;
       scale.setNautical(s.units === "aviation");
+      drawLegend();
     }
     drawWind(s);
     var f = xpg.format;
@@ -305,15 +317,120 @@ xpg.map = (function () {
 
   function flushTrack() {
     if (newLine) {
-      line.setLatLngs(newLine);
+      held = newLine;
       newLine = null;
-    }
-    if (newPoints.length) {
-      var all = line.getLatLngs();
-      for (var i = 0; i < newPoints.length; i++) all.push(L.latLng(newPoints[i][0], newPoints[i][1]));
-      line.setLatLngs(all);
       newPoints = [];
+      rebuild();
+    } else if (newPoints.length) {
+      var points = newPoints;
+      newPoints = [];
+      held = held.concat(points);
+      if (rescale(points)) rebuild();
+      else extend(points);
     }
+  }
+
+  // --- the track's colours ------------------------------------------------------------------
+
+  function knownHeight(p) {
+    return typeof p[2] === "number" && isFinite(p[2]);
+  }
+
+  // Widen the scale to take these points; true if it moved.
+  function rescale(points) {
+    var low = lo, high = hi;
+    for (var i = 0; i < points.length; i++) {
+      if (!knownHeight(points[i])) continue;
+      var m = points[i][2];
+      if (low === null || m < low) low = Math.floor(m / TRACK_STEP_M) * TRACK_STEP_M;
+      if (high === null || m > high) high = Math.ceil(m / TRACK_STEP_M) * TRACK_STEP_M;
+    }
+    if (low === null) return false;
+    high = Math.max(high, low + TRACK_MIN_SPAN_M);
+    if (low === lo && high === hi) return false;
+    lo = low;
+    hi = high;
+    return true;
+  }
+
+  function band(p, before) {
+    if (!knownHeight(p) || lo === null) return before < 0 ? 0 : before;
+    var k = Math.floor((p[2] - lo) / (hi - lo) * TRACK_COLOURS.length);
+    return Math.max(0, Math.min(TRACK_COLOURS.length - 1, k));
+  }
+
+  function newSeg(points, b) {
+    seg = L.polyline(points, {color: TRACK_COLOURS[b], className: "track", interactive: false, weight: 3,
+                              smoothFactor: 1});
+    segPoints = points;
+    segBand = b;
+    trackLayer.addLayer(seg);
+  }
+
+  // The whole track again: a new epoch, or a scale that moved.
+  function rebuild() {
+    trackLayer.clearLayers();
+    seg = segPoints = null;
+    segBand = -1;
+    lo = hi = null;
+    rescale(held);
+    var runs = [];
+    var run = null, b = -1;
+    for (var i = 0; i < held.length; i++) {
+      var k = band(held[i], b);
+      if (run && k !== b) {
+        runs.push([run, b]);
+        run = [held[i - 1]];  // each run starts where the last ended: one line, no gaps
+      }
+      if (!run) run = [];
+      run.push(held[i]);
+      b = k;
+    }
+    if (run) runs.push([run, b]);
+    for (var j = 0; j < runs.length; j++) newSeg(runs[j][0], runs[j][1]);
+    drawLegend();
+  }
+
+  // New points on the same scale: onto the last line while the colour holds.
+  function extend(points) {
+    var changed = false;
+    for (var i = 0; i < points.length; i++) {
+      var k = band(points[i], segBand);
+      if (seg && k === segBand) {
+        segPoints.push(points[i]);
+        changed = true;
+      } else {
+        if (changed) seg.setLatLngs(segPoints);
+        changed = false;
+        var last = segPoints && segPoints.length ? segPoints[segPoints.length - 1] : null;
+        newSeg(last ? [last, points[i]] : [points[i]], k);
+      }
+    }
+    if (changed) seg.setLatLngs(segPoints);
+  }
+
+  // The legend: the scale's top and bottom in the pilot's units, the colours between.
+  var Legend = L.Control.extend({
+    options: {position: "topleft"},
+    onAdd: function () {
+      var el = L.DomUtil.create("div", "track-legend");
+      var html = '<span class="hi"></span><div class="bar">';
+      for (var i = TRACK_COLOURS.length - 1; i >= 0; i--) html += '<i style="background:' + TRACK_COLOURS[i] + '"></i>';
+      el.innerHTML = html + '</div><span class="lo"></span>';
+      L.DomEvent.disableClickPropagation(el);
+      return el;
+    }
+  });
+
+  function drawLegend() {
+    if (!legend) return;
+    var el = legend.getContainer();
+    var shown = lo !== null;
+    el.style.display = shown ? "" : "none";
+    if (!shown) return;
+    var u = xpg.format.units(unitsShown);
+    el.querySelector(".hi").textContent = xpg.format.height(hi, u, false);
+    el.querySelector(".lo").textContent = xpg.format.height(lo, u, false) + " " + u.height;
   }
 
   // --- shown again, resized -----------------------------------------------------------------

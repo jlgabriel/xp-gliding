@@ -9,6 +9,9 @@ the glider jumps: the adapter says so (`restart`: a new flight, a placement, a c
 the track sees it itself when the simulator's time goes back or the glider moved faster than any
 glider flies (JUMP_SPEED_MS) since the last point.
 
+Each point has the glider's height above sea level too, to the metre, for the map to colour the
+line by: [lat, lon, msl], msl null where it was not known.
+
 The page holds what it was sent and asks only for what it does not have (`json_from`): its epoch
 and the number of the point after its last. Each point is turned into text once, when kept, so an
 answer is a join of strings already made, cheap enough to run inside the browser's call.
@@ -34,8 +37,8 @@ class Track:
         self.capacity = capacity
         self.epoch = 0
         self.count = 0  # points kept in this epoch, dropped ones included: the next point's number
-        self._points = []  # (t, lat, lon), the last ones kept
-        self._texts = []  # the same points as JSON text, "[lat,lon]"
+        self._points = []  # (t, lat, lon, msl), the last ones kept
+        self._texts = []  # the same points as JSON text, "[lat,lon,msl]"
         self.sent = 0  # the number after the last point sent: what the page holds, for the test pilot
 
     @property
@@ -55,12 +58,13 @@ class Track:
         """Would a place at simulator time t be kept? Asked first, so the place is read only then."""
         return not self._points or not 0.0 <= t - self._points[-1][0] < PERIOD_S - SOON_S
 
-    def add(self, t, lat, lon):
-        """Offer the position at simulator time t (s); True if it was kept as a point."""
+    def add(self, t, lat, lon, msl=None):
+        """Offer the position at simulator time t (s), and the height (m MSL) if known; True if it
+        was kept as a point."""
         if not (math.isfinite(t) and math.isfinite(lat) and math.isfinite(lon)):
             return False
         if self._points:
-            t0, lat0, lon0 = self._points[-1]
+            t0, lat0, lon0, _ = self._points[-1]
             dt = t - t0
             if dt < 0.0:
                 self.restart()  # time went back: a new flight, or the simulator's clock reset
@@ -68,8 +72,11 @@ class Track:
                 return False
             elif distance_m(lat0, lon0, lat, lon) > JUMP_SPEED_MS * dt:
                 self.restart()
-        self._points.append((t, lat, lon))
-        self._texts.append(f"[{lat:.6f},{lon:.6f}]")
+        if msl is not None and not math.isfinite(msl):
+            msl = None
+        self._points.append((t, lat, lon, msl))
+        height = "null" if msl is None else f"{msl:.0f}"
+        self._texts.append(f"[{lat:.6f},{lon:.6f},{height}]")
         self.count += 1
         if len(self._points) > self.capacity + TRIM:
             del self._points[:-self.capacity]
@@ -77,7 +84,7 @@ class Track:
         return True
 
     def points(self):
-        """The points kept, oldest first, as (t, lat, lon)."""
+        """The points kept, oldest first, as (t, lat, lon, msl)."""
         return list(self._points)
 
     def json_from(self, epoch, first):
