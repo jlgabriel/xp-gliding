@@ -6,6 +6,9 @@
 // coloured by height from blue (the flight's lowest) to red (its highest), with a legend; raster tiles from the
 // address in the settings, with their attribution always shown; a lat/lon grid under the tiles,
 // which shows where tiles do not load (no network), so glider and track still have a frame.
+// With a task (task.js gives it, as xpg_task sent it): its legs, its points named, each zone as
+// Python shaped it (a circle, a line, sectors), the zone flown to marked, and a line from the
+// glider to its point. The task is under the track: the pilot's own line stays on top.
 //
 // Cost (stage 0, V8): a map that moves all the time costs X-Plane's main thread about 116 ms a
 // second, so nothing here animates by itself. Follow mode moves the map at most once a second,
@@ -63,6 +66,15 @@ xpg.map = (function () {
   var trackNext = 0;  // the number of the point after the last held
   var newLine = null;  // a whole new line for the next state, or null
   var newPoints = [];  // points to add to the line at the next state
+  var taskLayer = null;  // the task's legs, zones and names
+  var taskZones = [];  // each point's zone layers
+  var taskPoints = null;  // [lat, lon] of each point
+  var activeIndex = -1;  // the zone marked as the one flown to
+  var nextLine = null;  // from the glider to the point flown to
+  var pendingFit = null;  // bounds to show once the map is shown: a hidden map measures nothing
+  var ZONE_STYLE = {weight: 1.5, opacity: 0.9, fillOpacity: 0.08};
+  var ACTIVE_STYLE = {weight: 3, opacity: 1, fillOpacity: 0.22};
+  var TASK_COLOUR = "#ff4fd8";
 
   function escapeText(text) {
     return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -220,6 +232,9 @@ xpg.map = (function () {
       tiles.on("tileload", function () { tileLoads++; tileErrors = 0; });
       tiles.addTo(map);
     }
+    map.createPane("task");
+    map.getPane("task").style.zIndex = 350;  // over the tiles, under the track (overlays, 400)
+    taskLayer = L.layerGroup().addTo(map);
     trackLayer = L.layerGroup().addTo(map);
     legend = new Legend().addTo(map);
     glider = L.marker([0, 0], {
@@ -259,6 +274,7 @@ xpg.map = (function () {
     // Moved only once it would show: in straight flight the glider crosses a pixel about once a
     // second, and a page that changes nothing draws no frame for X-Plane to take.
     var at = map.latLngToLayerPoint(here).round();
+    var moved = true;
     if (!glider._map) {
       glider.setLatLng(here).addTo(map);
       gliderEl = glider.getElement().firstChild;
@@ -266,7 +282,10 @@ xpg.map = (function () {
     } else if (!at.equals(gliderAt)) {
       glider.setLatLng(here);
       gliderAt = at;
+    } else {
+      moved = false;
     }
+    drawNext(s.nav, here, moved);
     var turn = f.known(s.heading_deg) ? "rotate(" + s.heading_deg.toFixed(0) + "deg)" : gliderTurn;
     if (turn !== gliderTurn) {
       gliderTurn = turn;
@@ -433,11 +452,124 @@ xpg.map = (function () {
     el.querySelector(".lo").textContent = xpg.format.height(lo, u, false) + " " + u.height;
   }
 
+  // --- the task -----------------------------------------------------------------------------
+
+  function taskPath(className, weight, extra) {
+    var o = {pane: "task", renderer: taskRenderer(), className: className, interactive: false, weight: weight,
+             color: TASK_COLOUR, fillColor: TASK_COLOUR};
+    for (var k in extra) o[k] = extra[k];
+    return o;
+  }
+
+  var renderer = null;
+  function taskRenderer() {
+    if (!renderer) renderer = L.svg({pane: "task"});
+    return renderer;
+  }
+
+  function zoneLayers(z) {
+    var o = taskPath("task-zone", ZONE_STYLE.weight, {opacity: ZONE_STYLE.opacity, fillOpacity: ZONE_STYLE.fillOpacity});
+    if (!z) return [];
+    if (z.kind === "circle") return [L.circle([z.lat, z.lon], extendStyle(o, {radius: z.r_m}))];
+    if (z.kind === "line") return [L.polyline(z.ends, extendStyle(o, {className: "task-zone task-line"}))];
+    if (z.kind === "polygons") return z.rings.map(function (ring) { return L.polygon(ring, o); });
+    return [];
+  }
+
+  function extendStyle(o, extra) {
+    var out = {};
+    for (var k in o) out[k] = o[k];
+    for (var j in extra) out[j] = extra[j];
+    return out;
+  }
+
+  // A new task, or none. `fit`: chosen by the pilot just now, so the map shows it whole (and stops
+  // following until the pilot asks again).
+  function setTask(t, fit) {
+    if (!map) return;
+    taskLayer.clearLayers();
+    taskZones = [];
+    taskPoints = null;
+    activeIndex = -1;
+    if (nextLine) {
+      nextLine.remove();
+      nextLine = null;
+    }
+    if (!t || !Array.isArray(t.points) || !t.points.length) return;
+    taskPoints = t.points.map(function (p) { return [p.lat, p.lon]; });
+    L.polyline(taskPoints, taskPath("task-leg-outline", 5, {color: "#000", opacity: 0.55})).addTo(taskLayer);
+    L.polyline(taskPoints, taskPath("task-leg", 2, {})).addTo(taskLayer);
+    for (var i = 0; i < t.points.length; i++) {
+      var p = t.points[i];
+      var layers = zoneLayers(p.zone);
+      for (var j = 0; j < layers.length; j++) layers[j].addTo(taskLayer);
+      taskZones.push(layers);
+      var label = document.createElement("span");
+      label.textContent = p.name;  // a name from the file: text, never HTML
+      L.circleMarker([p.lat, p.lon], taskPath("task-dot", 1.5, {radius: 3, color: "#000", fillColor: "#fff",
+                                                                fillOpacity: 1}))
+        .bindTooltip(label, {permanent: true, direction: "right", offset: [5, 0], className: "task-label"})
+        .addTo(taskLayer);
+    }
+    if (fit) {
+      var bounds = L.latLngBounds(taskPoints);
+      for (var z = 0; z < taskZones.length; z++) {
+        for (var k = 0; k < taskZones[z].length; k++) bounds.extend(taskZones[z][k].getBounds());
+      }
+      if (glider && glider._map) bounds.extend(glider.getLatLng());
+      setFollow(false);
+      pendingFit = bounds;
+      if (visible()) fitPending();
+    }
+  }
+
+  // The zone flown to marked, and a line to its point, moved only when the glider moved a pixel
+  // or the point changed.
+  function drawNext(nav, here, moved) {
+    var index = nav && taskPoints && !nav.finished ? nav.index : -1;
+    if (index >= pointCount()) index = -1;
+    if (index !== activeIndex) {
+      if (activeIndex >= 0 && taskZones[activeIndex]) setZoneStyle(taskZones[activeIndex], ZONE_STYLE);
+      if (index >= 0) setZoneStyle(taskZones[index], ACTIVE_STYLE);
+      activeIndex = index;
+      moved = true;
+    }
+    if (index < 0) {
+      if (nextLine) {
+        nextLine.remove();
+        nextLine = null;
+      }
+      return;
+    }
+    if (!nextLine) {
+      nextLine = L.polyline([here, taskPoints[index]], taskPath("task-next", 2, {color: "#ffd21a", dashArray: "6 6"}))
+        .addTo(taskLayer);
+    } else if (moved) {
+      nextLine.setLatLngs([here, taskPoints[index]]);
+    }
+  }
+
+  function pointCount() {
+    return taskPoints ? taskPoints.length : 0;
+  }
+
+  function fitPending() {
+    if (!pendingFit) return;
+    // More room on the right: the points' names are written to the right of them.
+    map.fitBounds(pendingFit, {paddingTopLeft: [24, 24], paddingBottomRight: [90, 24], animate: false, maxZoom: 13});
+    pendingFit = null;
+  }
+
+  function setZoneStyle(layers, style) {
+    for (var i = 0; i < layers.length; i++) layers[i].setStyle(style);
+  }
+
   // --- shown again, resized -----------------------------------------------------------------
 
   function shown() {
     if (!map) return;
     map.invalidateSize({pan: false});
+    fitPending();
     lastFollow = 0;
     drawGrid();
   }
@@ -448,5 +580,6 @@ xpg.map = (function () {
     return tileErrors >= 4 ? "map tiles not loading: grid only" : "";
   }
 
-  return {init: init, draw: draw, trackWanted: trackWanted, addTrack: addTrack, shown: shown, note: note};
+  return {init: init, draw: draw, trackWanted: trackWanted, addTrack: addTrack, shown: shown, note: note,
+          setTask: setTask};
 })();

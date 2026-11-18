@@ -34,7 +34,9 @@ FIELDS = {
 }
 FLAGS = ("valid", "thm_valid", "thm_active", "circling", "aid_valid")
 TEXTS = ("units", "view")
-INTS = ("poll_hz", "track_n", "track_epoch")  # track_*: the track's points and epoch (nav/track.py)
+INTS = ("poll_hz", "track_n", "track_epoch",  # track_*: the track's points and epoch (nav/track.py)
+        "task_rev", "tasks_rev")  # change when the task loaded, or the list of tasks, is new
+OBJECTS = ("nav",)  # nav: the point flown to and what is left (nav/task.py, Progress.nav), or null
 
 
 def _number(value, decimals):
@@ -56,7 +58,17 @@ def snapshot_json(values):
     for key in INTS:
         value = values.get(key)
         out[key] = int(value) if isinstance(value, (int, float)) and math.isfinite(value) else None
+    for key in OBJECTS:
+        value = values.get(key)
+        out[key] = {k: _clean(v) for k, v in value.items()} if isinstance(value, dict) else None
     return json.dumps(out, separators=(",", ":"), allow_nan=False)
+
+
+def _clean(value):
+    """A value inside one of OBJECTS: a number that is not finite becomes null."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
 
 
 def track(vx_ms, vz_ms):

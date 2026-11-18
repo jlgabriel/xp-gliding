@@ -184,6 +184,10 @@ DATAREFS = (
     ("computer/track_epoch", "computer", "track.epoch", "i", 0),
     ("computer/track_shown", "computer", "track.sent", "i", 0),  # the points the page holds
     ("computer/track_dump", "computer", "track_dump", "i", 1),  # write 1: the track to computer-track.json
+    ("computer/task_rev", "computer", "task_rev", "i", 0),  # changes with each task loaded or cleared
+    ("computer/nav_index", "computer", "nav_index", "i", 0),  # the task point flown to (0 the start), -1 without a task
+    ("computer/nav_dist_m", "computer", "nav_dist_m", "f", 0),  # to it, as the page shows
+    ("computer/nav_bearing_deg", "computer", "nav_bearing_deg", "f", 0),
     ("seed", "settings", "seed", "i", 1),
     ("wstar_ms", "settings", "wstar_ms", "f", 1),
     ("zi_m", "settings", "zi_m", "f", 1),  # the setting; day/zi_m is the one in use
@@ -316,8 +320,11 @@ class PythonInterface:
         self.hotspot_note = ""  # why a hotspot flight chosen is not flown, for the status line
         self.use_hotspots()
         self.hud = Hud(self.settings, lambda text: print(f"{TAG} {text}"))
+        self.tasks_folder = os.path.join(folder, "tasks")
+        self.make_tasks_folder()
         self.computer = Computer(self.settings, self.hud, lambda text: print(f"{TAG} {text}"),
-                                 self.settings_changed, os.path.join(folder, "computer-track.json"))
+                                 self.settings_changed, os.path.join(folder, "computer-track.json"),
+                                 self.tasks_folder)
         if self.settings.computer_enabled and not self.computer.available:
             # Chosen under a newer X-Plane or XPPython3: the HUD stands in, and the file keeps the
             # choice until something else is saved.
@@ -512,6 +519,13 @@ class PythonInterface:
                 self.new_wind()
             self.hud.reset_instruments()
             self.next_slow = 0.0
+
+    def make_tasks_folder(self):
+        """The Flight Computer's CUP files go in Output/xp-gliding/tasks/, made at start if missing."""
+        try:
+            os.makedirs(self.tasks_folder, exist_ok=True)
+        except OSError as exc:
+            print(f"{TAG} could not make {self.tasks_folder}: {exc}")
 
     # --- hotspot flight -------------------------------------------------------
 

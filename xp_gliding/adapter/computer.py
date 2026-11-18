@@ -10,8 +10,15 @@ functions, registered before the page is loaded as the SDK requires:
   xplane.xpg_track({epoch, from})
                          the track's points the page does not have yet (`nav/track.py`); the page
                          asks when the snapshot's `track_n` or `track_epoch` say there are some
+  xplane.xpg_tasks()     the CUP files in the tasks folder and the tasks in each, for the picker;
+                         made again by the next tick after the page asks with "list_tasks", and
+                         the snapshot's `tasks_rev` says when it is ready
+  xplane.xpg_task()      the task loaded, whole (`nav/task.py`), asked when `task_rev` changes
   xplane.xpg_do({cmd})   an action: "release_keys" (after every click on the page, see below),
-                         "set" a view, "log" a line from the page
+                         "set" a view, "log" a line from the page; for tasks "list_tasks",
+                         "load_task" (a file's name among those listed, never a path, and the
+                         task's number in it), "clear_task", "next_point", "prev_point", all done
+                         by the next tick
 
 Both callbacks return a string built beforehand or queue the work for the next tick, so the page
 costs Python next to nothing. The page never reads the simulator and computes nothing that matters.
@@ -23,7 +30,11 @@ only this instrument is shown. It reads nothing of the engine's thermals: what i
 glider can observe. Every second tick (5 Hz) it builds the snapshot, only while its window exists.
 While the Flight Computer is the chosen instrument, window open or not, it offers the glider's
 place to the track, which keeps one point a second of simulator time (none paused or in replay),
-and starts the track again when the HUD's instruments start again: a jump or a new flight.
+and starts the track again when the HUD's instruments start again: a jump or a new flight. With a
+task loaded it gives the place to the task's progress too (`nav/task.py`) five times a second, which
+takes each point as its zone is reached; a jump makes the progress forget the last place, so no
+line is crossed by it. The task chosen is kept in the settings (`computer_task`, "file.cup#n") and
+loaded again at start, its progress from the start.
 
 The window, found by measuring (2026-11-17, X-Plane 12.4.4, XPPython3 4.8.0):
 - stays inside X-Plane: popped out into a window of its own, X-Plane draws a corner of the page,
@@ -50,11 +61,14 @@ import traceback
 
 import xp
 
+from ..nav import cup
 from ..nav.snapshot import snapshot_json, track, wind_from
+from ..nav.task import Progress, Task
 from ..nav.track import Track
 
 PERIOD_S = 0.1  # as the HUD's sampling
 SNAPSHOT_EVERY = 2  # ticks: 5 Hz
+NAV_EVERY = 2  # ticks between places given to the task: 5 Hz, steps of about 6 m, enough for a line
 LOOK_EVERY = 5  # ticks between looks at the window's close box and place: 2 Hz is soon enough
 POLL_HZ = 5  # how often the page asks for the snapshot; xp_gliding/computer/poll_hz changes it for a new window
 DEFAULT_SIZE = (480, 420)
@@ -67,8 +81,10 @@ TITLE = "XP-Gliding Flight Computer"
 KT_TO_MS = 0.514444
 WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
 PAGE = os.path.join(WEB_DIR, "index.html")
-DO_VIEWS = ("map", "flight")  # what "set view" accepts: the built views (config.COMPUTER_VIEWS)
+DO_VIEWS = ("map", "flight", "task")  # what "set view" accepts: the built views (config.COMPUTER_VIEWS)
 MAX_ZOOM = 17  # the map's closest zoom: OpenTopoMap's last level
+TASK_ACTIONS = ("list_tasks", "load_task", "clear_task", "next_point", "prev_point")
+NO_TASK = '{"rev":%d,"name":null}'
 
 
 def browser_available():
@@ -86,7 +102,7 @@ def overlaps(rect, bounds, margin):
 
 
 class Computer:
-    def __init__(self, settings, hud, log, on_settings_changed, track_path=None):
+    def __init__(self, settings, hud, log, on_settings_changed, track_path=None, tasks_folder=None):
         self.settings = settings
         self.hud = hud
         self.log = log
@@ -102,6 +118,19 @@ class Computer:
         self.track_dump = 0  # the test pilot writes 1: the track goes to track_path at the next tick
         self.track_path = track_path
         self._resets_seen = hud.resets
+        self.tasks_folder = tasks_folder
+        self.task = None  # nav.task.Task, or None
+        self.progress = None  # nav.task.Progress of the task
+        self.task_rev = 0  # changes with each task loaded or cleared: the page asks for it again
+        self._task_json = NO_TASK % 0
+        self.tasks_rev = 0  # changes with each list of the tasks folder made
+        self._tasks_json = '{"rev":0,"folder":"","files":[],"current":null}'
+        self._actions = []  # the page's task actions, done by the next tick
+        self._nav_ticks = 0
+        self._nav = None  # the snapshot's nav, the last made
+        self.nav_index = -1  # for the test pilot: the point flown to, -1 without a task
+        self.nav_dist_m = 0.0
+        self.nav_bearing_deg = 0.0
         self.url = pathlib.Path(PAGE).as_uri()
         self._state = snapshot_json({})
         self._ticks = 0
@@ -135,6 +164,8 @@ class Computer:
         if not self.available:
             log("Flight Computer: not available here (it needs X-Plane 12.4.4 and XPPython3 4.8.0); "
                 "the HUD is the instrument")
+        elif settings.computer_task:
+            self._load_saved_task()
 
     # --- life cycle ------------------------------------------------------------
 
@@ -200,6 +231,8 @@ class Computer:
             self._close()
             return
         self._record()
+        if self._actions:
+            self._do_actions()
         if window is None:
             self._open(now)
             window = self.window
@@ -240,6 +273,8 @@ class Computer:
         xp.windowAddBrowserFunction(window, "xpg_state", self.on_state)
         xp.windowAddBrowserFunction(window, "xpg_track", self.on_track)
         xp.windowAddBrowserFunction(window, "xpg_do", self.on_do)
+        xp.windowAddBrowserFunction(window, "xpg_tasks", self.on_tasks)
+        xp.windowAddBrowserFunction(window, "xpg_task", self.on_task)
         self._ticks = 0
         self._state = self.snapshot()
         self._refreshed = False
@@ -318,17 +353,32 @@ class Computer:
     # --- the track -------------------------------------------------------------------
 
     def _record(self):
-        """Offer the glider's place to the track once a second of simulator time."""
+        """Offer the glider's place to the track once a second of simulator time, and to the
+        task's progress at each tick."""
         if self.hud.resets != self._resets_seen:
             self._resets_seen = self.hud.resets
             self.track.restart()
+            if self.progress is not None:
+                self.progress.forget_place()
         if self.track_dump:
             self.track_dump = 0
             self._dump_track()
+        progress = self.progress
+        if progress is not None:
+            self._nav_ticks += 1
+            if self._nav_ticks >= NAV_EVERY:
+                self._nav_ticks = 0
+            else:
+                progress = None  # not this tick
         t = xp.getDataf(self._time)
-        if not self.track.due(t) or xp.getDatai(self._paused) or xp.getDatai(self._replay):
+        due = self.track.due(t)
+        if (not due and progress is None) or xp.getDatai(self._paused) or xp.getDatai(self._replay):
             return
-        self.track.add(t, xp.getDatad(self._lat), xp.getDatad(self._lon), xp.getDatad(self._elevation))
+        lat, lon = xp.getDatad(self._lat), xp.getDatad(self._lon)
+        if due:
+            self.track.add(t, lat, lon, xp.getDatad(self._elevation))
+        if progress is not None and progress.update(lat, lon):
+            self._log_taken()
 
     def _dump_track(self):
         """For the test pilot: the track as kept, to compare with the flight log."""
@@ -339,6 +389,104 @@ class Computer:
                        "points": self.track.points()}, f)
         self.log(f"Flight Computer: track written to {self.track_path}")
 
+    # --- tasks ---------------------------------------------------------------------------
+
+    def _log_taken(self):
+        index, how = self.progress.taken[-1]
+        name = self.task.points[index].name
+        if self.progress.finished:
+            what = "finish"
+        elif index == 0:
+            what = "start"
+        else:
+            what = f"point {index}"
+        self.log(f"Flight Computer: {what} {name!r} taken ({how})")
+
+    def _do_actions(self):
+        actions, self._actions = self._actions, []
+        for action in actions:
+            cmd = action["cmd"]
+            if cmd == "list_tasks":
+                self._list_tasks()
+            elif cmd == "load_task":
+                self._load_task(action["file"], action["index"])
+            elif cmd == "clear_task":
+                if self.task is not None:
+                    self._set_task(None)
+                    self.settings.computer_task = ""
+                    self.on_settings_changed()
+                    self.log("Flight Computer: task cleared")
+            elif self.progress is not None:
+                self.progress.step(1 if cmd == "next_point" else -1)
+                index = self.progress.active
+                self.log(f"Flight Computer: by hand to point {index} {self.task.points[index].name!r}"
+                         + (", finished" if self.progress.finished else ""))
+
+    def _task_files(self):
+        return cup.find_files(self.tasks_folder) if self.tasks_folder else []
+
+    def _list_tasks(self):
+        """The picker's list: each CUP file with its tasks, or why it offers none."""
+        files = []
+        for name in self._task_files():
+            entry = {"file": name, "tasks": [], "error": None}
+            try:
+                found = cup.load(os.path.join(self.tasks_folder, name))
+            except OSError as exc:
+                entry["error"] = str(exc)
+            else:
+                for i, taskdef in enumerate(found.tasks):
+                    entry["tasks"].append({"index": i, "name": taskdef.label(), "points": len(taskdef.points),
+                                           "total_m": round(Task(taskdef).total_m, 1)})
+                if not found.tasks:
+                    entry["error"] = "no tasks in this file"
+            files.append(entry)
+        current = None
+        if self.task is not None:
+            file, _, index = self.settings.computer_task.rpartition("#")
+            current = {"file": file, "index": int(index) if index.isdigit() else None}
+        self.tasks_rev += 1
+        self._tasks_json = json.dumps({"rev": self.tasks_rev, "folder": self.tasks_folder or "",
+                                       "files": files, "current": current}, separators=(",", ":"))
+
+    def _load_task(self, file, index, saved=False):
+        """Load task `index` of `file` (a name in the tasks folder, never a path). True if loaded."""
+        if file not in self._task_files():
+            self.log(f"Flight Computer: no task file {file!r} in {self.tasks_folder}")
+            return False
+        path = os.path.join(self.tasks_folder, file)
+        try:
+            found = cup.load(path)
+        except OSError as exc:
+            self.log(f"Flight Computer: could not read {path}: {exc}")
+            return False
+        for note in found.notes[:20]:
+            self.log(f"Flight Computer: {file}, {note}")
+        if not 0 <= index < len(found.tasks):
+            self.log(f"Flight Computer: {file} has no task {index}")
+            return False
+        task = Task(found.tasks[index], file)
+        self._set_task(task)
+        self.log(f"Flight Computer: task {task.name!r} from {file}: {len(task.points)} points, "
+                 f"{task.total_m / 1000.0:.1f} km")
+        if not saved:
+            self.settings.computer_task = f"{file}#{index}"
+            self.on_settings_changed()
+        return True
+
+    def _load_saved_task(self):
+        file, _, index = self.settings.computer_task.rpartition("#")
+        if not file or not index.isdigit() or not self._load_task(file, int(index), saved=True):
+            self.log(f"Flight Computer: the task saved ({self.settings.computer_task!r}) was not loaded")
+
+    def _set_task(self, task):
+        self.task = task
+        self.progress = Progress(task) if task is not None else None
+        self.task_rev += 1
+        self._task_json = task.to_json(self.task_rev) if task is not None else NO_TASK % self.task_rev
+        self._nav = None
+        self.nav_index = -1
+
     # --- the snapshot ---------------------------------------------------------------
 
     def snapshot(self):
@@ -348,13 +496,17 @@ class Computer:
         track_deg, gs_ms = track(getf(self._vx), getf(self._vz))
         wind_deg, wind_ms = wind_from(getf(self._wind_x), getf(self._wind_z))
         st = self.settings
+        lat, lon = xp.getDatad(self._lat), xp.getDatad(self._lon)
+        if self.progress is not None:
+            nav = self._nav = self.progress.nav(lat, lon)
+            self.nav_index, self.nav_dist_m, self.nav_bearing_deg = nav["index"], nav["dist_m"], nav["bearing_deg"]
         values = {
             "t": getf(self._time), "local_s": getf(self._local),
             "valid": vario.valid and not hud.failed,
             "units": st.hud_units,
             "view": st.computer_view,
             "poll_hz": self.poll_hz,
-            "lat": xp.getDatad(self._lat), "lon": xp.getDatad(self._lon),
+            "lat": lat, "lon": lon,
             "msl_m": xp.getDatad(self._elevation), "agl_m": getf(self._agl),
             "track_deg": track_deg, "heading_deg": getf(self._psi), "gs_ms": gs_ms,
             "ias_ms": getf(self._ias) * KT_TO_MS, "tas_ms": getf(self._tas),
@@ -366,6 +518,8 @@ class Computer:
             "wind_from_deg": wind_deg, "wind_ms": wind_ms,
             "top_m": hud.top_m if st.thermals_enabled else None,
             "track_n": self.track.count, "track_epoch": self.track.epoch,
+            "task_rev": self.task_rev, "tasks_rev": self.tasks_rev,
+            "nav": self._nav if self.progress is not None else None,
         }
         return snapshot_json(values)
 
@@ -379,6 +533,14 @@ class Computer:
     def on_state(self, windowID, json_str, refCon):
         self.requests += 1
         return self._state
+
+    def on_tasks(self, windowID, json_str, refCon):
+        self.requests += 1
+        return self._tasks_json
+
+    def on_task(self, windowID, json_str, refCon):
+        self.requests += 1
+        return self._task_json
 
     def on_track(self, windowID, json_str, refCon):
         """The points the page does not have: it says its epoch and the number of its next point."""
@@ -409,6 +571,15 @@ class Computer:
                 if self.settings.computer_view != request["view"]:
                     self.settings.computer_view = request["view"]
                     self.on_settings_changed()
+            elif cmd in TASK_ACTIONS:
+                action = {"cmd": cmd}
+                if cmd == "load_task":
+                    file, index = request.get("file"), request.get("index")
+                    if (not isinstance(file, str) or not isinstance(index, int) or isinstance(index, bool)
+                            or file not in self._task_files()):
+                        return '{"ok": false, "error": "no such task"}'
+                    action.update(file=file, index=index)
+                self._actions.append(action)  # done by the next tick, outside CEF's call
             elif cmd == "log":
                 self.log("Flight Computer page: " + str(request.get("text", ""))[:300])
             else:

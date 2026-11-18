@@ -201,7 +201,8 @@ def test_the_window_is_a_browser_with_its_functions_before_its_page(plugin):
     tick(pi)
     wid, window = the_window(xp)
     assert window["kw"]["contentType"] == "browser" and window["visible"] == 1
-    assert [name for name, _ in window["functions"]] == ["xpg_setup", "xpg_state", "xpg_track", "xpg_do"]
+    assert [name for name, _ in window["functions"]] == ["xpg_setup", "xpg_state", "xpg_track", "xpg_do",
+                                                         "xpg_tasks", "xpg_task"]
     assert window["url"].startswith("file:///") and window["url"].endswith("/xp_gliding/web/index.html")
     assert window["title"] == "XP-Gliding Flight Computer"
     assert dataref(xp, "computer/window") == 1
@@ -530,3 +531,153 @@ def test_the_test_pilot_can_write_the_track_to_a_file(plugin):
     assert dumped["n"] == len(dumped["points"]) == pi.computer.track.count
     t, lat, lon, msl = dumped["points"][0]
     assert lon == pytest.approx(-103.217) and dataref(xp, "computer/track_dump") == 0
+
+
+# --- tasks ------------------------------------------------------------------------------------
+
+START_LAT, START_LON = 32.6875, -103.217  # where the fake glider is, flying north (fly)
+
+
+def cup_angle(value, positive, negative, width):
+    hemisphere = positive if value >= 0 else negative
+    value = abs(value)
+    degrees = int(value)
+    return f"{degrees:0{width}d}{(value - degrees) * 60.0:06.3f}{hemisphere}"
+
+
+def write_tasks(tmp_path, name="short.cup"):
+    """A task straight ahead of the glider: its start line 300 m north, a turn point 2 km past
+    the start, the finish 4 km past it; with our default zones."""
+    folder = tmp_path / "Output" / "xp-gliding" / "tasks"
+    folder.mkdir(parents=True, exist_ok=True)
+    lines = ["name,code,country,lat,lon,elev,style"]
+    for label, north_m in (("Start", 300.0), ("Turn", 2300.0), ("Goal", 4300.0)):
+        lat = START_LAT + north_m / 111195.0
+        lines.append(f'"{label}",,,{cup_angle(lat, "N", "S", 2)},{cup_angle(START_LON, "E", "W", 3)},1000m,1')
+    lines += ["-----Related Tasks-----", '"Short","Start","Start","Turn","Goal","Goal"',
+              '"Other","Start","Start","Goal","Start"']
+    (folder / name).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (folder / "notes.txt").write_text("not a task file", encoding="utf-8")
+    return folder
+
+
+def state_of(window):
+    return json.loads(call(window, "xpg_state"))
+
+
+def test_the_picker_lists_the_task_files_and_loads_one(plugin, tmp_path):
+    pi, xp, data = plugin
+    write_tasks(tmp_path)
+    choose(xp, "Flight Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    before = state_of(window)
+    assert before["nav"] is None and before["task_rev"] == 0
+    assert json.loads(call(window, "xpg_do", {"cmd": "list_tasks"}))["ok"]
+    tick(pi), tick(pi)
+    listed = json.loads(call(window, "xpg_tasks"))
+    assert state_of(window)["tasks_rev"] == listed["rev"] > before["tasks_rev"]
+    (entry,) = listed["files"]
+    assert entry["file"] == "short.cup" and entry["error"] is None
+    assert [(t["index"], t["name"], t["points"]) for t in entry["tasks"]] == [(0, "Short", 3), (1, "Other", 2)]
+    assert entry["tasks"][0]["total_m"] == pytest.approx(4000.0, abs=5.0)
+    assert listed["current"] is None
+    assert json.loads(call(window, "xpg_do", {"cmd": "load_task", "file": "short.cup", "index": 0}))["ok"]
+    tick(pi), tick(pi)
+    task = json.loads(call(window, "xpg_task"))
+    assert task["name"] == "Short" and [p["role"] for p in task["points"]] == ["start", "point", "finish"]
+    assert task["points"][0]["zone"]["kind"] == "line"
+    state = state_of(window)
+    assert state["task_rev"] == task["rev"] and state["nav"]["name"] == "Start" and state["nav"]["index"] == 0
+    assert state["nav"]["dist_m"] == pytest.approx(300.0, abs=3.0)
+    assert saved(pi)["computer_task"] == "short.cup#0"
+    assert dataref(xp, "computer/nav_index") == 0
+    call(window, "xpg_do", {"cmd": "list_tasks"})
+    tick(pi)
+    assert json.loads(call(window, "xpg_tasks"))["current"] == {"file": "short.cup", "index": 0}
+
+
+def test_a_task_flown_takes_its_points_in_order(plugin, tmp_path, capsys):
+    pi, xp, data = plugin
+    write_tasks(tmp_path)
+    choose(xp, "Flight Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    call(window, "xpg_do", {"cmd": "load_task", "file": "short.cup", "index": 0})
+    tick(pi)
+    fly(pi, data, 20.0)  # 500 m: across the start line
+    assert dataref(xp, "computer/nav_index") == 1 and state_of(window)["nav"]["started"]
+    fly(pi, data, 60.0)  # 2 km on: inside the turn point's cylinder
+    assert dataref(xp, "computer/nav_index") == 2
+    fly(pi, data, 80.0)
+    nav = state_of(window)["nav"]
+    assert nav["finished"] and nav["task_left_m"] == 0.0 and nav["task_done"] == 1.0
+    out = capsys.readouterr().out
+    assert "start 'Start' taken (line)" in out and "point 1 'Turn' taken (zone)" in out
+    assert "finish 'Goal' taken (zone)" in out
+
+
+def test_points_by_hand_and_clearing_the_task(plugin, tmp_path):
+    pi, xp, data = plugin
+    write_tasks(tmp_path)
+    choose(xp, "Flight Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    call(window, "xpg_do", {"cmd": "load_task", "file": "short.cup", "index": 0})
+    tick(pi)
+    call(window, "xpg_do", {"cmd": "next_point"})
+    call(window, "xpg_do", {"cmd": "next_point"})
+    tick(pi), tick(pi)
+    assert state_of(window)["nav"]["name"] == "Goal"
+    call(window, "xpg_do", {"cmd": "prev_point"})
+    tick(pi), tick(pi)
+    assert state_of(window)["nav"]["name"] == "Turn"
+    rev = state_of(window)["task_rev"]
+    call(window, "xpg_do", {"cmd": "clear_task"})
+    tick(pi), tick(pi)
+    state = state_of(window)
+    assert state["nav"] is None and state["task_rev"] == rev + 1
+    assert json.loads(call(window, "xpg_task"))["name"] is None
+    assert saved(pi)["computer_task"] == "" and dataref(xp, "computer/nav_index") == -1
+
+
+def test_only_a_listed_file_and_a_task_in_it_can_be_loaded(plugin, tmp_path):
+    pi, xp, data = plugin
+    folder = write_tasks(tmp_path)
+    (folder.parent / "outside.cup").write_text((folder / "short.cup").read_text(), encoding="utf-8")
+    choose(xp, "Flight Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    for bad in ({"file": "../outside.cup", "index": 0}, {"file": "notes.txt", "index": 0},
+                {"file": "short.cup", "index": "0"}, {"file": "short.cup", "index": True},
+                {"file": "short.cup"}, {"file": None, "index": 0}):
+        assert not json.loads(call(window, "xpg_do", {"cmd": "load_task", **bad}))["ok"], bad
+    assert json.loads(call(window, "xpg_do", {"cmd": "load_task", "file": "short.cup", "index": 7}))["ok"]
+    tick(pi), tick(pi)
+    assert pi.computer.task is None and state_of(window)["task_rev"] == 0 and not pi.computer.failed
+
+
+def test_the_task_chosen_is_loaded_again_at_start(tmp_path, monkeypatch, capsys):
+    write_tasks(tmp_path)
+    pi, xp, data = start(tmp_path, monkeypatch, config={"computer_enabled": True, "hud_enabled": False,
+                                                         "computer_task": "short.cup#1"})
+    try:
+        assert pi.computer.task is not None and pi.computer.task.name == "Other"
+        assert "task 'Other' from short.cup: 2 points" in capsys.readouterr().out
+    finally:
+        pi.XPluginDisable()
+        pi.XPluginStop()
+
+
+def test_a_jump_does_not_take_the_start(plugin, tmp_path):
+    pi, xp, data = plugin
+    write_tasks(tmp_path)
+    choose(xp, "Flight Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    call(window, "xpg_do", {"cmd": "load_task", "file": "short.cup", "index": 0})
+    fly(pi, data, 1.0)
+    data["sim/flightmodel/position/latitude"] += 600.0 / 111195.0  # placed past the start line
+    pi.hud.reset_instruments()
+    fly(pi, data, 2.0)
+    assert dataref(xp, "computer/nav_index") == 0 and not state_of(window)["nav"]["started"]

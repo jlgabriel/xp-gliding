@@ -7,7 +7,8 @@
 // The page draws and computes nothing that matters. Once, it asks Python for its setup (the
 // map's tiles, xplane.xpg_setup); then for the state snapshot (xplane.xpg_state) at the rate the
 // snapshot gives (poll_hz), and for the track's new points (xplane.xpg_track) when the snapshot
-// says there are some. After every click it asks Python to give the keyboard back to the
+// says there are some; for the task's list and the task when the snapshot's tasks_rev and
+// task_rev change (task.js). After every click it asks Python to give the keyboard back to the
 // simulator (xplane.xpg_do release_keys), since X-Plane's browser keeps it after a click.
 // window.xplane may appear after these scripts run (first window after a cold start of X-Plane),
 // so the page waits for it. index.html?dev draws from dev/fake.js instead.
@@ -21,7 +22,7 @@ window.xpg = xpg;
   var WAIT_MS = 100;
   var DEV_AFTER_MS = 300;
   var SAY_WAITING_AFTER_MS = 2000;
-  var VIEWS = ["map", "flight"];
+  var VIEWS = ["map", "flight", "task"];
   var pollTimer = null;
   var pollHz = null;
   var asking = false;
@@ -38,12 +39,14 @@ window.xpg = xpg;
   function bridge() {
     return typeof window.xplane === "object" && window.xplane !== null ? window.xplane : null;
   }
+  xpg.bridge = bridge;
 
   function show(name) {
     if (VIEWS.indexOf(name) < 0 || name === view) return;
     view = name;
     document.body.setAttribute("data-view", name);
     if (name === "map") xpg.map.shown();
+    else if (name === "task") xpg.task.shown();
     else xpg.flight.fit();
   }
 
@@ -52,6 +55,7 @@ window.xpg = xpg;
     if (view === null) show(s.view || "map");
     xpg.flight.draw(s);
     xpg.map.draw(s);
+    xpg.task.draw(s);
     status(s.valid ? (view === "map" ? xpg.map.note() : "") : "waiting for the instruments");
     if (s.poll_hz !== pollHz) setRate(s.poll_hz);
     askTrack(xpg.map.trackWanted(s));

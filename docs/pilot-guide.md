@@ -73,7 +73,7 @@ A small panel on the left of the screen. The vario readings and the centring arr
 
 The other instrument, in place of the HUD: a window of its own that you can move and resize, with the same readings as the HUD, larger, and room for more to come. Choose it in *Plugins → XP-Gliding → Instrument*. It needs X-Plane 12.4.4 and XPPython3 4.8.0 or later, since its window is X-Plane's built-in browser; with anything earlier the menu greys it out and the HUD stays.
 
-A strip across the top always shows the total energy rate, with a bar whose half height is 5 m/s or 10 kt, the 30 s average and the altitude above sea level. Below it, two tabs choose the view, MAP or FLIGHT; the one you leave it on is the one it opens with. Beside the tabs is the simulator's local time, which stands still while X-Plane is paused.
+A strip across the top always shows the total energy rate, with a bar whose half height is 5 m/s or 10 kt, the 30 s average and the altitude above sea level. With a task loaded, a row under it names the point you are flying to, with an arrow showing which way to turn to it, its bearing and its distance (see [TASK](#task)). Below, three tabs choose the view, MAP, FLIGHT or TASK; the one you leave it on is the one it opens with. Beside the tabs is the simulator's local time, which stands still while X-Plane is paused.
 
 ### MAP
 
@@ -82,6 +82,8 @@ A topographic map, north up, with the glider on it, turned to its heading, and t
 The track keeps one point a second for the last six hours. It is recorded while the Flight Computer is the chosen instrument, whether its window is open or not, and starts again when the glider jumps: a new flight, a move on X-Plane's map, *Put me near a cloud*, a change of time.
 
 The map's tiles come from the internet, from [OpenTopoMap](https://opentopomap.org/) by default: map data © OpenStreetMap contributors and SRTM, map style © OpenTopoMap (CC-BY-SA), as the text in the map's corner says. X-Plane's browser keeps the tiles it has shown on disk, so an area you have flown over shows again without a download. Only the tiles you look at are fetched, never an area in advance. Without a network the map is a dark background with a grid of latitude and longitude, and the glider and the track draw on it as usual; the line under the window then says the tiles are not loading.
+
+With a task loaded, the map draws its legs in magenta, each point with its name and its observation zone: a cylinder, a sector or a line. The zone of the point you are flying to is drawn stronger, and a dashed yellow line joins the glider to its point. When you choose a task, the map shows it whole and stops following until you press the follow button.
 
 Another tile server can be set in `Output/xp-gliding/config.json` with X-Plane closed: `map_tiles` is the tiles' address with `{z}`, `{x}` and `{y}` in it (and `{s}` for servers named a, b and c), and `map_attribution` the text the provider asks to be shown with them. Use a provider whose terms allow it.
 
@@ -101,6 +103,23 @@ The readings the strip does not show:
 The numbers grow and shrink with the window, so a small window in a corner still reads well.
 
 The readings are the HUD's own: the two instruments never disagree. Like the HUD, they use only what a glider could sense. *Units* in the menu sets both.
+
+### TASK
+
+A task from a SeeYou CUP file, to fly without leaving X-Plane. Put CUP files in `Output/xp-gliding/tasks/` in your X-Plane folder (the plugin makes the folder on its first start). Open the TASK tab: it lists each file and the tasks in it, with their length; press one to load it. ↻ reads the folder again, so a file you add while flying shows at once. The task you load is kept and loaded again at the next start, from its beginning.
+
+A CUP file can hold waypoints only, with no task: turn point files for a site or a competition are often like that. Such a file is listed with "no tasks in this file". Make the task in SeeYou (or another program that writes CUP files with tasks) from those waypoints and save it, then put that file in the folder.
+
+The TASK tab shows the task's points, each with the length of the leg to it; the point you are flying to is in yellow and those behind you are dimmed, and once started, the distance left and the share done. Each point is taken by itself as you fly:
+
+- **the start** when you leave its zone, or cross its line going the way of the first leg; crossing it again before the first turn point starts the task again;
+- **each turn point and the finish** when you enter their zones.
+
+*Prev* and *Next* step back and forward by hand, for a point you want to skip or one taken by mistake; *Clear* unloads the task. A move on X-Plane's map, *Put me near a cloud* or a new flight does not take any point or cross any line.
+
+The zones are those the file gives (`ObsZone` lines). A point the file gives no zone gets the plugin's: a start line 2 km long across the first leg, and a 500 m cylinder at each turn point and at the finish. The task is shown and followed, not scored: start opening times, task times and assigned areas in the file are not used, and with several starts (`STARTS=`) only the task's own one is.
+
+Distances are in km, or nautical miles with *Units* set to aviation. Bearings and distances are worked out on a sphere, as soaring instruments show them, within about 0.5 % of the true distance.
 
 Where you leave the window, and its size, are kept for the next session. Its close box closes the Flight Computer (choose it again in the menu to bring it back). It stays inside X-Plane's window: its pop-out button puts it back at once, because X-Plane 12.4.4 draws a popped-out browser window wrong (a corner of the page, enlarged). A click in the window leaves the keyboard with X-Plane, so your keys and their commands work as before.
 

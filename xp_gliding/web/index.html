@@ -25,9 +25,15 @@
   <div class="cell"><span class="label">AVG 30 s</span><div class="reading"><span class="value avg" id="strip-avg">--</span><span class="unit" data-unit="climb"></span></div></div>
   <div class="cell"><span class="label">ALT</span><div class="reading"><span class="value" id="strip-alt">--</span><span class="unit" data-unit="height"></span></div></div>
 </header>
+<!-- The point flown to, with a task loaded (task.js): which way to turn, its bearing and distance. -->
+<div id="navrow">
+  <svg class="arrow" id="nav-arrow" viewBox="-10 -10 20 20" aria-hidden="true"><path d="M0,-8 L4,1 L1,1 L1,8 L-1,8 L-1,1 L-4,1 Z"/></svg>
+  <span id="nav-role"></span><span id="nav-name"></span><span id="nav-bearing"></span><span id="nav-dist"></span>
+</div>
 <nav id="tabs">
   <button type="button" data-view="map">MAP</button>
   <button type="button" data-view="flight">FLIGHT</button>
+  <button type="button" data-view="task">TASK</button>
   <span id="clock" title="Local time in the simulator">--:--</span>
 </nav>
 <!-- MAP: Leaflet draws in it (map.js). -->
@@ -48,11 +54,29 @@
     </div>
   </section>
 </main>
+<!-- TASK: the task loaded and the picker (task.js). -->
+<main id="task" class="view">
+  <section class="panel">
+    <div class="head"><span id="task-name">No task loaded</span><span id="task-total"></span></div>
+    <ol id="task-points"></ol>
+    <div id="task-buttons">
+      <button type="button" data-cmd="prev_point" title="Back to the point before">&#9664; Prev</button>
+      <button type="button" data-cmd="next_point" title="On to the next point">Next &#9654;</button>
+      <button type="button" data-cmd="clear_task" title="No task">Clear</button>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="head"><span id="task-folder">tasks</span><button type="button" id="task-refresh" title="Read the folder again">&#8635;</button></div>
+    <div id="task-note"></div>
+    <div id="task-list"></div>
+  </section>
+</main>
 <footer id="status">starting</footer>
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="format.js"></script>
 <script src="flight.js"></script>
 <script src="map.js"></script>
+<script src="task.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

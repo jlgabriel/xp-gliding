@@ -55,6 +55,8 @@ DEFAULTS = {
     "computer_enabled": False,
     "computer_window": [],  # [left, top, right, bottom] in X-Plane's global coordinates; [] for the default place
     "computer_view": "map",  # the view shown, a name in COMPUTER_VIEWS
+    # The task loaded: "file.cup#n", task n (from 0) of a CUP file in Output/xp-gliding/tasks/; "" for none.
+    "computer_task": "",
     # The map's tiles: a URL with {z}, {x} and {y} (and {s} for the servers a, b, c), and the text
     # that must be shown with them. OpenTopoMap's by default: OpenStreetMap's data, CC-BY-SA style.
     "map_tiles": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
@@ -85,7 +87,7 @@ LIMITS = {
 
 # The settings that take one of a few names. Another name is left out.
 UNIT_NAMES = ("metric", "aviation")
-COMPUTER_VIEWS = ("map", "flight")  # THERMAL joins with its stage
+COMPUTER_VIEWS = ("map", "flight", "task")  # THERMAL joins with its stage
 NAMES = {"sky": tuple(SKIES), "hud_units": UNIT_NAMES, "computer_view": COMPUTER_VIEWS}
 WINDOW_LIMIT = 100000  # no coordinate of a saved window is further out than this (pop-out windows go to 100000)
 
