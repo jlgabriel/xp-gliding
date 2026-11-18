@@ -34,7 +34,8 @@ place to the track, which keeps one point a second of simulator time (none pause
 and starts the track again when the HUD's instruments start again: a jump or a new flight. With a
 task loaded it gives the place to the task's progress too (`nav/task.py`) five times a second, which
 takes each point as its zone is reached; a jump makes the progress forget the last place, so no
-line is crossed by it nor zone entered. The task chosen is kept in the settings (`computer_task`,
+line is crossed by it nor zone entered. A jump it is not told of, such as a short move on X-Plane's
+map, the progress sees by itself from the speed between two places (`nav.task.Progress.update`). The task chosen is kept in the settings (`computer_task`,
 "file.cup#n", and `computer_task_key`, `nav.task.task_key`) and loaded again at start, its progress
 from the start. A file may be edited after the choice: the number is trusted only while the key
 matches, else the task with that key is loaded, and with none nothing is (the pilot picks again).
@@ -88,6 +89,7 @@ DO_VIEWS = ("map", "flight", "task")  # what "set view" accepts: the built views
 MAX_ZOOM = 17  # the map's closest zoom: OpenTopoMap's last level
 TASK_ACTIONS = ("list_tasks", "load_task", "clear_task", "next_point", "prev_point")
 NO_TASK = '{"rev":%d,"name":null}'
+GONE_NOTE = "That task is no longer in its file as listed: pick it again."
 
 
 def browser_available():
@@ -385,7 +387,7 @@ class Computer:
         lat, lon = xp.getDatad(self._lat), xp.getDatad(self._lon)
         if due:
             self.track.add(t, lat, lon, xp.getDatad(self._elevation))
-        if progress is not None and progress.update(lat, lon):
+        if progress is not None and progress.update(lat, lon, t):
             self._log_taken()
 
     def _dump_track(self):
@@ -415,10 +417,11 @@ class Computer:
         for action in actions:
             cmd = action["cmd"]
             if cmd == "list_tasks":
+                self._list_note = action.get("note", "")
                 self._list_tasks()
             elif cmd == "load_task":
                 if not self._load_task(action["file"], action["index"], action["key"]):
-                    self._list_note = "That task is no longer in its file as listed: pick it again."
+                    self._list_note = GONE_NOTE
                 self._list_tasks()
             elif cmd == "clear_task":
                 if self.task is not None:
@@ -601,8 +604,10 @@ class Computer:
                 if cmd == "load_task":
                     file, index, key = request.get("file"), request.get("index"), request.get("key")
                     if (not isinstance(file, str) or not isinstance(index, int) or isinstance(index, bool)
-                            or not isinstance(key, str) or not key or len(key) > 64
-                            or file not in self._task_files()):
+                            or not isinstance(key, str) or not key or len(key) > 64):
+                        return '{"ok": false, "error": "no such task"}'
+                    if file not in self._task_files():  # removed or renamed since the list was made
+                        self._actions.append({"cmd": "list_tasks", "note": GONE_NOTE})
                         return '{"ok": false, "error": "no such task"}'
                     action.update(file=file, index=index, key=key)
                 self._actions.append(action)  # done by the next tick, outside CEF's call

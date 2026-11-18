@@ -247,6 +247,50 @@ def test_a_point_taken_inside_the_next_zone_takes_that_too():
     assert [i for i, _ in taken] == [0, 1, 2] and p.active == 3
 
 
+def test_a_short_jump_no_one_reported_takes_nothing():
+    # Placed 1.8 km on X-Plane's map, too little for the adapter's jump test: the speed shows it.
+    task = triangle()
+    t1 = (task.points[1].lat, task.points[1].lon)
+    p = Progress(task)
+    p.step(1)  # flying to T1
+    t = 0.0
+    for metres in (2600.0, 2575.0, 2550.0):  # flying towards T1 at 125 m/s at most, 5 times a second
+        t += 0.2
+        assert not p.update(*at(t1, 180.0, metres), t)
+    for metres in (750.0, 400.0):  # a jump, then a sample inside: not taken, not even after it
+        t += 0.2
+        assert not p.update(*at(t1, 180.0, metres), t)
+    assert p.active == 1
+    t += 0.2
+    assert not p.update(*at(t1, 180.0, 395.0), t)  # flying again, inside: still not an entry
+    assert not p.update(*at(t1, 180.0, 380.0), t - 1.0)  # the clock gone back: a jump too
+    assert p.active == 1
+    t = 100.0  # flown out and back in, in flight
+    for metres in (450.0, 490.0, 510.0, 530.0, 510.0, 490.0):
+        t += 0.2
+        p.update(*at(t1, 180.0, metres), t)
+    assert p.active == 2
+
+
+def test_a_line_crossed_while_another_point_was_flown_to_is_not_crossed_after_next():
+    task = triangle({3: cup.ZoneSpec(style=3, r1_m=1000.0, line=True)})  # the finish a line
+    p = Progress(task)
+    p.step(1), p.step(1), p.step(1)  # flying to the finish
+    t2 = (task.points[2].lat, task.points[2].lon)
+    finish_axis = task.zones[3].axis  # beyond the finish, away from T2
+    before = at(HOME, finish_axis + 180.0, 300.0)
+    beyond = at(HOME, finish_axis, 300.0)
+    p.update(*before)  # the finish line remembers this side
+    p.step(-1)  # back to T2
+    p.update(*beyond)  # across the line while flying to T2: the finish is not looked at
+    p.step(1)  # the finish again, from beyond the line
+    p.update(*at(HOME, finish_axis, 350.0))
+    assert not p.finished
+    fly(p, [beyond, at(HOME, finish_axis + 180.0, 500.0), beyond])  # back and across: now it counts
+    assert p.finished
+    assert angle_between(bearing_deg(*HOME, *t2), finish_axis + 180.0) < 0.1
+
+
 def test_a_task_key_tells_tasks_of_the_same_name_apart():
     s, t, u = wp("S", *HOME), wp("T", *at(HOME, 0.0, 10000.0)), wp("U", *at(HOME, 90.0, 10000.0))
     north = cup.TaskDef("Same", None, [s, t, s], None)
@@ -254,6 +298,10 @@ def test_a_task_key_tells_tasks_of_the_same_name_apart():
     assert task_key(north) != task_key(east)
     assert task_key(north) == task_key(cup.TaskDef("Same", None, [s, t, s], None))
     assert task_key(north) != task_key(cup.TaskDef("Other", None, [s, t, s], None))
+    narrow = cup.TaskDef("Same", None, [s, t, s], None, {2: cup.ZoneSpec(style=3, r1_m=500.0, line=True)})
+    wide = cup.TaskDef("Same", None, [s, t, s], None, {2: cup.ZoneSpec(style=3, r1_m=2000.0, line=True)})
+    assert len({task_key(north), task_key(narrow), task_key(wide)}) == 3  # the same route, other zones
+    assert find_task([wide, narrow], 0, task_key(narrow)) == 1
     # Reordered in the file: the number chosen now names the other route, the key finds its own.
     assert find_task([east, north], 0, task_key(north)) == 1
     assert find_task([north, east], 0, task_key(north)) == 0

@@ -770,6 +770,43 @@ def test_a_jump_into_the_turn_points_zone_does_not_take_it(plugin, tmp_path):
     assert dataref(xp, "computer/nav_index") == 1 and state_of(window)["nav"]["in_zone"]
 
 
+def test_a_short_move_on_the_map_into_the_zone_does_not_take_it(plugin, tmp_path):
+    pi, xp, data = plugin
+    write_tasks(tmp_path)
+    choose(xp, "Flight Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    call(window, "xpg_do", load_request(tmp_path, 0))
+    fly(pi, data, 20.0)  # across the start line, 1.3 km short of the turn point's cylinder
+    assert dataref(xp, "computer/nav_index") == 1
+    resets = pi.hud.resets
+    data["sim/flightmodel/position/latitude"] = START_LAT + 2200.0 / 111195.0  # moved, nobody told
+    fly(pi, data, 2.0)
+    assert pi.hud.resets == resets  # the adapter's own jump test did not see it
+    assert dataref(xp, "computer/nav_index") == 1 and state_of(window)["nav"]["in_zone"]
+
+
+def test_a_file_gone_since_the_list_was_made_makes_the_list_again(plugin, tmp_path):
+    pi, xp, data = plugin
+    folder = write_tasks(tmp_path)
+    choose(xp, "Flight Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    call(window, "xpg_do", {"cmd": "list_tasks"})
+    tick(pi)
+    rev = json.loads(call(window, "xpg_tasks"))["rev"]
+    request = load_request(tmp_path, 0)
+    (folder / "short.cup").rename(folder / "renamed.cup")
+    assert not json.loads(call(window, "xpg_do", request))["ok"]
+    tick(pi)
+    listed = json.loads(call(window, "xpg_tasks"))
+    assert listed["rev"] > rev and [f["file"] for f in listed["files"]] == ["renamed.cup"]
+    assert "pick it again" in listed["note"] and pi.computer.task is None
+    call(window, "xpg_do", {"cmd": "list_tasks"})
+    tick(pi)
+    assert json.loads(call(window, "xpg_tasks"))["note"] == ""
+
+
 def test_a_jump_does_not_take_the_start(plugin, tmp_path):
     pi, xp, data = plugin
     write_tasks(tmp_path)

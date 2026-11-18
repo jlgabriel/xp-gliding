@@ -43,6 +43,7 @@ import json
 import math
 
 from .geodesy import bearing_deg, destination, distance_m
+from .track import JUMP_SPEED_MS
 
 DEFAULT_START = {"style": 2, "r1_m": 1000.0, "a1_deg": 180.0, "line": True}
 DEFAULT_POINT = {"style": 1, "r1_m": 500.0, "a1_deg": 180.0, "line": False}
@@ -144,11 +145,14 @@ def _ll(p):
 
 
 def task_key(taskdef):
-    """What a task is, short: its name and its task points' names and places. A file's tasks may
-    be reordered or edited between the pilot's choice and its loading, so a task is kept by its
-    file, its number and this, and the number is trusted only while this still matches."""
-    text = json.dumps([taskdef.label(), [[p.name, round(p.lat, 6), round(p.lon, 6)] for p in taskdef.points]],
-                      ensure_ascii=False, separators=(",", ":"))
+    """What a task is, short: its name, its task points' names and places, and the zones the file
+    gives them. A file's tasks may be reordered or edited between the pilot's choice and its
+    loading, so a task is kept by its file, its number and this, and the number is trusted only
+    while this still matches."""
+    zones = [[i, z.style, z.r1_m, z.a1_deg, z.r2_m, z.a2_deg, z.a12_deg, bool(z.line)]
+             for i, z in sorted(taskdef.zones.items())]
+    text = json.dumps([taskdef.label(), [[p.name, round(p.lat, 6), round(p.lon, 6)] for p in taskdef.points],
+                       zones], ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
 
 
@@ -282,14 +286,25 @@ class Progress:
         # step by hand: the next place only sets it); False after a point taken, so being inside
         # the next zone already takes it.
         self._point_in = False
+        self._last = None  # (t, lat, lon) of the last place given with its time
 
     def forget_place(self):
         self._lines = {}
         self._in = None
         self._point_in = None
 
-    def update(self, lat, lon):
-        """Look at a new place; True if a point was taken."""
+    def update(self, lat, lon, t=None):
+        """Look at a new place, at simulator time `t` (seconds); True if a point was taken. A place
+        reached from the last faster than a glider flies (`track.JUMP_SPEED_MS`), or with the clock
+        gone back, is a jump the adapter did not see (a short move on X-Plane's map): the last place
+        is forgotten first."""
+        if t is not None:
+            last, self._last = self._last, (t, lat, lon)
+            if last is not None:
+                dt = t - last[0]
+                d = distance_m(last[1], last[2], lat, lon)
+                if dt < 0.0 or d > JUMP_SPEED_MS * max(dt, 0.0) + 1.0:
+                    self.forget_place()
         here = (lat, lon)
         changed = False
         if self.active <= 1 and not self.finished:
@@ -320,6 +335,7 @@ class Progress:
         self.active = 1
         self._in = None
         self._point_in = False
+        self._lines.pop(1, None)
         self.taken.append((0, "line" if zone.line else "zone"))
         return True
 
@@ -340,6 +356,7 @@ class Progress:
             self.finished = True
         else:
             self.active = index + 1
+            self._lines.pop(self.active, None)  # its line starts from the next place
         return True
 
     def step(self, delta):
@@ -361,6 +378,7 @@ class Progress:
             self.started = self.active > 0
         self._in = None
         self._point_in = None
+        self._lines = {}  # a line's last place may be from before the step: it crosses nothing
         self.taken.append((self.active, "hand"))
 
     def nav(self, lat, lon):
