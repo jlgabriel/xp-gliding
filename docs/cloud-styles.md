@@ -19,9 +19,9 @@ The plugin comes with six styles, in `xp_gliding/assets/clouds/`:
 - *Billow (rendered heaps)*: another way of drawing a cloud. Each particle is a whole heap of cumulus, rendered in Blender as a lit volume, with sunlit bulges, grey creases, a shaded underside and soft edges that fray into loose tufts, so a cloud is 34 large particles instead of many small puffs. Made by `tools/cloud_render/`.
 - *Billow light (lighter, softer edges)*, the default since 1.1.1: *Billow* with lighter shade and a wider fringe.
 
-![The same stretch of sky over Santiago, Chile, drawn in each of the first four styles: Standard, Cotton, Cauliflower and Popcorn](images/cloud-styles.jpg)
+![The same stretch of sky over Santiago, Chile, drawn in each of the six styles: Billow light and Billow, then Standard and Cotton, then Cauliflower and Popcorn](images/cloud-styles.jpg)
 
-The four views, from before the two *Billow* styles, were taken a minute apart from a glider circling in one thermal, in X-Plane 12.4.3, so the clouds themselves moved on a little between them.
+The six views were taken in X-Plane 12.4.4 from six identical flights, one per style: the same air start over Tobalaba at 14:00 on 2 November, flying north-west, each view 70 s after the start. The same seed, date, place and time give the same thermals, so the clouds stand in the same places in every view and only the style changes. The particles are scattered afresh each time, so the details of each cloud differ a little.
 
 All six are drawn at about the same size over the same thermals. A style of your own with the same folder name as one of the plugin's is left out.
 

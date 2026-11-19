@@ -13,11 +13,13 @@ https://github.com/jlgabriel/xp-gliding/blob/main/docs/pilot-guide.md
 WHAT YOU NEED
 -------------
 
-- X-Plane 12 (tried on 12.4.3, Windows 11).
+- X-Plane 12 (tried on 12.4.3 and 12.4.4, Windows 11).
 - XPPython3, the plugin that runs Python plugins in X-Plane:
   https://xppython3.readthedocs.io/
   Install it and start X-Plane once, so that it creates the folder
   X-Plane 12/Resources/plugins/PythonPlugins/
+  The Flight Computer needs X-Plane 12.4.4 and XPPython3 4.8.0 or later;
+  everything else works with earlier versions too.
 - A glider. The Laminar ASK 21 that comes with X-Plane is the reference.
 
 
@@ -78,21 +80,35 @@ THE MENU (Plugins > XP-Gliding)
 -------------------------------
 
 - Enabled: the plugin on or off.
+- Sharper thermal edges (experiment): a jolt into and out of lift, bumps at
+  the edge, a ring of sink, more sink between thermals. Off by default.
 - Daily cycle: the thermals follow the sun, and are low in the morning. Off:
   the same strength and depth all day.
+- Good and bad areas: more and stronger thermals in some areas, fewer and
+  weaker in others, so where you fly matters. Off by default.
 - Training markers: show where the thermals are.
-- Sharper thermal edges (experiment): a jolt into and out of lift, bumps at
-  the edge, a ring of sink, more sink between thermals. On by default.
-- Cumulus clouds, Soaring HUD: turn each off if you like.
+- Cumulus clouds: turn them off if you like.
+- X-Plane's audio vario: X-Plane's own audio vario, for gliders without an
+  AUDIO switch on the panel.
 - Treat this aircraft as a glider: for a motor glider, remembered by its file.
 - Put me near a cloud: start flying 1.5 km from a cloud, heading for it.
+- Instrument: the Soaring HUD (the default), the Flight Computer or none.
+  The Flight Computer is a window with a map of your track, larger readings
+  and SeeYou CUP tasks: put CUP files in X-Plane 12/Output/xp-gliding/tasks/
+  and choose a task in its TASK tab.
 - Day: a whole day at once: Easy, Typical, Demanding, Weak and low, or Blue
   (the same thermals, no clouds to read). The items below set one thing each.
 - Sky: wide thermals (the default, easiest), medium, or narrow (hardest).
 - Strength of the day, Depth of the thermal layer: stronger or weaker
   thermals (at the best time of the day), higher or lower clouds.
 - Seed of the sky: another arrangement of thermals.
-- Units on the HUD: metric (m/s and m) or aviation (knots and feet).
+- Units: metric (m/s, m and km/h) or aviation (knots, feet and nautical
+  miles), for both instruments.
+- Cloud style: how the clouds look, like a livery. Billow light is the
+  default; your own styles go in xp-gliding-cloud-styles.
+- Hotspot flight: thermals only where a file of hotspots from
+  thermal.kk7.ch says pilots find them. Put the file in
+  X-Plane 12/Output/xp-gliding/hotspots/ and restart X-Plane.
 - Cloud base from X-Plane's weather (experiment): the clouds' height from the
   weather you fly, in place of the depth.
 - Items marked (experiment) are off by default. The two about the wind are

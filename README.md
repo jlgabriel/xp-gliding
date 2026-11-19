@@ -4,7 +4,7 @@ A thermal soaring plugin for X-Plane 12: thermals you can find by reading the cl
 
 It is an independent take on thermals, offered as another option for soaring in X-Plane 12. The weather, the wind, the ridge lift and the flight model stay X-Plane's, and the plugin brings thermals tied to clouds of their own.
 
-![A Laminar ASK 21 seen from below, circling under the cumulus that marks its thermal, with more cumulus over the hills of Santiago, Chile. The soaring HUD is on the left](docs/images/circling-under-its-cloud.jpg)
+![A Laminar ASK 21 seen from below, circling under the cumulus that marks its thermal, with more cumulus over the hills of Santiago, Chile. The soaring HUD on the left reads +1.4 m/s](docs/images/circling-under-its-cloud.jpg)
 
 > **Version 2.0.1.** Its limits are stated in the guide. Download it from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and follow the [pilot guide](docs/pilot-guide.md) to install it: it needs only X-Plane 12 and [XPPython3](https://xppython3.readthedocs.io/).
 
@@ -24,6 +24,8 @@ It is an independent take on thermals, offered as another option for soaring in 
 - **A hotspot flight:** a file of hotspots from [thermal.kk7.ch](https://thermal.kk7.ch/) in place of the plugin's own sky, so the thermals are where pilots find them at that site, and nowhere else.
 - **Put me near a cloud:** from the menu, the glider starts flying towards a cloud, with no tow.
 - **Optional training markers** showing where the thermals are.
+
+![The Flight Computer's window in the top left corner of X-Plane, its map showing the circle just flown, while the ASK 21 climbs at +1.4 m/s under a cumulus over Santiago, Chile, on the first leg of a task](docs/images/flight-computer.jpg)
 
 ## Where it is going
 

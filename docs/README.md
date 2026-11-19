@@ -4,7 +4,7 @@ XP-Gliding's current version is 2.0.1. This documentation is growing with it, an
 
 ## Flying it
 
-- [Pilot guide](pilot-guide.md): installing the plugin, a first flight, reading the sky, the HUD, the menu and the known limits.
+- [Pilot guide](pilot-guide.md): installing the plugin, a first flight, reading the sky, the HUD, the Flight Computer and its tasks, the menu, the hotspot flight and the known limits.
 - [Cloud styles](cloud-styles.md): choosing how the clouds look, installing a style, and making your own.
 
 ## How it works

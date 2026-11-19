@@ -2,7 +2,7 @@
 
 How to install XP-Gliding, make a first flight and read its sky. This guide is for version 2.0.1. Its known limits are listed at the end.
 
-![A Laminar ASK 21 banked in a climbing turn over Santiago, Chile, with small cumulus around it and hills beyond. The HUD on the left reads +2.3 m/s](images/climbing-among-cumulus.jpg)
+![A Laminar ASK 21 banked in a climbing turn over Santiago, Chile, with cumulus over the foothills of the Andes beyond. The HUD on the left reads +1.5 m/s](images/climbing-among-cumulus.jpg)
 
 ## What you need
 
@@ -33,13 +33,13 @@ The plugin comes ready to fly: no file to edit, and nothing to set in X-Plane's 
 6. **Circle where the lift is.** When the vario goes up, turn. A bank of 28–35° at 90–95 km/h has worked in the ASK 21, flown by hand in X-Plane 12.4.3. Steeper turns cost a lot of climb in this glider.
 7. **Listen, if you like.** The AUDIO switch on the ASK 21's panel turns on X-Plane's own audio vario, which hears the plugin's thermals. In a glider with no such switch, choose *Plugins → XP-Gliding → X-Plane's audio vario*.
 
-![Training markers around an ASK 21: a red ring at the glider's height with its column rising to the cloud, for a thermal of 4 m/s or more at its core, and a pale column farther off for a weaker one](images/training-markers.jpg)
+![Training markers around an ASK 21 circling over Santiago, Chile: on the right a yellow column, for a thermal of 2 to 3 m/s at its core, with its ring at the glider's height seen edge on, and a red one behind it for 4 m/s or more; in the middle a thinner yellow one farther off](images/training-markers.jpg)
 
 In calm air the sky is the same every time for the same place, date, time and seed, so a good thermal can be found again. With wind the sky drifts from where it stood when the flight began, so the same thermal turns up over different ground.
 
 ## Reading the sky
 
-![The view ahead from a glider over the hills of Santiago, Chile: a few separate cumulus, each over a thermal, with blue sky between them and more cumulus in the distance](images/clouds-ahead.jpg)
+![The view ahead from a glider over Santiago, Chile: a few separate cumulus, each over a thermal, with blue sky between them and more cumulus in the distance. The HUD is on the left](images/clouds-ahead.jpg)
 
 - **A cloud means a thermal.** Each of the plugin's clouds sits over a thermal. A few thermals have no cloud, and they are weaker.
 - **Clouds are born with their thermal and outlive it.** A thermal lives between 5 and 30 minutes, growing and then fading, and never vanishes at once. A full cloud has a thermal at its best. A cloud that thins has a thermal that is weakening, and it stays a few minutes after its thermal has died, fading. A thin cloud may have nothing left under it.
@@ -57,7 +57,7 @@ In calm air the sky is the same every time for the same place, date, time and se
 
 A small panel on the left of the screen. The vario readings and the centring arrow use only what a real glider could sense, not the plugin's knowledge of where the thermals are.
 
-![The soaring HUD in a climb: +2.3 large in amber, NET +3.5 in green, AVG +0.3, THM +0.3, TOP +507 m, WIND calm, the tape on the left and the centring arrow at the bottom](images/hud.png)
+![The soaring HUD in a climb: +2.7 large in amber, NET +3.9 in green, AVG +0.6, THM +0.5, TOP +476 m, WIND calm, the tape on the left and the centring arrow at the bottom](images/hud.png)
 
 | Item | What it shows |
 | --- | --- |
@@ -73,11 +73,15 @@ A small panel on the left of the screen. The vario readings and the centring arr
 
 The other instrument, in place of the HUD: a window of its own that you can move and resize, with the same readings as the HUD, larger, and room for more to come. Choose it in *Plugins → XP-Gliding → Instrument*. It needs X-Plane 12.4.4 and XPPython3 4.8.0 or later, since its window is X-Plane's built-in browser; with anything earlier the menu greys it out and the HUD stays.
 
+![The Flight Computer in X-Plane: its window in the top left corner, the map showing the circle just flown, while the ASK 21 climbs at +1.4 m/s under a cumulus on the first leg of a task](images/flight-computer.jpg)
+
 A strip across the top always shows the total energy rate, with a bar whose half height is 5 m/s or 10 kt, the 30 s average and the altitude above sea level. With a task loaded, a row under it names the point you are flying to, with an arrow showing which way to turn to it, its bearing and its distance (see [TASK](#task)). Below, three tabs choose the view, MAP, FLIGHT or TASK; the one you leave it on is the one it opens with. Beside the tabs is the simulator's local time, which stands still while X-Plane is paused.
 
 ### MAP
 
 A topographic map, north up, with the glider on it, turned to its heading, and the track you have flown, coloured by height: blue at the lowest of the flight, red at the highest. The legend under the zoom buttons gives the two heights; it widens by itself in steps of 100 m (300 m at least) as the flight goes higher or lower, and then the whole line takes its new colours. The map follows the glider: it moves at most once a second, in a small step, rather than gliding along all the time, which would cost X-Plane frames. Drag the map and it stops following; the round button at the top right brings it back. Under it, an arrow shows where the wind at the glider is blowing to, with its speed in knots. The + and − buttons, or the mouse wheel, zoom; the zoom you leave is kept. The scale at the bottom left is in km, or in nautical miles with *Units* set to aviation (feet below one mile).
+
+![The MAP view after a climb: the track spirals up over a racecourse in Santiago, blue at 1200 m through green and yellow to red at 1600 m, the glider leaves the circle on a dashed yellow line towards the first turn point, Chicureo, 15.2 km away, and the wind button reads calm](images/flight-computer-map.png)
 
 The track keeps one point a second for the last six hours. It is recorded while the Flight Computer is the chosen instrument, whether its window is open or not, and starts again when the glider jumps: a new flight, a move on X-Plane's map, *Put me near a cloud*, a change of time.
 
@@ -100,6 +104,8 @@ The readings the strip does not show:
 | `TOP` | Height up to the nearest thermal's cloud, as on the HUD; `--` with *Thermals* off |
 | `WIND` | Where the wind comes from and its speed in knots, with an arrow pointing where it goes, relative to the nose |
 
+![The FLIGHT view in a climb: total energy +1.2 m/s, NETTO +2.7 in green, THM 0.0, AGL 777 m, IAS 94 km/h, GS 103 km/h, TOP +568 m and WIND calm](images/flight-computer-flight.png)
+
 The numbers grow and shrink with the window, so a small window in a corner still reads well.
 
 The readings are the HUD's own: the two instruments never disagree. Like the HUD, they use only what a glider could sense. *Units* in the menu sets both.
@@ -109,6 +115,8 @@ The readings are the HUD's own: the two instruments never disagree. Like the HUD
 A task from a SeeYou CUP file, to fly without leaving X-Plane. Put CUP files in `Output/xp-gliding/tasks/` in your X-Plane folder (the plugin makes the folder on its first start). Open the TASK tab: it lists each file and the tasks in it, with their length; press one to load it. ↻ reads the folder again, so a file you add while flying shows at once. The task you load is kept and loaded again at the next start, from its beginning. If you edit the file in the meantime, the same task is found wherever it now is in the file; if it was changed or removed, nothing is loaded and you choose again.
 
 A CUP file can hold waypoints only, with no task: turn point files for a site or a competition are often like that. Such a file is listed with "no tasks in this file". Make the task in SeeYou (or another program that writes CUP files with tasks) from those waypoints and save it, then put that file in the folder.
+
+![Left, the TASK tab with a task of 89.3 km around Santiago: the start at Tobalaba taken and dimmed, the first turn point, Chicureo, in yellow, 12 % done and 78.9 km left, the Prev, Next and Clear buttons, and the tasks folder with its one file. Right, the same task on the map: magenta legs, the start cylinder at Tobalaba, the zone of Chicureo drawn stronger, and a dashed yellow line from the glider to it](images/flight-computer-task.png)
 
 The TASK tab shows the task's points, each with the length of the leg to it; the point you are flying to is in yellow and those behind you are dimmed, and once started, the distance left and the share done. Each point is taken by itself as you fly:
 
@@ -127,7 +135,7 @@ Where you leave the window, and its size, are kept for the next session. Its clo
 
 Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next session, and each switch is also a command you can bind to a key or a joystick button in X-Plane's keyboard or joystick settings.
 
-![The XP-Gliding menu with its default settings: the switches with a dot where they are on, then the submenus from Day to Hotspot flight, and the status line at the bottom](images/menu.png)
+![The XP-Gliding menu with its default settings: the switches with a dot where they are on, then the submenus from Instrument to Hotspot flight, with Instrument open and Soaring HUD ticked, and the status line at the bottom](images/menu.png)
 
 | Item | What it does | Command |
 | --- | --- | --- |
