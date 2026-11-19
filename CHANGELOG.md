@@ -2,6 +2,13 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## 2.0.2 — 2026-11-19
+
+Documentation only: the plugin works as in 2.0.1.
+
+- **The zip's `README.txt` is up to date.** It said *Sharper thermal edges* was on by default (it has been off since 1.1) and named items the menu no longer has. It now lists *Good and bad areas*, *X-Plane's audio vario*, *Instrument* with the Flight Computer and its tasks, *Units* for both instruments, *Cloud style* and *Hotspot flight*, and says the Flight Computer needs X-Plane 12.4.4 and XPPython3 4.8.0.
+- **New pictures in the documentation,** taken in X-Plane 12.4.4 with the default settings, so the clouds are *Billow light*. The pilot guide shows the Flight Computer in X-Plane and each of its views, MAP, FLIGHT and TASK, and the menu with its *Instrument* submenu. [Cloud styles](docs/cloud-styles.md) shows all six styles over the same sky.
+
 ## 2.0.1 — 2026-11-19
 
 - **The TASK tab lists your files when the Flight Computer opens on it.** If TASK was the tab you left open, the list could say there were no CUP files until you pressed ↻.
