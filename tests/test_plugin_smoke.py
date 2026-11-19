@@ -19,7 +19,7 @@ import pytest
 
 from xp_gliding.engine.areas import factors as area_factors
 from xp_gliding.engine.airstart import pick_cloud
-from xp_gliding.engine.clouds import SCALE_RANGE, carries_cloud, shade_keeps
+from xp_gliding.engine.clouds import SCALE_RANGE, carries_cloud, feeding_window, shade_keeps
 from xp_gliding.engine.field import sky_named
 from xp_gliding.engine.geo import LocalFrame
 
@@ -897,6 +897,18 @@ def test_the_dataref_moves_the_hud_between_panel_graphics_and_opengl(plugin, mon
     assert windows[3:] == ["destroyed 3", "panel"] and dataref(xp, "hud/panel_graphics") == 1
 
 
+def test_a_setting_written_through_its_dataref_is_kept_within_the_menus_limits(plugin):
+    pi, xp, data = plugin
+    assert dataref(xp, "zi_m", -500.0) == 1000.0
+    assert dataref(xp, "zi_m", 2500.0) == 2500.0
+    assert dataref(xp, "wstar_ms", 40.0) == 6.0
+    assert dataref(xp, "wstar_ms", float("nan")) == 6.0  # not a number: left as it was
+    assert dataref(xp, "thermals_enabled", 0) == 0 and pi.settings.thermals_enabled is False
+    assert dataref(xp, "thermals_enabled", 7) == 1 and pi.settings.thermals_enabled is True
+    dataref(xp, "debug/uniform_ms", 30.0)  # not a setting: as it comes
+    assert pi.injector.uniform_ms == 30.0
+
+
 def test_panel_graphics_polygons_are_wound_clockwise(plugin):
     pi, xp, data = plugin
     module = sys.modules[type(pi.hud).__module__]
@@ -1064,7 +1076,12 @@ def test_a_cloud_is_high_enough_for_the_hill_it_will_drift_into(plugin):
     data["sim/weather/aircraft/wind_now_x_msc"] = 10.0  # toward the east
     fill_sky(pi, data)
     upwind = {th: e[1] for th, e in pi.clouds.instances.items() if th.lon < start - 0.01}
-    downwind = {th: e[1] for th, e in pi.clouds.instances.items() if th.lon > end + 0.01}
+    # Downwind: formed past the hill. One already past it now that formed before it drifted over
+    # the hill keeps the height that cleared it: one height for its whole life.
+    params, drift = pi.clouds.planner.params, pi.injector.drift
+    formed_at = {th: drift.to_ground_at(th.lat, th.lon, feeding_window(th, params)[0])[1]
+                 for th in pi.clouds.instances}
+    downwind = {th: e[1] for th, e in pi.clouds.instances.items() if formed_at[th] > end + 0.01}
     assert any(b == pytest.approx(4300.0) for b in upwind.values())
     own = pi.clouds.heights.level_of  # each thermal's level, for the depth it was born with
     assert any(b == pytest.approx(own(th)) for th, b in upwind.items())

@@ -442,6 +442,40 @@ def test_the_heights_do_not_grow_without_end():
     assert len(heights._bases) <= MAX_BASES
 
 
+def drift_until(t, wind_e_ms=10.0, lat=-33.4):
+    """A sky carried by a steady wind from t 1000 (the thermal's birth) to t."""
+    drift = AirDrift()
+    k = 1000.0
+    while k <= t:
+        drift.advance(wind_e_ms, 0.0, lat, k)
+        k += 5.0
+    return drift
+
+
+def test_a_clouds_height_does_not_depend_on_when_it_is_first_asked_for():
+    # A ridge the cloud drifts over early in its life, between t 1300 and 1500: asked for later,
+    # once past it, the cloud must still clear it, or the same sky would differ by when it loaded.
+    th = cloud_thermal()
+    west = drift_until(1300.0).to_ground(th.lat, th.lon)[1]
+    east = drift_until(1500.0).to_ground(th.lat, th.lon)[1]
+    ridge = lambda lat, lon: 3000.0 if west <= lon <= east else 1000.0  # noqa: E731
+    early = heights_over(ridge).base_m(th, 1200.0, drift_until(1200.0))
+    late = heights_over(ridge).base_m(th, 2000.0, drift_until(2000.0))
+    assert early == late == pytest.approx(3300.0)
+
+
+def test_a_full_list_of_heights_forgets_the_clouds_gone_and_keeps_those_in_the_sky():
+    ground = Ground(2500.0)
+    heights = heights_over(ground)
+    live = cloud_thermal(birth=10000.0)
+    assert heights.base_m(live, 10500.0, AirDrift()) == 2800.0
+    for k in range(MAX_BASES):  # all gone from the sky by t 10500
+        heights.base_m(cloud_thermal(birth=float(k)), 10500.0, AirDrift())
+    assert len(heights._bases) < MAX_BASES
+    ground.height = 900.0  # had it been worked out again, the answer would change
+    assert heights.base_m(live, 10500.0, AirDrift()) == 2800.0
+
+
 def test_a_ground_not_loaded_is_counted_and_the_cloud_stays_at_the_level():
     heights = heights_over(lambda lat, lon: None)
     assert heights.base_m(cloud_thermal(), 1500.0, AirDrift()) == 2000.0

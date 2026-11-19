@@ -35,14 +35,14 @@ import time
 
 from ..engine.cloud_order import FAR, RING_SIZES, RingPool, ring_of
 from ..engine.clouds import (CLOUD_HALF_WIDTH_M, CREATE, DESTROY, RATE, CloudCatalog, CloudPlanner,
-                             carries_cloud, cloud_base_m, cloud_scale, cloud_seconds_left, ground_points,
-                             shade_keeps, shaded_scale)
+                             carries_cloud, cloud_base_m, cloud_scale, cloud_seconds_left, feeding_window,
+                             ground_points, shade_keeps, shaded_scale)
 
 PLAN_PERIOD_S = 5.0  # choosing the clouds, once the sky is complete
 FILLING_PLAN_PERIOD_S = 1.0  # and while it fills, or while new clouds are waiting their turn
 JUMP_S = 120.0  # a larger jump of the sim's clock than this: time was changed, start over
 MOVE_SLICES = 4  # in wind, updates to move every cloud once
-MAX_BASES = 5000  # past this many clouds' heights start over: those in use are worked out again
+MAX_BASES = 5000  # past this many clouds' heights, those of clouds gone from the sky are forgotten
 DATAREFS = ("xp_gliding/clouds/rate", "xp_gliding/clouds/scale")
 SHARE_STEP = 0.02  # a change of the shade's share that resizes the drawn clouds
 # Drawing order (engine/cloud_order.py).
@@ -91,8 +91,8 @@ class CloudHeights:
 
     The field and the catalog load the same thermal as two objects, at different times, so a
     cloud is known by (lat, lon, birth), and its base is worked out once: its lift ends with the
-    cloud that is drawn. It reads the ground the cloud will pass over, so only for a new thermal,
-    never per frame. A thermal with no cloud goes by the level.
+    cloud that is drawn. It reads the ground along the cloud's whole drift, so only for a new
+    thermal, never per frame. A thermal with no cloud goes by the level.
 
     With the daily cycle's depth (`Thermal.depth` under 1), a thermal's own level is lower than
     the sky's, which is the afternoon's: as much lower as its zi is shallower (`level_of`).
@@ -134,21 +134,35 @@ class CloudHeights:
         if not carries_cloud(thermal, self.params) or (self.blue is not None and self.blue(thermal)):
             return self.level_of(thermal)
         key = (thermal.lat, thermal.lon, thermal.birth)
-        base_m = self._bases.get(key)
-        if base_m is None:
-            t0 = time.perf_counter()
-            lat, lon = drift.to_ground(thermal.lat, thermal.lon)
-            points = ground_points(lat, lon, CLOUD_HALF_WIDTH_M * cloud_scale(thermal), drift.wind_e_ms,
-                                   drift.wind_n_ms, cloud_seconds_left(thermal, t, self.params))
-            grounds = [self.ground_m(*point) for point in points]
-            base_m = cloud_base_m(self.level_of(thermal), grounds)
-            self.misses += grounds.count(None)
-            if len(self._bases) >= MAX_BASES:
-                self._bases.clear()
-            self._bases[key] = base_m
-            self.base_us = (time.perf_counter() - t0) * 1e6
-            self.base_us_max = max(self.base_us_max, self.base_us)
+        known = self._bases.get(key)
+        if known is not None:
+            return known[0]
+        t0 = time.perf_counter()
+        # The whole drift, from where the cloud forms to where its last particles go, not from
+        # now: in a steady wind its height is then the same whenever it is first asked for.
+        start, _ = feeding_window(thermal, self.params)
+        lat, lon = drift.to_ground_at(thermal.lat, thermal.lon, start)
+        points = ground_points(lat, lon, CLOUD_HALF_WIDTH_M * cloud_scale(thermal), drift.wind_e_ms,
+                               drift.wind_n_ms, cloud_seconds_left(thermal, start, self.params))
+        grounds = [self.ground_m(*point) for point in points]
+        base_m = cloud_base_m(self.level_of(thermal), grounds)
+        self.misses += grounds.count(None)
+        if len(self._bases) >= MAX_BASES:
+            self._forget(t)
+        self._bases[key] = (base_m, start + cloud_seconds_left(thermal, start, self.params))
+        self.base_us = (time.perf_counter() - t0) * 1e6
+        self.base_us_max = max(self.base_us_max, self.base_us)
         return base_m
+
+    def _forget(self, t):
+        """Make room: the clouds gone from the sky first, then, only if that is not enough, the
+        oldest half. A cloud still in the sky keeps its height."""
+        gone = [key for key, (_, until) in self._bases.items() if until < t]
+        for key in gone:
+            del self._bases[key]
+        if len(self._bases) >= MAX_BASES:
+            for key in list(self._bases)[:MAX_BASES // 2]:
+                del self._bases[key]
 
     def floor_m(self, thermal, t, drift, base_zzi, zi):
         """Where this thermal's height starts (m MSL): its cloud's base is at base_zzi of its zi."""

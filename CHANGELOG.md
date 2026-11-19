@@ -9,6 +9,8 @@ What changes for a pilot in each version. Each release on [GitHub](https://githu
 
 - **Works in X-Plane 12.4.4.** Version 1.2 was flown in X-Plane 12.4.4 under Vulkan with nothing changed: the plugin starts, its clouds and HUD show, and a uniform lift of 2 m/s makes the ASK 21 climb 2.00 m/s faster than in still air, as in 12.4.3. Nothing to update.
 - **A lighter HUD.** With X-Plane 12.4.4 and XPPython3 4.8.0 or later, the HUD draws with Panel Graphics, X-Plane's newer 2D drawing. It looks the same, and costs about 33 µs a frame instead of about 0.3 ms. With an earlier X-Plane or XPPython3 it draws as before, and if Panel Graphics ever fails it goes back to the old way by itself and notes it in `XPPython3Log.txt`. XPPython3 updates from its own menu, *Plugins → XPPython3*, or from [its page](https://xppython3.readthedocs.io/).
+- **A cloud keeps one height, whenever it comes into view.** Each cloud's base clears the high ground along its whole drift, from when it forms. Before, a cloud that came into view after drifting past a hill could sit lower than the same cloud seen earlier, and after a very long flight a cloud's lift could end at another height from the cloud drawn.
+- **Settings written through datarefs keep the menu's limits.** Writing `xp_gliding/zi_m`, `xp_gliding/wstar_ms` or another setting from a script or another plugin now gets the same limits as the menu and `config.json`, so a zi of -500 m becomes 1000 m.
 
 ## 1.2 — 2026-11-15
 

@@ -68,8 +68,8 @@ import xp
 from .. import __version__
 from .aircraft import DEFAULT_GEOMETRY, read_acf_geometry
 from .computer import Computer
-from .config import (DAYS, INSTRUMENTS, MENU_CHOICES, choose_instrument, day_index, instrument_of,
-                     load_settings, save_settings)
+from .config import (DAYS, INSTRUMENTS, MENU_CHOICES, Settings, choose_instrument, day_index,
+                     instrument_of, load_settings, save_settings)
 from .core import AircraftState, Injection, Injector, NativeThermalGuard
 from ..engine.airstart import SPEED_MS, clouds_from, pick_cloud, place_near, start_height_m
 from ..engine.sun import SUN_MIN_DEG
@@ -270,10 +270,19 @@ def _read_int(refcon):
     return int(getattr(obj, attr))
 
 
+def _set(obj, attr, value):
+    """A setting goes through the same checks and limits as the menu's and config.json's; the
+    rest, the plugin's own state, is set as it comes."""
+    if isinstance(obj, Settings):
+        obj.update({attr: value})
+    else:
+        setattr(obj, attr, value)
+
+
 def _write_int(refcon, value):
     obj, attr = _resolve(refcon)
     old = getattr(obj, attr)
-    setattr(obj, attr, bool(value) if isinstance(old, bool) else int(value))
+    _set(obj, attr, bool(value) if isinstance(old, bool) else int(value))
 
 
 def _read_float(refcon):
@@ -285,7 +294,7 @@ def _write_float(refcon, value):
     obj, attr = _resolve(refcon)
     value = float(value)
     if math.isfinite(value):
-        setattr(obj, attr, value)
+        _set(obj, attr, value)
 
 
 class PythonInterface:
