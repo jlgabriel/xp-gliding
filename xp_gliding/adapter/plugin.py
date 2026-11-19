@@ -78,6 +78,7 @@ from .clouds import CumulusClouds
 from .hud import Hud
 from .markers import TrainingMarkers
 from ..engine.hotspots import find_files as hotspot_files_in, load as load_hotspots
+from ..nav.cup import add_examples as add_task_examples
 from .styles import FALLBACK_STYLE, OBJECT_FILE, OWN_FOLDER, find_styles, style_named
 from .xpio import SkyObjects, XPlaneIO
 
@@ -94,6 +95,8 @@ INSTRUMENT_TITLE = "Instrument"
 NORMAL_FLIGHT_LABEL = "None: a normal flight"
 PACKAGE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLOUD_STYLES = os.path.join(PACKAGE_DIR, "assets", "clouds")
+# CUP files put in an empty tasks folder, so that the Flight Computer has a task to fly at once.
+EXAMPLE_TASKS = os.path.join(PACKAGE_DIR, "assets", "tasks")
 # The pilot's cloud styles, beside the package in PythonPlugins/ (`styles.py`).
 OWN_STYLES = os.path.join(os.path.dirname(PACKAGE_DIR), OWN_FOLDER)
 AUDIO_LABEL = "X-Plane's audio vario"
@@ -543,11 +546,18 @@ class PythonInterface:
             self.next_slow = 0.0
 
     def make_tasks_folder(self):
-        """The Flight Computer's CUP files go in Output/xp-gliding/tasks/, made at start if missing."""
+        """The Flight Computer's CUP files go in Output/xp-gliding/tasks/, made at start if missing.
+        A folder without a CUP file gets the example tasks that come with the plugin."""
         try:
             os.makedirs(self.tasks_folder, exist_ok=True)
         except OSError as exc:
             print(f"{TAG} could not make {self.tasks_folder}: {exc}")
+            return
+        copied, error = add_task_examples(self.tasks_folder, EXAMPLE_TASKS)
+        if copied:
+            print(f"{TAG} example tasks put in {self.tasks_folder}: {', '.join(copied)}")
+        if error:
+            print(f"{TAG} could not copy an example task: {error}")
 
     # --- hotspot flight -------------------------------------------------------
 

@@ -90,6 +90,8 @@ def start(tmp_path, monkeypatch, browser=True, config=None):
         sys.modules.pop(mod, None)
     plugin_mod = importlib.import_module("xp_gliding.adapter.plugin")
     plugin_mod.OWN_STYLES = str(tmp_path / OWN_STYLES)
+    # The tasks folder holds only what a test writes: the example task is test_plugin_smoke's.
+    plugin_mod.EXAMPLE_TASKS = str(tmp_path / "no examples")
     pi = plugin_mod.PythonInterface()
     pi.XPluginStart()
     pi.XPluginEnable()

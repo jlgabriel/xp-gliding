@@ -43,6 +43,7 @@ def test_the_zip_brings_the_folder_for_the_pilots_cloud_styles(tmp_path):
         names = set(z.namelist())
         readme = z.read(f"{top}/{OWN_FOLDER}/README.txt").decode("utf-8")
     assert {f"{top}/PI_xp_gliding.py", f"{top}/xp_gliding/assets/clouds/standard/cumulus.obj",
+            f"{top}/xp_gliding/assets/tasks/santiago-short-triangle.cup",
             f"{top}/README.txt", f"{top}/LICENSE"} <= names
     # The Flight Computer's page: every file the page loads.
     assert {f"{top}/xp_gliding/web/{name}" for name in ("index.html", "app.css", "app.js", "format.js",

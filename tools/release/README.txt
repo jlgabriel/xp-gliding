@@ -95,7 +95,8 @@ THE MENU (Plugins > XP-Gliding)
 - Instrument: the Soaring HUD (the default), the Flight Computer or none.
   The Flight Computer is a window with a map of your track, larger readings
   and SeeYou CUP tasks: put CUP files in X-Plane 12/Output/xp-gliding/tasks/
-  and choose a task in its TASK tab.
+  and choose a task in its TASK tab. An empty folder gets an example task,
+  a 29.5 km triangle from Tobalaba, Santiago, Chile.
 - Day: a whole day at once: Easy, Typical, Demanding, Weak and low, or Blue
   (the same thermals, no clouds to read). The items below set one thing each.
 - Sky: wide thermals (the default, easiest), medium, or narrow (hardest).

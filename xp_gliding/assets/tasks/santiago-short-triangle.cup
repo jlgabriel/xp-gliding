@@ -1,0 +1,6 @@
+name,code,country,lat,lon,elev,style,rwdir,rwlen,rwwidth,freq,desc,userdata,pics
+"Tobalaba",SCTB,CL,3327.282S,07032.814W,650.0m,5,010,,,,"Airfield",,
+"Cerro Manquehue",MANQ,CL,3321.300S,07034.800W,1635.0m,7,,,,,"Summit",,
+"Cerro San Cristobal",SNCR,CL,3325.536S,07038.016W,880.0m,7,,,,,"Summit",,
+-----Related Tasks-----
+"Santiago short triangle","Tobalaba","Tobalaba","Cerro Manquehue","Cerro San Cristobal","Tobalaba","Tobalaba"

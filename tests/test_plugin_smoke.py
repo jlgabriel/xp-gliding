@@ -2773,6 +2773,25 @@ def test_the_next_style_after_one_that_failed_is_the_one_after_it(styled):
     assert drawn_from(xp) == {"xp-gliding-cloud-styles/soft"}
 
 
+# --- the example task (nav/cup.py add_examples) ---
+
+def test_a_first_start_puts_the_example_task_in_the_tasks_folder(capsys, plugin):
+    pi, xp, data = plugin
+    assert os.listdir(pi.tasks_folder) == ["santiago-short-triangle.cup"]
+    assert "example tasks put in" in capsys.readouterr().out
+
+
+def test_a_tasks_folder_with_the_pilots_own_file_gets_no_example(tmp_path, monkeypatch, capsys):
+    folder = tmp_path / "Output" / "xp-gliding" / "tasks"
+    folder.mkdir(parents=True)
+    (folder / "mine.cup").write_text("", encoding="utf-8")
+    run = run_plugin(tmp_path, monkeypatch)
+    pi, xp, data = next(run)
+    assert os.listdir(pi.tasks_folder) == ["mine.cup"]
+    assert "example tasks" not in capsys.readouterr().out
+    next(run, None)
+
+
 # --- the hotspot flight (engine/hotspots.py) ---
 
 HOBBS_HOTSPOTS = ("latitude degree WGS84,longitude degree WGS84,altitude in meters AMSL,thermal probability\n"

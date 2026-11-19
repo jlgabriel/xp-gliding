@@ -28,6 +28,7 @@ import csv
 import math
 import os
 import re
+import shutil
 
 TASKS_MARK = "-----related tasks-----"
 
@@ -179,6 +180,23 @@ def find_files(folder):
         return []
     found = [n for n in names if n.lower().endswith(".cup") and os.path.isfile(os.path.join(folder, n))]
     return sorted(found, key=str.lower)
+
+
+def add_examples(folder, examples):
+    """Copy the CUP files of `examples` into `folder` when it holds none, so that a first start
+    has a task to fly. A folder that has a file of its own is left as it is, so an example the
+    pilot removed comes back only if every file goes. Returns (the names copied, the last error
+    or None): a file that cannot be copied is skipped."""
+    if find_files(folder):
+        return [], None
+    copied, error = [], None
+    for name in find_files(examples):
+        try:
+            shutil.copyfile(os.path.join(examples, name), os.path.join(folder, name))
+            copied.append(name)
+        except OSError as exc:
+            error = str(exc)
+    return copied, error
 
 
 def parse(text):

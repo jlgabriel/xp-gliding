@@ -2,6 +2,10 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## Unreleased
+
+- **An example task to fly at once.** While `Output/xp-gliding/tasks/` holds no CUP file, the plugin puts `santiago-short-triangle.cup` in it when X-Plane starts: a 29.5 km triangle from Tobalaba airfield in Santiago, Chile, round Cerro Manquehue and Cerro San Cristóbal, with the default zones. Choose it in the Flight Computer's TASK tab. A folder with your own files is left as it is. How it works: [pilot guide](docs/pilot-guide.md#task).
+
 ## 2.0.2 — 2026-11-19
 
 Documentation only: the plugin works as in 2.0.1.

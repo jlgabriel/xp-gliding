@@ -1,9 +1,11 @@
 """CUP files (nav/cup.py): waypoints, tasks, zones, units, encodings and the ways real files bend
 the format. The files here are written for the tests; real ones stay out of the repository."""
 
+import os
+
 import pytest
 
-from xp_gliding.nav import cup
+from xp_gliding.nav import cup, geodesy
 
 HEADER = "name,code,country,lat,lon,elev,style,rwdir,rwlen,rwwidth,freq,desc,userdata,pics\n"
 
@@ -215,3 +217,42 @@ def test_find_files(tmp_path):
     (tmp_path / "dir.cup").mkdir()
     assert cup.find_files(str(tmp_path)) == ["A.CUP", "b.cup"]
     assert cup.find_files(str(tmp_path / "missing")) == []
+
+
+def test_examples_go_into_a_folder_without_cup_files_only(tmp_path):
+    examples = tmp_path / "examples"
+    examples.mkdir()
+    (examples / "home.cup").write_text("x", encoding="utf-8")
+    (examples / "readme.txt").write_text("not a task", encoding="utf-8")
+    tasks = tmp_path / "tasks"
+    tasks.mkdir()
+    (tasks / "notes.txt").write_text("", encoding="utf-8")
+    assert cup.add_examples(str(tasks), str(examples)) == (["home.cup"], None)
+    assert sorted(p.name for p in tasks.iterdir()) == ["home.cup", "notes.txt"]
+    # The pilot's own file in place of the example: nothing comes back.
+    (tasks / "home.cup").unlink()
+    (tasks / "mine.cup").write_text("y", encoding="utf-8")
+    assert cup.add_examples(str(tasks), str(examples)) == ([], None)
+    assert sorted(p.name for p in tasks.iterdir()) == ["mine.cup", "notes.txt"]
+
+
+def test_an_example_that_cannot_be_copied_is_said_not_raised(tmp_path):
+    examples = tmp_path / "examples"
+    examples.mkdir()
+    (examples / "home.cup").write_text("x", encoding="utf-8")
+    copied, error = cup.add_examples(str(tmp_path / "missing"), str(examples))
+    assert copied == [] and error
+
+
+def test_the_example_task_that_comes_with_the_plugin():
+    # A 29.5 km triangle from Tobalaba, Santiago, flown by hand on 2026-11-19. The folder is
+    # adapter.plugin.EXAMPLE_TASKS, which needs `xp` to import.
+    folder = os.path.join(os.path.dirname(cup.__file__), os.pardir, "assets", "tasks")
+    assert cup.find_files(folder) == ["santiago-short-triangle.cup"]
+    found = cup.load(os.path.join(folder, "santiago-short-triangle.cup"))
+    assert found.notes == [] and len(found.tasks) == 1
+    task = found.tasks[0]
+    assert task.label() == "Santiago short triangle" and task.zones == {}
+    assert [p.name for p in task.points] == ["Tobalaba", "Cerro Manquehue", "Cerro San Cristobal", "Tobalaba"]
+    legs = [geodesy.distance_m(a.lat, a.lon, b.lat, b.lon) for a, b in zip(task.points, task.points[1:])]
+    assert [round(d / 100) / 10 for d in legs] == [11.5, 9.3, 8.7]
