@@ -1,6 +1,6 @@
 # Pilot guide
 
-How to install XP-Gliding, make a first flight and read its sky. This guide is for version 1.2. Its known limits are listed at the end.
+How to install XP-Gliding, make a first flight and read its sky. This guide is for version 2.0. Its known limits are listed at the end.
 
 ![A Laminar ASK 21 banked in a climbing turn over Santiago, Chile, with small cumulus around it and hills beyond. The HUD on the left reads +2.3 m/s](images/climbing-among-cumulus.jpg)
 
@@ -12,7 +12,7 @@ How to install XP-Gliding, make a first flight and read its sky. This guide is f
 
 ## Installing
 
-1. Download `xp-gliding-1.2.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
+1. Download `xp-gliding-2.0.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
 2. Close X-Plane.
 3. From the unzipped folder, copy `PI_xp_gliding.py`, the whole `xp_gliding` folder and the `xp-gliding-cloud-styles` folder into `X-Plane 12/Resources/plugins/PythonPlugins/`. They must sit side by side there. The last one is for cloud styles of your own, and the plugin makes it if it is missing. `README.txt` and `LICENSE` do not need to be copied.
 4. Start X-Plane. *Plugins → XP-Gliding* appears in the menu.

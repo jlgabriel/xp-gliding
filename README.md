@@ -6,7 +6,7 @@ It is an independent take on thermals, offered as another option for soaring in 
 
 ![A Laminar ASK 21 seen from below, circling under the cumulus that marks its thermal, with more cumulus over the hills of Santiago, Chile. The soaring HUD is on the left](docs/images/circling-under-its-cloud.jpg)
 
-> **Version 1.2.** Its limits are stated in the guide. Download it from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and follow the [pilot guide](docs/pilot-guide.md) to install it: it needs only X-Plane 12 and [XPPython3](https://xppython3.readthedocs.io/).
+> **Version 2.0.** Its limits are stated in the guide. Download it from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and follow the [pilot guide](docs/pilot-guide.md) to install it: it needs only X-Plane 12 and [XPPython3](https://xppython3.readthedocs.io/).
 
 ## What it does today
 
@@ -19,6 +19,7 @@ It is an independent take on thermals, offered as another option for soaring in 
 - **Lift with no per-aircraft calibration.** It is applied as the energy rising air would give the glider, and measured within 0.01 m/s of the intended climb at different speeds, banks and frame rates. The reference glider is the Laminar ASK 21. Other gliders get the lift, and no netto on the HUD. A motor glider gets it once treated as a glider from the menu.
 - **Thermals and clouds that follow the wind.** The wind is X-Plane's, real or set by hand: the plugin reads it and has no wind of its own.
 - **A soaring HUD:** total energy, netto, average climb, height up to the clouds, the wind and a centring aid.
+- **A Flight Computer,** in place of the HUD if you prefer: a window with a topographic map of the track flown coloured by height, the HUD's readings larger, and SeeYou CUP tasks to fly, with the point you are flying to, its bearing and distance. It needs X-Plane 12.4.4 and XPPython3 4.8.0 or later.
 - **A menu** in *Plugins → XP-Gliding* to choose the day, by name (easy, typical, demanding, weak and low, or blue, with no clouds to read) or one setting at a time, saved between sessions. As an experiment, the cloud base can come from X-Plane's weather instead.
 - **A hotspot flight:** a file of hotspots from [thermal.kk7.ch](https://thermal.kk7.ch/) in place of the plugin's own sky, so the thermals are where pilots find them at that site, and nowhere else.
 - **Put me near a cloud:** from the menu, the glider starts flying towards a cloud, with no tow.
@@ -26,7 +27,7 @@ It is an independent take on thermals, offered as another option for soaring in 
 
 ## Where it is going
 
-Next, a sky tuned further by flying it: how much sink belongs between clouds, where a climb ends under its cloud, the clouds' width on deep and shallow days, the strength of the day from X-Plane's weather, and a better HUD. Later, and not promised: thermals lined up in streets along the wind, thermals born where the ground favours them, measured polars so other gliders get netto, and the same sky for two pilots at the same place and time. Tools around soaring, such as a link to XCSoar, tasks or other gliders in the sky, are outside this project. What changed in each version is in the [changelog](CHANGELOG.md).
+Next, a sky tuned further by flying it: how much sink belongs between clouds, where a climb ends under its cloud, the clouds' width on deep and shallow days, the strength of the day from X-Plane's weather, and a better HUD. Later, and not promised: thermals lined up in streets along the wind, thermals born where the ground favours them, measured polars so other gliders get netto, and the same sky for two pilots at the same place and time. Tools around soaring beyond the Flight Computer, such as a link to XCSoar, task scoring or other gliders in the sky, are outside this project. What changed in each version is in the [changelog](CHANGELOG.md).
 
 ## Documentation
 
@@ -36,7 +37,7 @@ Next, a sky tuned further by flying it: how much sink belongs between clouds, wh
 
 ## What it is not
 
-It is not a simulation of the atmosphere. The thermals start from a published model ([Allen, 2006](https://ntrs.nasa.gov/citations/20060004052)) and are tuned by flying, with each departure from the paper [documented](docs/how-it-works.md#the-shape-of-a-thermal). It is not a soaring simulator either: no tasks, no traffic, no wave. A glider still flies as well as its own flight model allows.
+It is not a simulation of the atmosphere. The thermals start from a published model ([Allen, 2006](https://ntrs.nasa.gov/citations/20060004052)) and are tuned by flying, with each departure from the paper [documented](docs/how-it-works.md#the-shape-of-a-thermal). It is not a soaring simulator either: tasks are shown and followed but not scored, and there is no traffic and no wave. A glider still flies as well as its own flight model allows.
 
 ## Principles
 
