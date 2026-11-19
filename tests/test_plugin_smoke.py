@@ -100,7 +100,7 @@ def make_fake_xp(tmp_path, data):
 
     def register(name, kind, writable, readInt=None, writeInt=None, readFloat=None,
                  writeFloat=None, readRefCon=None, writeRefCon=None):
-        xp.accessors[name] = (readInt or readFloat, writeInt or writeFloat, readRefCon)
+        xp.accessors[name] = (readInt or readFloat, writeInt or writeFloat, readRefCon, writeRefCon)
         return name
 
     xp.registerDataAccessor = register
@@ -249,9 +249,9 @@ def plugin(tmp_path, monkeypatch):
 
 
 def dataref(xp, name, value=None):
-    read, write, refcon = xp.accessors["xp_gliding/" + name]
+    read, write, refcon, write_refcon = xp.accessors["xp_gliding/" + name]
     if value is not None:
-        write(refcon, value)
+        write(write_refcon, value)
     return read(refcon)
 
 
@@ -907,6 +907,27 @@ def test_a_setting_written_through_its_dataref_is_kept_within_the_menus_limits(p
     assert dataref(xp, "thermals_enabled", 7) == 1 and pi.settings.thermals_enabled is True
     dataref(xp, "debug/uniform_ms", 30.0)  # not a setting: as it comes
     assert pi.injector.uniform_ms == 30.0
+
+
+def test_a_setting_written_through_its_dataref_does_what_its_command_does(plugin, monkeypatch):
+    pi, xp, data = plugin
+    scheduled = []
+    xp.scheduleFlightLoop = lambda loop, interval, relative: scheduled.append(interval)
+    frame(pi, data)
+    y_agl = data.pop("sim/flightmodel/position/y_agl")
+    assert pi.flight_loop(0.016, 0.016, 0, None) == 0 and pi.failed
+    data["sim/flightmodel/position/y_agl"] = y_agl
+    dataref(xp, "enabled", 0)
+    dataref(xp, "enabled", 1)  # as unticking and ticking Enabled: the flight loop starts again
+    assert not pi.failed and scheduled == [-1] and enabled_label(xp) == "Enabled"
+    resets = []
+    monkeypatch.setattr(type(pi.injector.weather), "reset", lambda self, now: resets.append(now))
+    dataref(xp, "weather_base_enabled", 1)  # the weather is read afresh, as from the menu
+    assert len(resets) == 1 and pi.next_slow == 0.0
+    dataref(xp, "weather_base_enabled", 1)  # the same value again: nothing starts over
+    assert len(resets) == 1
+    dataref(xp, "weather_base_enabled", 0)
+    assert len(resets) == 2
 
 
 def test_panel_graphics_polygons_are_wound_clockwise(plugin):

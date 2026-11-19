@@ -260,6 +260,7 @@ class WeatherBase:
 class Injector:
     def __init__(self, settings, geometry):
         self.settings = settings
+        self.bad_frames = 0  # frames left without force: a reading or a result not a number
         self.uniform_ms = 0.0
         self.debug_dwdy = 0.0
         self.samples = None
@@ -543,6 +544,12 @@ class Injector:
         if s.tas_ms < inj.MIN_TAS_MS or self.field is None:
             out.clear()
             return out
+        # While X-Plane loads an aircraft or a scene a reading can be NaN or infinite: no force
+        # that frame, rather than NaN handed to X-Plane. One sum: not finite if any of them is not.
+        if not math.isfinite(s.mass_kg + s.tas_ms + s.alpha_deg + s.beta_deg + s.rho + s.r_rad):
+            self.bad_frames += 1
+            out.clear()
+            return out
         g = self.samples
         if self.uniform_ms != 0.0:
             wl = wc = wr = wt = self.uniform_ms
@@ -577,6 +584,7 @@ class Injector:
             roll = inj.gust_roll_moment(s.rho, s.tas_ms, self.geometry.area_m2, span,
                                         dw_dy, self.clp)
         if not (abs(w) <= MAX_LIFT_MS and math.isfinite(roll) and math.isfinite(kick)):
+            self.bad_frames += 1
             out.clear()
             return out
         kick_fwd, kick_up = inj.lift_force_body(kick, s.alpha_deg)

@@ -42,7 +42,10 @@ PLAN_PERIOD_S = 5.0  # choosing the clouds, once the sky is complete
 FILLING_PLAN_PERIOD_S = 1.0  # and while it fills, or while new clouds are waiting their turn
 JUMP_S = 120.0  # a larger jump of the sim's clock than this: time was changed, start over
 MOVE_SLICES = 4  # in wind, updates to move every cloud once
-MAX_BASES = 5000  # past this many clouds' heights, those of clouds gone from the sky are forgotten
+# Past this many clouds' heights, those of clouds gone from the sky are forgotten. At zi 1000 m,
+# the densest sky, ~2300 clouds are alive within the catalog's reach at once, and a glider at
+# 150 km/h for 40 min passes ~9000 still alive: this keeps them all, ~5 MB at most.
+MAX_BASES = 20000
 DATAREFS = ("xp_gliding/clouds/rate", "xp_gliding/clouds/scale")
 SHARE_STEP = 0.02  # a change of the shade's share that resizes the drawn clouds
 # Drawing order (engine/cloud_order.py).

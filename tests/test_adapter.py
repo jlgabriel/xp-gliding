@@ -328,6 +328,21 @@ def test_native_thermals_are_held_at_zero_and_restored():
     assert store["v"] == 1.0 and not guard.engaged
 
 
+@pytest.mark.parametrize("field, bad", [("mass_kg", math.nan), ("tas_ms", math.nan), ("alpha_deg", math.nan),
+                                        ("beta_deg", math.inf), ("mass_kg", math.inf)])
+def test_a_reading_that_is_not_a_number_gives_no_force_that_frame(field, bad):
+    # With the edges and the roll off, nothing else would catch it: X-Plane would get NaN.
+    inj_ = injector(edge_enabled=False, roll_enabled=False, helix_enabled=False)
+    inj_.uniform_ms = 2.0
+    s = state()
+    setattr(s, field, bad)
+    out = run(inj_, s)
+    assert (out.faxil_n, out.fside_n, out.fnrml_n, out.roll_nm) == (0.0, 0.0, 0.0, 0.0)
+    assert inj_.bad_frames == 1
+    setattr(s, field, getattr(state(), field))  # good again: the force comes back
+    assert run(inj_, s).faxil_n < 0.0 and inj_.bad_frames == 1  # pushed forward, along the path
+
+
 def test_helix_correction_rolls_out_of_a_climbing_turn():
     # Uniform lift in a left turn (yaw rate < 0): the energy force makes the glider
     # climb relative to the air, which would overbank it; the correction rolls right.
@@ -470,7 +485,7 @@ def test_a_full_list_of_heights_forgets_the_clouds_gone_and_keeps_those_in_the_s
     live = cloud_thermal(birth=10000.0)
     assert heights.base_m(live, 10500.0, AirDrift()) == 2800.0
     for k in range(MAX_BASES):  # all gone from the sky by t 10500
-        heights.base_m(cloud_thermal(birth=float(k)), 10500.0, AirDrift())
+        heights.base_m(cloud_thermal(birth=-float(k)), 10500.0, AirDrift())
     assert len(heights._bases) < MAX_BASES
     ground.height = 900.0  # had it been worked out again, the answer would change
     assert heights.base_m(live, 10500.0, AirDrift()) == 2800.0

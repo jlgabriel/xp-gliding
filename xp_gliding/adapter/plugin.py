@@ -68,8 +68,8 @@ import xp
 from .. import __version__
 from .aircraft import DEFAULT_GEOMETRY, read_acf_geometry
 from .computer import Computer
-from .config import (DAYS, INSTRUMENTS, MENU_CHOICES, Settings, choose_instrument, day_index,
-                     instrument_of, load_settings, save_settings)
+from .config import (DAYS, INSTRUMENTS, MENU_CHOICES, choose_instrument, day_index, instrument_of,
+                     load_settings, save_settings)
 from .core import AircraftState, Injection, Injector, NativeThermalGuard
 from ..engine.airstart import SPEED_MS, clouds_from, pick_cloud, place_near, start_height_m
 from ..engine.sun import SUN_MIN_DEG
@@ -207,6 +207,7 @@ DATAREFS = (
     ("debug/dw_dy", "injector", "debug_dwdy", "f", 1),
     ("active", "status", "active", "i", 0),
     ("frame_us", "status", "frame_us", "f", 0),
+    ("bad_frames", "injector", "bad_frames", "i", 0),  # frames without force: a reading not a number
     ("lift_ms", "out", "w_span", "f", 0),
     ("lift_centre_ms", "out", "w_centre", "f", 0),
     ("lift_left_ms", "out", "w_left", "f", 0),
@@ -270,19 +271,26 @@ def _read_int(refcon):
     return int(getattr(obj, attr))
 
 
-def _set(obj, attr, value):
-    """A setting goes through the same checks and limits as the menu's and config.json's; the
-    rest, the plugin's own state, is set as it comes."""
-    if isinstance(obj, Settings):
-        obj.update({attr: value})
-    else:
-        setattr(obj, attr, value)
-
-
 def _write_int(refcon, value):
     obj, attr = _resolve(refcon)
     old = getattr(obj, attr)
-    _set(obj, attr, bool(value) if isinstance(old, bool) else int(value))
+    setattr(obj, attr, bool(value) if isinstance(old, bool) else int(value))
+
+
+# A setting's dataref writes through the plugin (its write refcon is (plugin, setting)), so that
+# it gets the menu's limits and does what the menu's command does (`PythonInterface.apply_setting`).
+
+def _write_setting_int(refcon, value):
+    plugin, attr = refcon
+    old = getattr(plugin.settings, attr)
+    plugin.apply_setting(attr, bool(value) if isinstance(old, bool) else int(value))
+
+
+def _write_setting_float(refcon, value):
+    plugin, attr = refcon
+    value = float(value)
+    if math.isfinite(value):
+        plugin.apply_setting(attr, value)
 
 
 def _read_float(refcon):
@@ -294,7 +302,7 @@ def _write_float(refcon, value):
     obj, attr = _resolve(refcon)
     value = float(value)
     if math.isfinite(value):
-        _set(obj, attr, value)
+        setattr(obj, attr, value)
 
 
 class PythonInterface:
@@ -358,16 +366,20 @@ class PythonInterface:
         self.datarefs = []
         for name, holder, attr, kind, writable in DATAREFS:
             refcon = (getattr(self, holder), attr)
+            setting = holder == "settings"
+            write_refcon = (self, attr) if setting else refcon
             if kind == "i":
+                writer = _write_setting_int if setting else _write_int
                 ref = xp.registerDataAccessor(
                     "xp_gliding/" + name, xp.Type_Int, writable, readInt=_read_int,
-                    writeInt=_write_int if writable else None,
-                    readRefCon=refcon, writeRefCon=refcon)
+                    writeInt=writer if writable else None,
+                    readRefCon=refcon, writeRefCon=write_refcon)
             else:
+                writer = _write_setting_float if setting else _write_float
                 ref = xp.registerDataAccessor(
                     "xp_gliding/" + name, xp.Type_Float, writable, readFloat=_read_float,
-                    writeFloat=_write_float if writable else None,
-                    readRefCon=refcon, writeRefCon=refcon)
+                    writeFloat=writer if writable else None,
+                    readRefCon=refcon, writeRefCon=write_refcon)
             self.datarefs.append(ref)
 
         self.commands = (
@@ -671,16 +683,27 @@ class PythonInterface:
 
     def on_toggle(self, commandRef, phase, attr):
         if phase == xp.CommandBegin:
-            setattr(self.settings, attr, not getattr(self.settings, attr))
-            if attr == "enabled" and self.settings.enabled:
-                self.restart("Enabled ticked again")
-            if attr == "weather_base_enabled":
-                self.injector.weather.reset(time.monotonic())
-                self.next_slow = 0.0
-            self.refresh_menu()
+            self.apply_setting(attr, not getattr(self.settings, attr))
             print(f"{TAG} {attr} = {getattr(self.settings, attr)}")
             self.save()
         return 1
+
+    def apply_setting(self, attr, value):
+        """A setting from a switch's command or its dataref: within the menu's limits, and what
+        changing it starts. Not saved: a command saves, a dataref is a script's, for now.
+
+        Only a change starts anything, so a script writing the same value every frame does not
+        start the weather's reading over and over."""
+        old = getattr(self.settings, attr)
+        self.settings.update({attr: value})
+        if getattr(self.settings, attr) == old:
+            return
+        if attr == "enabled" and self.settings.enabled:
+            self.restart("Enabled ticked again")
+        if attr == "weather_base_enabled":
+            self.injector.weather.reset(time.monotonic())
+        self.next_slow = 0.0  # a new sky, seed, strength or depth: in the slow path at once
+        self.refresh_menu()
 
     def on_instrument_toggle(self, commandRef, phase, name):
         """The HUD's or the Flight Computer's command: on or off, and on turns the other off."""
