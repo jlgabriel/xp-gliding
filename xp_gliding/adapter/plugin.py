@@ -176,6 +176,7 @@ DATAREFS = (
     ("computer_enabled", "settings", "computer_enabled", "i", 1),
     ("computer/available", "computer", "available", "i", 0),  # X-Plane and XPPython3 have browser windows
     ("computer/window", "computer", "window_open", "i", 0),
+    ("computer/open_failures", "computer", "open_failures", "i", 0),  # tries in a row the window did not open
     ("computer/loaded", "computer", "loaded", "i", 0),  # 1 once its page loaded
     ("computer/requests", "computer", "requests", "i", 0),  # bridge calls served: the page is alive
     ("computer/tick_us", "computer", "tick_us", "f", 0),

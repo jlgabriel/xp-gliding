@@ -403,6 +403,31 @@ def test_a_failure_stops_the_computer_and_nothing_else(plugin, capsys):
     assert pi.flight_loop(0.016, 0.016, 0, None) == -1
 
 
+def test_a_window_that_will_not_open_is_tried_again_later(plugin, capsys):
+    pi, xp, data = plugin
+    refused = []
+
+    def limits(wid, *sizes):  # as X-Plane 12.4.4 did with a flight loading under its main menu
+        if len(refused) < 2:
+            refused.append(wid)
+            raise RuntimeError("XPLMSetWindowResizingLimits is available only in XPLM300 and up.")
+
+    xp.setWindowResizingLimits = limits
+    choose(xp, "Flight Computer")
+    pi.computer.tick(100.0)
+    assert not xp.windows and pi.computer.window is None and not pi.computer.failed
+    assert pi.computer.open_failures == 1
+    pi.computer.tick(102.0)  # too soon: no try
+    assert len(refused) == 1 and not xp.windows
+    pi.computer.tick(105.0)  # refused again, and not logged again
+    assert len(refused) == 2 and not xp.windows
+    pi.computer.tick(110.0)
+    assert len(xp.windows) == 1 and pi.computer.open_failures == 0
+    out = capsys.readouterr().out
+    assert out.count("window did not open") == 1 and "opened, after 2 tries" in out
+    assert pi.settings.computer_window == []  # a window that never opened leaves no place saved
+
+
 def test_disabling_the_plugin_destroys_the_window(plugin):
     pi, xp, data = plugin
     choose(xp, "Flight Computer")

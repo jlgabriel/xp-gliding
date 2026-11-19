@@ -81,6 +81,10 @@ MIN_SIZE, MAX_SIZE = (320, 240), (1400, 1000)
 ON_SCREEN_PX = 80  # a saved place is used only if this much of the window is on the screen
 GEOMETRY_SETTLE_S = 1.0  # a moved or resized window is saved once it has stayed so this long
 LOAD_WATCHDOG_S = 3.0
+# A window that will not open is tried again this long after: seen in X-Plane 12.4.4 when a flight
+# loads under its main menu (2026-11-19, a flight started through the web API), where
+# setWindowResizingLimits raised that it "is available only in XPLM300 and up".
+OPEN_RETRY_S = 5.0
 TITLE = "XP-Gliding Flight Computer"
 KT_TO_MS = 0.514444
 WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
@@ -115,6 +119,8 @@ class Computer:
         self.available = browser_available()
         self.window = None
         self.failed = False
+        self.open_failures = 0  # tries in a row that did not open the window
+        self._open_after = 0.0  # no try before this (time.monotonic)
         self.loaded = 0  # 1 once the window's page has loaded
         self.requests = 0  # bridge calls served, for the test pilot to see the page is alive
         self.tick_us = 0.0
@@ -244,7 +250,16 @@ class Computer:
         if self._actions:
             self._do_actions()
         if window is None:
-            self._open(now)
+            if now < self._open_after:
+                return
+            try:
+                self._open(now)
+            except Exception:
+                self._open_failed(now)
+                return
+            if self.open_failures:
+                self.log(f"Flight Computer opened, after {self.open_failures} tries that did not")
+                self.open_failures = 0
             window = self.window
         if self._release_keys:
             self._release_keys = False
@@ -294,6 +309,21 @@ class Computer:
         self._seen_since = now
         self._placed = list(rect)
         xp.windowSetURL(window, self.url)
+
+    def _open_failed(self, now):
+        """The window did not open: what was made of it goes, unsaved, and it is tried again
+        later, rather than the Flight Computer stopping for the session. Logged the first time."""
+        self.open_failures += 1
+        if self.open_failures == 1:
+            self.log(f"Flight Computer window did not open; trying again every {OPEN_RETRY_S:.0f} s:\n"
+                     + traceback.format_exc())
+        window, self.window = self.window, None
+        if window is not None:
+            try:
+                xp.destroyWindow(window)
+            except Exception:
+                pass
+        self._open_after = now + OPEN_RETRY_S
 
     def _keep_in(self, window):
         """Popped out into a window of its own, X-Plane 12.4.4 draws a browser window's page wrong:
