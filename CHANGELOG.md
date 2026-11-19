@@ -2,7 +2,7 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
-## Unreleased
+## 2.0.1 — 2026-11-19
 
 - **The TASK tab lists your files when the Flight Computer opens on it.** If TASK was the tab you left open, the list could say there were no CUP files until you pressed ↻.
 - **Every reading is checked, not only the ones behind the force.** A place, height, heading, time or wind that is briefly not a number while X-Plane loads is now skipped with the rest of that frame. Before, a place could stop the plugin until the next flight, and a wind stayed in the sky's drift and could take the thermals away for the rest of it. The force handed to X-Plane is also checked last, after it is worked out. `xp_gliding/bad_frames` counts such frames.
