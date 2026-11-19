@@ -411,6 +411,26 @@ def test_an_error_stops_the_effect_without_raising(plugin, capsys):
     assert data["sim/weather/region/thermal_rate_ms"] == pytest.approx(0.62)
 
 
+@pytest.mark.parametrize("name", ["sim/flightmodel/position/latitude",
+                                  "sim/weather/aircraft/wind_now_x_msc"])
+def test_a_frame_with_a_reading_not_a_number_is_skipped_and_the_sky_is_kept(plugin, name):
+    # A NaN place would stop the plugin in the slow update; a NaN wind would stay in the drift.
+    pi, xp, data = plugin
+    dataref(xp, "debug/uniform_ms", 1.0)
+    frame(pi, data)
+    good = data[name]
+    data[name] = math.nan
+    pi.next_slow = 0.0  # the slow update due this frame
+    frame(pi, data)
+    assert data["sim/flightmodel/forces/faxil_plug_acf"] == 0.0 and not pi.failed
+    assert dataref(xp, "bad_frames") == 1
+    data[name] = good
+    frame(pi, data)
+    drift = pi.injector.drift
+    assert math.isfinite(drift.dlat_deg + drift.dlon_deg)
+    assert data["sim/flightmodel/forces/faxil_plug_acf"] < 0.0  # the force is back
+
+
 def enabled_label(xp):
     return xp.menus["XP-Gliding"]["items"][0][0]
 

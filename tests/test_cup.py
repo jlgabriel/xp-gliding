@@ -36,7 +36,7 @@ def test_lengths_carry_their_unit_and_metres_without_one():
     assert cup.parse_length("2ml") == pytest.approx(3218.688)
     assert cup.parse_length("400") == pytest.approx(400.0)
     assert cup.parse_length("0.7KM") == pytest.approx(700.0)
-    for bad in ("", "m", "12 parsecs", "1,5km", "abc"):
+    for bad in ("", "m", "12 parsecs", "1,5km", "abc", "9" * 400 + "m"):  # 400 digits: inf as a float
         assert cup.parse_length(bad) is None
 
 

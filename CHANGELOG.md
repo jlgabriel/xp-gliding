@@ -2,6 +2,14 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## Unreleased
+
+- **The TASK tab lists your files when the Flight Computer opens on it.** If TASK was the tab you left open, the list could say there were no CUP files until you pressed ↻.
+- **Every reading is checked, not only the ones behind the force.** A place, height, heading, time or wind that is briefly not a number while X-Plane loads is now skipped with the rest of that frame. Before, a place could stop the plugin until the next flight, and a wind stayed in the sky's drift and could take the thermals away for the rest of it. The force handed to X-Plane is also checked last, after it is worked out. `xp_gliding/bad_frames` counts such frames.
+- **An odd CUP file cannot stop the Flight Computer.** A radius written with hundreds of digits stopped it for the session; it is now not read, and the default zone is used. A zone's radius is held to 1000 km.
+- **The map keeps the last six hours of track**, as the plugin does, so a very long session does not slow the page.
+- **A task cleared while the map is hidden no longer moves the map.** When you went back to MAP, it framed the task you had just cleared.
+
 ## 2.0 — 2026-11-19
 
 - **The Flight Computer, a second instrument.** *Plugins → XP-Gliding → Instrument* chooses the Soaring HUD (the default), the Flight Computer or none. The Flight Computer is a window you can move and resize, with a strip of total energy, the 30 s average and the altitude, the simulator's local time, and two views. MAP is a topographic map that follows the glider, with the track flown coloured by height, the wind, zoom and a scale; its tiles come from OpenTopoMap over the internet, and without a network the glider and the track still draw on a latitude and longitude grid. FLIGHT has netto, the thermal's climb, height above the ground, airspeed and ground speed, the wind and the height to the cloud: the HUD's own readings, larger. Its place and size are kept, and a click in it leaves the keyboard with X-Plane. It stays inside X-Plane's window: X-Plane 12.4.4 draws a popped-out browser window wrong, so its pop-out button puts it back. It needs X-Plane 12.4.4 and XPPython3 4.8.0 or later; otherwise it is greyed out and the HUD stays. The menu's *Soaring HUD* item is now in *Instrument*, its command `xp_gliding/hud/toggle` works as before, and `xp_gliding/computer/toggle` does the same for the Flight Computer. *Units on the HUD* is now *Units*, for both instruments. How it works: [pilot guide](docs/pilot-guide.md#the-flight-computer).

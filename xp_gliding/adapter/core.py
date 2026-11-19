@@ -354,6 +354,18 @@ class Injector:
 
     # --- the wind ---------------------------------------------------------
 
+    def readings_ok(self, s):
+        """Every frame, before anything uses them: are this frame's readings all numbers? While
+        X-Plane loads an aircraft or a scene one can be NaN or infinite. Such a frame is skipped
+        whole and counted: a NaN wind carried into the drift would stay in the sky for good, and
+        a NaN place would stop the plugin. One sum: not finite if any of them is not."""
+        if math.isfinite(s.lat + s.lon + s.agl_m + s.msl_m + s.psi_deg + s.phi_deg + s.alpha_deg
+                         + s.beta_deg + s.r_rad + s.tas_ms + s.mass_kg + s.rho + s.t_zulu_s
+                         + s.t_local_s + s.wind_x_ms + s.wind_z_ms):
+            return True
+        self.bad_frames += 1
+        return False
+
     def carry(self, s):
         """Every frame, first: X-Plane's wind moves the sky as it moves the aircraft."""
         if not self.settings.wind_enabled:
@@ -583,14 +595,16 @@ class Injector:
         if st.roll_enabled:
             roll = inj.gust_roll_moment(s.rho, s.tas_ms, self.geometry.area_m2, span,
                                         dw_dy, self.clp)
-        if not (abs(w) <= MAX_LIFT_MS and math.isfinite(roll) and math.isfinite(kick)):
+        kick_fwd, kick_up = inj.lift_force_body(kick, s.alpha_deg)
+        faxil, fnrml = -(fwd + kick_fwd), up + kick_up
+        # What X-Plane is handed, checked last: finite readings can still overflow (an absurd mass).
+        if not (abs(w) <= MAX_LIFT_MS and math.isfinite(faxil + right + fnrml + roll)):
             self.bad_frames += 1
             out.clear()
             return out
-        kick_fwd, kick_up = inj.lift_force_body(kick, s.alpha_deg)
-        out.faxil_n = -(fwd + kick_fwd)
+        out.faxil_n = faxil
         out.fside_n = right
-        out.fnrml_n = up + kick_up
+        out.fnrml_n = fnrml
         out.roll_nm = roll
         out.force_n = force
         out.kick_n = kick

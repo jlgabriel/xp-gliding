@@ -993,6 +993,9 @@ class PythonInterface:
             return -1
         t0 = time.perf_counter()
         s = self.io.read_state(self.state)
+        if not self.injector.readings_ok(s):
+            self.out.clear()
+            return -1
         self.injector.carry(s)
         if now >= self.next_lean:
             self.next_lean = now + LEAN_PERIOD_S

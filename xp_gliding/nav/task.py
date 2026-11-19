@@ -49,6 +49,7 @@ DEFAULT_START = {"style": 2, "r1_m": 1000.0, "a1_deg": 180.0, "line": True}
 DEFAULT_POINT = {"style": 1, "r1_m": 500.0, "a1_deg": 180.0, "line": False}
 DEFAULT_FINISH = {"style": 3, "r1_m": 500.0, "a1_deg": 180.0, "line": False}
 ARC_STEP_DEG = 5.0  # a sector's arc is drawn with a point at least this often
+MAX_RADIUS_M = 1000e3  # a zone's radius is held to this: a file's absurd one is no geometry
 
 
 def _wrap180(deg):
@@ -63,7 +64,7 @@ class Zone:
     def __init__(self, lat, lon, axis, r1, a1=180.0, r2=0.0, a2=0.0, line=False, given=False):
         self.lat, self.lon = lat, lon
         self.axis = axis % 360.0  # bearing from the point into the zone
-        self.r1 = max(r1, 1.0)
+        self.r1 = min(max(r1, 1.0), MAX_RADIUS_M)
         self.a1 = min(max(a1, 0.0), 180.0)
         self.r2 = min(max(r2, 0.0), self.r1)
         self.a2 = min(max(a2, 0.0), 180.0)

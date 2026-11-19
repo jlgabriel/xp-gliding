@@ -1,5 +1,6 @@
 // A fake window.xplane for developing the page in a desktop browser: open index.html?dev, or
-// index.html?dev&offline for a map whose tiles never load, and &ago=600 to start ten minutes in.
+// index.html?dev&offline for a map whose tiles never load, &ago=600 to start ten minutes in, and
+// &view=task to open on another view than the map, as the pilot's last one would.
 // The glider glides north-east for 40 s, then circles three times in a 2 m/s thermal while drifting in a
 // 12 kt wind, again and again; units switch every 20 s. The track is kept one point a second as
 // nav/track.py keeps it, and answered in the same form. Tasks: one file with a triangle ahead of
@@ -13,6 +14,7 @@
   var ago = /[?&]ago=(\d+)/.exec(location.search);  // ?dev&ago=600: ten minutes flown already
   var t0 = Date.now() - (ago ? parseInt(ago[1], 10) * 1000 : 0);
   var offline = /[?&]offline\b/.test(location.search);
+  var startView = (/[?&]view=(map|flight|task)\b/.exec(location.search) || [0, "map"])[1];
   var M_PER_DEG = 111195;
   var START = [-33.45, -70.55];
   var WIND_TO = 60, WIND_MS = 6.2;  // the wind blows from 240
@@ -98,7 +100,7 @@
     var dive = Math.floor(t / 10) % 3 === 2;
     var te = dive ? -7.41 : 2.0 + 1.6 * Math.sin((turn - 130) * Math.PI / 180) + 0.2 * Math.sin(t * 1.7);
     return {
-      t: t, local_s: 13 * 3600 + 42 * 60 + t, valid: t > 1.5, units: Math.floor(t / 20) % 2 ? "aviation" : "metric", view: "map", poll_hz: 5,
+      t: t, local_s: 13 * 3600 + 42 * 60 + t, valid: t > 1.5, units: Math.floor(t / 20) % 2 ? "aviation" : "metric", view: startView, poll_hz: 5,
       lat: p.lat, lon: p.lon, msl_m: p.msl, agl_m: p.msl - 600,
       track_deg: (turn + 8) % 360, heading_deg: turn, gs_ms: 24 + 5 * Math.cos(turn * Math.PI / 180),
       ias_ms: 23.5, tas_ms: 25.0,
@@ -128,6 +130,8 @@
     xpg_state: function () { return Promise.resolve(snapshot()); },
     xpg_track: function (request) { return Promise.resolve(track(request)); },
     xpg_tasks: function () {
+      // Rev 0 is the empty list Python starts with, before the folder is first read.
+      if (tasksRev === 0) return Promise.resolve({rev: 0, folder: "", files: [], current: null, note: ""});
       LIST.rev = tasksRev;
       LIST.current = loaded ? {file: "santiago.cup", index: 0} : null;
       return Promise.resolve(LIST);

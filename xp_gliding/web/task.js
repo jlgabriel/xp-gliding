@@ -20,7 +20,10 @@ xpg.task = (function () {
   var taskRev = null;  // the task_rev it came with
   var asked = null;  // the task_rev being asked for
   var listRev = null;  // the tasks_rev of the list shown
-  var listWanted = false;  // a list was asked for and has not come yet
+  // A list was asked for: the one wanted has a tasks_rev above this; null when none is awaited.
+  // Not a flag: a snapshot made before Python read the folder still carries the old list's rev.
+  var listAbove = null;
+  var listAsking = false;  // an xpg_tasks call in flight
   var loading = null;  // {file, index} clicked, until the task comes
   var fitNext = false;  // the next task comes from the pilot's choice: the map shows it whole
   var lastNav = null;  // the last nav drawn
@@ -59,9 +62,14 @@ xpg.task = (function () {
 
   // Ask Python to read the tasks folder again; the list comes when tasks_rev changes.
   function list() {
-    listWanted = true;
+    wantList();
     setText(els["task-note"], "reading the tasks folder");
     send({cmd: "list_tasks"});
+  }
+
+  // A list newer than the one shown, or than the empty one Python starts with (rev 0).
+  function wantList() {
+    listAbove = listRev === null ? 0 : listRev;
   }
 
   function roleTag(role, index) {
@@ -77,9 +85,12 @@ xpg.task = (function () {
       asked = s.task_rev;
       x.xpg_task().then(setTask, function () { asked = null; });
     }
-    if (listWanted && typeof s.tasks_rev === "number" && s.tasks_rev !== listRev && x) {
-      listWanted = false;
-      x.xpg_tasks().then(setList, function () { listWanted = true; });
+    if (listAbove !== null && !listAsking && typeof s.tasks_rev === "number" && s.tasks_rev > listAbove && x) {
+      listAsking = true;
+      x.xpg_tasks().then(function (r) {
+        listAsking = false;
+        setList(r);
+      }, function () { listAsking = false; });
     }
     if (unitsName !== s.units) {
       unitsName = s.units;
@@ -173,6 +184,7 @@ xpg.task = (function () {
   function setList(r) {
     if (!r || typeof r !== "object") return;
     listRev = r.rev;
+    if (listAbove !== null && r.rev > listAbove) listAbove = null;  // the list awaited
     files = Array.isArray(r.files) ? r.files : [];
     current = r.current || null;
     var folder = String(r.folder || "");
@@ -214,7 +226,7 @@ xpg.task = (function () {
     loading = {file: file, index: index};
     current = {file: file, index: index};
     fitNext = true;
-    listWanted = true;  // Python makes the list again after the load: current as it now is
+    wantList();  // Python makes the list again after the load: current as it now is
     send({cmd: "load_task", file: file, index: index, key: key});
     drawList();
   }

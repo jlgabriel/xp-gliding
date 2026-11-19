@@ -25,6 +25,7 @@ Pure Python: no `xp`, nothing of the engine.
 """
 
 import csv
+import math
 import os
 import re
 
@@ -136,7 +137,8 @@ def parse_length(text):
     unit = m.group(2).lower() or "m"
     if unit not in UNITS_M:
         return None
-    return float(m.group(1)) * UNITS_M[unit]
+    value = float(m.group(1)) * UNITS_M[unit]
+    return value if math.isfinite(value) else None  # 400 digits are infinite as a float
 
 
 def _number(text):

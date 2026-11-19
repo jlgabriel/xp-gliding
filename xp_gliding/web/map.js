@@ -33,6 +33,10 @@ xpg.map = (function () {
   var TRACK_COLOURS = ["#2f6bff", "#00b4d8", "#22c55e", "#d4d81c", "#ff9a1f", "#ff3b30"];
   var TRACK_STEP_M = 100;
   var TRACK_MIN_SPAN_M = 300;
+  // Points held at most, as Python keeps them (nav/track.py: six hours at one a second); past
+  // this the oldest go, this many at a time, so that the line is built again only now and then.
+  var TRACK_CAPACITY = 6 * 3600;
+  var TRACK_TRIM = 600;
   var GRID_STEPS = [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001];  // degrees
   var GLIDER_SVG =
     '<svg viewBox="-16 -16 32 32" width="32" height="32" aria-hidden="true">' +
@@ -344,7 +348,10 @@ xpg.map = (function () {
       var points = newPoints;
       newPoints = [];
       held = held.concat(points);
-      if (rescale(points)) rebuild();
+      if (held.length > TRACK_CAPACITY + TRACK_TRIM) {
+        held = held.slice(-TRACK_CAPACITY);
+        rebuild();
+      } else if (rescale(points)) rebuild();
       else extend(points);
     }
   }
@@ -487,6 +494,7 @@ xpg.map = (function () {
   // following until the pilot asks again).
   function setTask(t, fit) {
     if (!map) return;
+    pendingFit = null;  // a fit waiting for the last task is not this one's
     taskLayer.clearLayers();
     taskZones = [];
     taskPoints = null;

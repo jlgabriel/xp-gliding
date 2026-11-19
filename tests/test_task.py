@@ -7,7 +7,7 @@ import pytest
 
 from xp_gliding.nav import cup
 from xp_gliding.nav.geodesy import bearing_deg, destination, distance_m
-from xp_gliding.nav.task import Progress, Task, Zone, find_task, make_zone, task_key
+from xp_gliding.nav.task import MAX_RADIUS_M, Progress, Task, Zone, find_task, make_zone, task_key
 
 HOME = (-33.40, -70.60)
 
@@ -87,6 +87,17 @@ def test_missing_values_of_a_given_zone_come_from_the_role():
     task = triangle({1: cup.ZoneSpec(r1_m=2000.0), 0: cup.ZoneSpec(style=2, r1_m=500.0, a1_deg=180.0)})
     assert task.zones[1].is_cylinder and task.zones[1].r1 == 2000.0
     assert not task.zones[0].line and task.zones[0].is_cylinder  # given without Line=1: a cylinder
+
+
+def test_an_absurd_radius_from_a_file_still_gives_a_task_to_draw():
+    # 400 digits are no length (the default is taken); a finite but absurd one is held.
+    text = ('name,code,country,lat,lon,elev,style\n"S",,,3324.000S,07036.000W,600m,1\n'
+            '"T",,,3318.000S,07036.000W,600m,1\n-----Related Tasks-----\n"X","S","S","T","S","S"\n'
+            "ObsZone=0,Style=2,R1=" + "9" * 400 + "m,A1=180\nObsZone=1,Style=1,R1=99999999999999km,A1=45\n")
+    (taskdef,) = cup.parse(text).tasks
+    task = Task(taskdef)
+    assert task.zones[0].r1 == 1000.0 and task.zones[1].r1 == MAX_RADIUS_M
+    assert "Infinity" not in task.to_json(1) and "NaN" not in task.to_json(1)
 
 
 def test_a_sector_contains_what_lies_within_its_angle_and_radius():

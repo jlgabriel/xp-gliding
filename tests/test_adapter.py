@@ -343,6 +343,25 @@ def test_a_reading_that_is_not_a_number_gives_no_force_that_frame(field, bad):
     assert run(inj_, s).faxil_n < 0.0 and inj_.bad_frames == 1  # pushed forward, along the path
 
 
+def test_a_force_that_overflows_is_not_handed_to_x_plane():
+    # Every reading finite, but m * g is not: nothing reaches X-Plane, and the frame is counted.
+    inj_ = injector(edge_enabled=False, roll_enabled=False, helix_enabled=False)
+    inj_.uniform_ms = 2.0
+    out = run(inj_, state(mass=1e308))
+    assert (out.faxil_n, out.fside_n, out.fnrml_n, out.roll_nm) == (0.0, 0.0, 0.0, 0.0)
+    assert inj_.bad_frames == 1
+
+
+@pytest.mark.parametrize("field", ["lat", "lon", "agl_m", "msl_m", "psi_deg", "phi_deg", "r_rad", "rho",
+                                   "t_zulu_s", "t_local_s", "wind_x_ms", "wind_z_ms"])
+def test_every_reading_is_checked_before_it_is_used(field):
+    inj_ = injector()
+    s = state()
+    assert inj_.readings_ok(s) and inj_.bad_frames == 0
+    setattr(s, field, math.nan)
+    assert not inj_.readings_ok(s) and inj_.bad_frames == 1
+
+
 def test_helix_correction_rolls_out_of_a_climbing_turn():
     # Uniform lift in a left turn (yaw rate < 0): the energy force makes the glider
     # climb relative to the air, which would overbank it; the correction rolls right.
