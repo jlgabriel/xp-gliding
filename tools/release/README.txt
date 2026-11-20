@@ -18,8 +18,8 @@ WHAT YOU NEED
   https://xppython3.readthedocs.io/
   Install it and start X-Plane once, so that it creates the folder
   X-Plane 12/Resources/plugins/PythonPlugins/
-  The Flight Computer needs X-Plane 12.4.4 and XPPython3 4.8.0 or later;
-  everything else works with earlier versions too.
+  The Flight Computer and the Glide Computer need X-Plane 12.4.4 and
+  XPPython3 4.8.0 or later; everything else works with earlier versions too.
 - A glider. The Laminar ASK 21 that comes with X-Plane is the reference.
 
 
@@ -98,8 +98,9 @@ THE MENU (Plugins > XP-Gliding)
   X-Plane 12/Output/xp-gliding/tasks/ and choose a task in its TASK tab. An
   empty folder gets an example task, a 29.5 km triangle from Tobalaba,
   Santiago, Chile. The Glide Computer is the same window with the functions
-  of Condor 3's flight computer: GLIDE, INFO and THERMAL screens, Condor's
-  map colours, and commands to bind to keys (XP-Gliding computer).
+  of Condor 3's flight computer: GLIDE, INFO and THERMAL screens (THERMAL
+  close in, its track coloured by climb), Condor's map colours, and commands
+  to bind to keys (XP-Gliding computer).
 - Day: a whole day at once: Easy, Typical, Demanding, Weak and low, or Blue
   (the same thermals, no clouds to read). The items below set one thing each.
 - Sky: wide thermals (the default, easiest), medium, or narrow (hardest).

@@ -73,7 +73,7 @@ A small panel on the left of the screen. The vario readings and the centring arr
 
 The other instrument, in place of the HUD: a window of its own that you can move and resize, with the same readings as the HUD, larger, and room for more to come. Choose it in *Plugins → XP-Gliding → Instrument*. It needs X-Plane 12.4.4 and XPPython3 4.8.0 or later, since its window is X-Plane's built-in browser; with anything earlier the menu greys it out and the HUD stays.
 
-![The Flight Computer in X-Plane: its window in the top left corner, the map showing the circle just flown, while the ASK 21 climbs at +1.4 m/s under a cumulus on the first leg of a task](images/flight-computer.jpg)
+![The Flight Computer in X-Plane: its window in the top left corner, the map showing the circles just flown, while the ASK 21 climbs at +1.5 m/s in a banked turn over Santiago, with cumulus over the foothills beyond, on the first leg of a task](images/flight-computer.jpg)
 
 A strip across the top always shows the total energy rate, with a bar whose half height is 5 m/s or 10 kt, the 30 s average and the altitude above sea level. With a task loaded, a row under it names the point you are flying to, with an arrow showing which way to turn to it, its bearing and its distance (see [TASK](#task)). Below, three tabs choose the view, MAP, FLIGHT or TASK; the one you leave it on is the one it opens with. Beside the tabs is the simulator's local time, which stands still while X-Plane is paused.
 
@@ -81,7 +81,7 @@ A strip across the top always shows the total energy rate, with a bar whose half
 
 A topographic map, north up, with the glider on it, turned to its heading, and the track you have flown, coloured by height: blue at the lowest of the flight, red at the highest. The legend under the zoom buttons gives the two heights; it widens by itself in steps of 100 m (300 m at least) as the flight goes higher or lower, and then the whole line takes its new colours. The map follows the glider: it moves at most once a second, in a small step, rather than gliding along all the time, which would cost X-Plane frames. Drag the map and it stops following; the round button at the top right brings it back. Under it, an arrow shows where the wind at the glider is blowing to, with its speed in knots. The + and − buttons, or the mouse wheel, zoom; the zoom you leave is kept. The scale at the bottom left is in km, or in nautical miles with *Units* set to aviation (feet below one mile).
 
-![The MAP view after a climb: the track spirals up over a racecourse in Santiago, blue at 1200 m through green and yellow to red at 1600 m, the glider leaves the circle on a dashed yellow line towards the first turn point, Chicureo, 15.2 km away, and the wind button reads calm](images/flight-computer-map.png)
+![The MAP view in a climb, 100 m on the scale: the track spirals up in tight circles over a neighbourhood of Santiago, blue near 1500 m turning green higher up on a legend from 1500 to 1800 m, the glider at the top of the spiral, the way in from the right in light blue, the first turn point, Cerro Manquehue, 9.3 km away at 358°, and the wind button reads calm](images/flight-computer-map.png)
 
 The track keeps one point a second for the last six hours. It is recorded while the Flight Computer is the chosen instrument, whether its window is open or not, and starts again when the glider jumps: a new flight, a move on X-Plane's map, *Put me near a cloud*, a change of time.
 
@@ -104,7 +104,7 @@ The readings the strip does not show:
 | `TOP` | Height up to the nearest thermal's cloud, as on the HUD; `--` with *Thermals* off |
 | `WIND` | Where the wind comes from and its speed in knots, with an arrow pointing where it goes, relative to the nose |
 
-![The FLIGHT view in a climb: total energy +1.2 m/s, NETTO +2.7 in green, THM 0.0, AGL 777 m, IAS 94 km/h, GS 103 km/h, TOP +568 m and WIND calm](images/flight-computer-flight.png)
+![The FLIGHT view in a climb: total energy +0.4 m/s, NETTO +2.4 in green, THM +0.3, AGL 996 m, IAS 92 km/h, GS 104 km/h, TOP +226 m and WIND calm](images/flight-computer-flight.png)
 
 The numbers grow and shrink with the window, so a small window in a corner still reads well.
 
@@ -116,7 +116,7 @@ A task from a SeeYou CUP file, to fly without leaving X-Plane. Put CUP files in 
 
 A CUP file can hold waypoints only, with no task: turn point files for a site or a competition are often like that. Such a file is listed with "no tasks in this file". Make the task in SeeYou (or another program that writes CUP files with tasks) from those waypoints and save it, then put that file in the folder.
 
-![Left, the TASK tab with a task of 89.3 km around Santiago: the start at Tobalaba taken and dimmed, the first turn point, Chicureo, in yellow, 12 % done and 78.9 km left, the Prev, Next and Clear buttons, and the tasks folder with its one file. Right, the same task on the map: magenta legs, the start cylinder at Tobalaba, the zone of Chicureo drawn stronger, and a dashed yellow line from the glider to it](images/flight-computer-task.png)
+![Left, the TASK tab with the example task, Santiago short triangle, 29.5 km: the start at Tobalaba taken and dimmed, the first turn point, Cerro Manquehue, in yellow, 7 % done and 27.4 km left, the Prev, Next and Clear buttons, and the tasks folder with its one file, santiago-short-triangle.cup. Right, the same task on the map, 5 km on the scale: magenta legs from Tobalaba to Cerro Manquehue, Cerro San Cristóbal and back, the zone of Cerro Manquehue drawn stronger, and the glider on the first leg](images/flight-computer-task.png)
 
 The TASK tab shows the task's points, each with the length of the leg to it; the point you are flying to is in yellow and those behind you are dimmed, and once started, the distance left and the share done. Each point is taken by itself as you fly:
 
@@ -143,6 +143,8 @@ The header shows the screen, `TO:` and the target, and the simulator's local tim
 | INFO | `tTime`, `tSpd`, `hAGL` / `TTG`, `GS`, `tDelta` |
 | THERMAL | `Dis`, `DH`, `TAve` / `T4Ave`, `DDH`, `TGain` |
 
+![Left, GLIDE with the target moved ahead to the second turn point: TO: 2 Cerro San Cristobal, Dis 16.3 km through the first turn point, DH 479 m, E 28, VMG 107 km/h, ReqE 34 and DDH --; the thin black line runs from the glider north towards Cerro Manquehue, the way to fly, the heading tape's red mark sits in the middle at the top, and the map is 9.4 km wide. Right, INFO on the same glide, the target back at 1 Cerro Manquehue: tTime 14:57, tSpd 15 km/h, hAGL 723 m, GS 108 km/h, TTG and tDelta --](images/glide-computer-glide-info.png)
+
 | Reading | What it shows |
 | --- | --- |
 | `Dis` | Distance to the target, through the points on the way when the target is further along the task |
@@ -160,6 +162,8 @@ The header shows the screen, `TO:` and the target, and the simulator's local tim
 On the map, the zone you fly to is red, those still to come green and those you have taken a fainter green. The start is red, turns yellow while you are in its zone ready to start, and green once you have started. Yellow tags name the points: `T` the takeoff, `S` the start, `1`, `2`… the turn points, `F` the finish; a yellow cross marks each point. A thin black line runs from the glider to the way to fly. Along the top, a tape of blue ticks shows where the target lies against your track: its red mark is in the middle when you fly straight at it, and hollow at an end when the target lies further round. Down the right edge is the glide-slope bar, which will show `DDH` once that reading comes. Bottom left is the wind, where it comes from and its speed in knots; bottom right, the map's width.
 
 The target is the point you fly to, unless you choose another: ◀ and ▶ in the header move it along the rest of the task, and back to the takeoff. `Dis`, `DH`, `ReqE` and the tape then speak of that point, through the points between; the task itself does not change. When you reach a point, the target moves on with it. Once you have finished, the header says FINISHED in green in place of TO:, and `tTime` and `tSpd` keep your task's time and speed. TASK in the header opens the Flight Computer's task list over the map, to choose a task or step a point by hand; it closes when you choose a task or press TASK again. The name of the screen in the header changes the screen. GLIDE and INFO keep their own zoom. THERMAL always opens close in, about 1 km across, whatever the window's size; zoom there as you like, and it opens close in again next time. On THERMAL the track is coloured by climb instead of height, on a scale that never moves, so a circle shows where you climbed and where you sank: red for 3 m/s or more, orange 2 to 3, yellow 1 to 2, green 0 to 1, light blue sinking up to 1 m/s, dark blue sinking more (with aviation units the steps are 2 kt: red from 6 kt, dark blue below −2 kt). Each stretch of track is coloured by the total-energy climb flown along it, second by second, with no vario's lag, and the legend shows the scale.
+
+![THERMAL in a climb, the map 1.2 km wide: the circles coloured by climb, red and orange on the side towards the core, through yellow and green to blue on the far side, the way in from the north-east in blue, and the legend from +3 to −1 m/s; TAve +1.1 in red, TGain 193 m, T4Ave −1.2 in blue, Dis 9.2 km and DH −240 m to Cerro Manquehue](images/glide-computer-thermal.png)
 
 When you circle, the computer goes to THERMAL by itself, once you have turned the same way for 15 s, so a turn onto a new course does not. After 20 s of straight flight it goes back to the screen you were on; a few straight seconds to move the circle keep THERMAL. A screen you choose while circling is kept. To turn this off, set `computer_auto_thermal` to `false` in `Output/xp-gliding/config.json` with X-Plane closed.
 

@@ -25,7 +25,7 @@ It is an independent take on thermals, offered as another option for soaring in 
 - **Put me near a cloud:** from the menu, the glider starts flying towards a cloud, with no tow.
 - **Optional training markers** showing where the thermals are.
 
-![The Flight Computer's window in the top left corner of X-Plane, its map showing the circle just flown, while the ASK 21 climbs at +1.4 m/s under a cumulus over Santiago, Chile, on the first leg of a task](docs/images/flight-computer.jpg)
+![The Flight Computer's window in the top left corner of X-Plane, its map showing the circles just flown, while the ASK 21 climbs at +1.5 m/s in a banked turn over Santiago, Chile, with cumulus over the foothills beyond, on the first leg of a task](docs/images/flight-computer.jpg)
 
 ## Where it is going
 
