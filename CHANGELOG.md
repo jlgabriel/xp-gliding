@@ -2,6 +2,12 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## Unreleased
+
+- **A reading that is not a number cannot take a point of the task.** While a place or time briefly read as not a number, the start could be taken from inside its cylinder or across its line, and a finish line counted as crossed from far off its end; an infinite place stopped the computer's tick. Such a reading is now skipped, as a jump is.
+- **`E` starts over when you are moved on X-Plane's map.** A short move the plugin did not see as a new flight kept the glide before it, and `E` mixed the two for up to 30 s.
+- **The pilot guide says that `TAve` and `TGain` count total energy,** as the vario does, so the speed traded for height as you pull up into a thermal is not counted as climb. Nothing changed in the computer.
+
 ## 2.1 — 2026-11-20
 
 - **The Glide Computer, a second computer.** *Instrument → Glide Computer* shows the functions of the flight computer in Condor 3, which many soaring pilots know, drawn over the plugin's own map. Three screens: GLIDE (distance and height over the target, glide ratio achieved and needed, speed made good), INFO (task time and speed, height above the ground, ground speed) and THERMAL (this thermal's climb and gain, the last four thermals' climb). The map uses Condor's colours: the zone you fly to red, the others green, the start red, yellow when armed and green once taken, yellow tags T, S, 1…, F, a heading tape along the top and the wind and the map's width in its corners. The target can be moved along the task, and back to the takeoff, to see distance and height to a later point. While you circle it goes to THERMAL by itself, and back to the screen you were on when you leave the thermal. New commands, with no key until you bind one, change the screen, zoom, the map's tiles and the target, in both computers. Arrival height and time to go need a polar and a MacCready setting, and come later. How it works: [pilot guide](docs/pilot-guide.md#the-glide-computer).

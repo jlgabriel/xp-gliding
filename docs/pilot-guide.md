@@ -147,12 +147,12 @@ The header shows the screen, `TO:` and the target, and the simulator's local tim
 | --- | --- |
 | `Dis` | Distance to the target, through the points on the way when the target is further along the task |
 | `DH` | Your height above the target's elevation, from the CUP file; `--` if the file gives none |
-| `E` | The glide ratio you are getting: the ground covered in the last 30 s over the height lost. `--` while you hold or gain height |
+| `E` | The glide ratio you are getting: the ground covered in the last 30 s over the height lost. `--` while you hold or gain height, and for 15 s after you are moved on X-Plane's map |
 | `ReqE` | The glide ratio needed to reach the target with no height to spare: `Dis` over `DH`. It knows nothing of the wind, the glider or the hills on the way |
 | `VMG` | Your ground speed towards the target's direction: negative when you fly away from it |
 | `tTime`, `tSpd` | Time since the start, and the task's average speed: the distance done along the task over that time |
 | `hAGL`, `GS` | Height above the ground, ground speed |
-| `TAve`, `TGain` | The climb since you began circling in this thermal and the height gained in it (the HUD's `THM`) |
+| `TAve`, `TGain` | The climb since you began circling in this thermal and the height gained in it (the HUD's `THM`). Both count total energy, as the vario does: speed traded for height as you pull up into the thermal is not counted as climb |
 | `T4Ave` | The climb of your last four thermals together: their gain over their time. The thermal you are in does not count |
 | `DDH`, `TTG` | Arrival height and time to go. They need the glider's polar and a MacCready setting, which come in a later version: `--` for now |
 | `tDelta` | For assigned area tasks, which the plugin does not fly: `--` |

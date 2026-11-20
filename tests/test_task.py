@@ -189,6 +189,31 @@ def test_a_jump_does_not_cross_a_line():
     assert not p.started
 
 
+NAN, INF = float("nan"), float("inf")
+
+
+@pytest.mark.parametrize("bad", [(NAN, -70.60, 1.0), (-33.40, INF, 1.0), (-33.40, -70.60, NAN)])
+def test_a_place_that_is_not_a_number_takes_nothing(bad):
+    for zones in ({}, {0: cup.ZoneSpec(r1_m=3000.0)}):  # the start a line, then a cylinder
+        p = Progress(triangle(zones))
+        p.update(*at(HOME, 180.0, 300.0), 0.0)  # behind the line, inside the cylinder
+        assert not p.update(*bad)
+        assert not p.update(*at(HOME, 180.0, 310.0), 1.2)
+        assert not p.started and p.start_t is None
+
+
+def test_a_finish_line_is_not_crossed_after_a_place_that_is_not_a_number():
+    task = triangle({3: cup.ZoneSpec(style=3, r1_m=1000.0, line=True)})
+    axis = task.zones[3].axis
+    p = Progress(task)
+    p.step(1), p.step(1), p.step(1)  # flying to the finish, 5 km short of its line
+    p.update(*at(HOME, axis + 180.0, 5000.0))
+    assert not p.update(NAN, NAN)
+    # Beyond the line's side but far off its end: flown straight from there, not across it
+    assert not p.update(*at(HOME, axis + 60.0, 5000.0))
+    assert not p.finished
+
+
 def test_points_by_hand():
     p = Progress(triangle())
     p.step(-1)

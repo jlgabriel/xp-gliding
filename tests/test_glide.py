@@ -49,6 +49,18 @@ def test_e_starts_over_when_time_goes_back():
     assert e.ld is None
 
 
+def test_e_starts_over_after_a_jump():
+    # Placed a few kilometres away on X-Plane's map, 500 m lower: no glide ratio from that.
+    e = glide(30.0, 60)
+    far = destination(HOME[0], HOME[1], 200.0, 5000.0)
+    e.add(61.0, far[0], far[1], 1440.0)
+    assert e.ld is None
+    for i in range(1, 61):  # then a glide at 20:1 from there: E is that glide's alone
+        lat, lon = destination(far[0], far[1], 90.0, 25.0 * i)
+        e.add(61.0 + i, lat, lon, 1440.0 - 1.25 * i)
+    assert e.ld == pytest.approx(20.0, rel=1e-3)
+
+
 def test_height_over_and_required_ld():
     assert height_over(1500.0, 600.0) == 900.0
     assert height_over(1500.0, None) is None

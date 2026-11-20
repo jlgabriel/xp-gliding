@@ -3,7 +3,9 @@ the target, and the speed made good towards it.
 
 - E, the glide ratio achieved (`GlideRatio`): the distance flown over the ground in the last
   WINDOW_S seconds against the height lost in them. Not shown while the glider holds or gains
-  height (no loss to divide by), nor above MAX_LD, where it means nothing.
+  height (no loss to divide by), nor above MAX_LD, where it means nothing. It starts over when the
+  glider jumps, seen as the track sees it: the clock gone back, or a move faster than a glider
+  flies (`track.JUMP_SPEED_MS`).
 - DH (`height_over`): the glider's height above the target's elevation; unknown when the file gives
   the point no elevation.
 - ReqE (`required_ld`): the distance to the target along the route against DH; unknown with the
@@ -19,6 +21,7 @@ import math
 from collections import deque
 
 from .geodesy import distance_m
+from .track import JUMP_SPEED_MS
 
 WINDOW_S = 30.0  # E looks this far back (Condor does not say how far its E looks: to verify)
 MAX_LD = 300.0  # above this, E is not a glide ratio worth showing
@@ -44,7 +47,11 @@ class GlideRatio:
         flown = 0.0
         if samples:
             last = samples[-1]
-            flown = last[4] + distance_m(last[1], last[2], lat, lon)
+            step = distance_m(last[1], last[2], lat, lon)
+            if step > JUMP_SPEED_MS * (t - last[0]):
+                samples.clear()  # a jump: the height and ground before it are another flight
+            else:
+                flown = last[4] + step
         samples.append((t, lat, lon, msl, flown))
         while len(samples) > 2 and t - samples[1][0] >= self.window_s:
             samples.popleft()

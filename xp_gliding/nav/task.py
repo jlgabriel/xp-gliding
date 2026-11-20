@@ -310,7 +310,13 @@ class Progress:
         """Look at a new place, at simulator time `t` (seconds); True if a point was taken. A place
         reached from the last faster than a glider flies (`track.JUMP_SPEED_MS`), or with the clock
         gone back, is a jump the adapter did not see (a short move on X-Plane's map): the last place
-        is forgotten first."""
+        is forgotten first. A place or time that is not a number is skipped, and the last place
+        forgotten with it: compared with it, every line test and zone test is false, which reads
+        as a start's zone left or a line crossed."""
+        if not (math.isfinite(lat) and math.isfinite(lon) and (t is None or math.isfinite(t))):
+            self._last = None
+            self.forget_place()
+            return False
         if t is not None:
             self._t = t
             last, self._last = self._last, (t, lat, lon)
