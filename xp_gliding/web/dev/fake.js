@@ -109,7 +109,9 @@
     while (lastSecond < Math.floor(t)) {
       lastSecond++;
       var q = place(lastSecond);
-      points.push([q.lat, q.lon, Math.round(q.msl)]);
+      // The climb along the second before: sinking in the glide, a core to one side in the circles.
+      var c = q.circling ? 2.0 + 1.6 * Math.sin((q.heading - 130) * Math.PI / 180) : -1.0;
+      points.push([q.lat, q.lon, Math.round(q.msl), lastSecond > 0 ? Math.round(c * 10) / 10 : null]);
     }
     var turn = p.heading;
     // Every third 10 s a steep dive, for the widest readings (-14.4 kt fits the default window).

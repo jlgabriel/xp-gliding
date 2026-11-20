@@ -246,3 +246,12 @@ def test_height_to_top_matches_where_the_engine_stops_the_mean_updraft():
     assert updraft.mean_updraft(1.0 / 1.1, 3.0) == pytest.approx(0.0, abs=0.01)
     assert height_to_top(2000.0, 1900.0) < 0.0
     assert height_to_top(2000.0, 1000.0, 0.75) == pytest.approx(500.0)
+
+
+def test_energy_at_only_while_the_vario_is_sampled():
+    vario = Vario()
+    assert vario.energy_at(10.0) is None
+    vario.update(10.0, 1000.0, 25.0, 90.0, 0.0, 600.0)
+    vario.update(10.1, 1000.1, 25.0, 90.0, 0.0, 600.0)
+    assert vario.energy_at(10.1) == pytest.approx(1000.1 + 25.0 ** 2 / (2.0 * 9.80665), abs=0.01)
+    assert vario.energy_at(12.0) is None  # not sampled since: the plugin off, or not a glider

@@ -488,7 +488,8 @@ class Computer:
         lat, lon = xp.getDatad(self._lat), xp.getDatad(self._lon)
         if due:
             msl = xp.getDatad(self._elevation)
-            self.track.add(t, lat, lon, msl)
+            # The total energy, for the climb along each second of track (THERMAL's colours)
+            self.track.add(t, lat, lon, msl, self.hud.vario.energy_at(t))
             self.glide.add(t, lat, lon, msl)
         if progress is not None and progress.update(lat, lon, t):
             self._log_taken()

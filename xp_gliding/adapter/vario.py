@@ -151,6 +151,13 @@ class Vario:
         self._average(t, energy)
         return True
 
+    def energy_at(self, t):
+        """`energy_m` if the last sample accepted is from about simulator time `t`, else None: a
+        vario not sampled (the plugin off, or not a glider) keeps its last value."""
+        if self.valid and self._t is not None and abs(t - self._t) <= 0.5:
+            return self.energy_m
+        return None
+
     def _push(self, t, energy):
         self._ring_t[self._ring_next] = t
         self._ring_e[self._ring_next] = energy

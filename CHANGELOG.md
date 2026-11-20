@@ -2,8 +2,14 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
-## Unreleased
+## 2.2 — 2026-11-20
 
+- **THERMAL colours the track by climb.** On the Glide Computer's THERMAL screen the track shows where you climbed and where you sank, on a fixed scale: red for 3 m/s or more down to dark blue for more than 1 m/s of sink (2 kt steps with aviation units). Each stretch is the total-energy climb flown along it, second by second. The other screens and the Flight Computer still colour it by height.
+- **THERMAL always opens close in,** about 1 km across whatever the window's size, so the circles are big enough to read. GLIDE and INFO keep the zoom you leave them at.
+- **The Glide Computer says when you have finished.** Its header shows FINISHED in green in place of TO: once the finish is taken; `tTime` and `tSpd` stay at your task's time and speed. Before, nothing said so.
+- **Bigger glider and map symbols in both computers.** The glider is half as large again, and the zoom and follow buttons, the track's legend, the wind, the scale and the map's width are about a third larger, to read at a glance in flight.
+- **A zone you have taken is easier to see** on the Glide Computer's map: as wide as the green ones still to come, and only a little fainter.
+- **A screen chosen by clicking its name no longer flickers.** The page showed it at once, then for a moment the screen before it, from a reading asked for before X-Plane had the click.
 - **A reading that is not a number cannot take a point of the task.** While a place or time briefly read as not a number, the start could be taken from inside its cylinder or across its line, and a finish line counted as crossed from far off its end; an infinite place stopped the computer's tick. Such a reading is now skipped, as a jump is.
 - **`E` starts over when you are moved on X-Plane's map.** A short move the plugin did not see as a new flight kept the glide before it, and `E` mixed the two for up to 30 s.
 - **The pilot guide says that `TAve` and `TGain` count total energy,** as the vario does, so the speed traded for height as you pull up into a thermal is not counted as climb. Nothing changed in the computer.

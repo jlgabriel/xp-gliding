@@ -1,6 +1,6 @@
 # Pilot guide
 
-How to install XP-Gliding, make a first flight and read its sky. This guide is for version 2.1. Its known limits are listed at the end.
+How to install XP-Gliding, make a first flight and read its sky. This guide is for version 2.2. Its known limits are listed at the end.
 
 ![A Laminar ASK 21 banked in a climbing turn over Santiago, Chile, with cumulus over the foothills of the Andes beyond. The HUD on the left reads +1.5 m/s](images/climbing-among-cumulus.jpg)
 
@@ -12,7 +12,7 @@ How to install XP-Gliding, make a first flight and read its sky. This guide is f
 
 ## Installing
 
-1. Download `xp-gliding-2.1.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
+1. Download `xp-gliding-2.2.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
 2. Close X-Plane.
 3. From the unzipped folder, copy `PI_xp_gliding.py`, the whole `xp_gliding` folder and the `xp-gliding-cloud-styles` folder into `X-Plane 12/Resources/plugins/PythonPlugins/`. They must sit side by side there. The last one is for cloud styles of your own, and the plugin makes it if it is missing. `README.txt` and `LICENSE` do not need to be copied.
 4. Start X-Plane. *Plugins → XP-Gliding* appears in the menu.
@@ -159,7 +159,7 @@ The header shows the screen, `TO:` and the target, and the simulator's local tim
 
 On the map, the zone you fly to is red, those still to come green and those you have taken a fainter green. The start is red, turns yellow while you are in its zone ready to start, and green once you have started. Yellow tags name the points: `T` the takeoff, `S` the start, `1`, `2`… the turn points, `F` the finish; a yellow cross marks each point. A thin black line runs from the glider to the way to fly. Along the top, a tape of blue ticks shows where the target lies against your track: its red mark is in the middle when you fly straight at it, and hollow at an end when the target lies further round. Down the right edge is the glide-slope bar, which will show `DDH` once that reading comes. Bottom left is the wind, where it comes from and its speed in knots; bottom right, the map's width.
 
-The target is the point you fly to, unless you choose another: ◀ and ▶ in the header move it along the rest of the task, and back to the takeoff. `Dis`, `DH`, `ReqE` and the tape then speak of that point, through the points between; the task itself does not change. When you reach a point, the target moves on with it. TASK in the header opens the Flight Computer's task list over the map, to choose a task or step a point by hand; it closes when you choose a task or press TASK again. The name of the screen in the header changes the screen. Each screen keeps its own zoom; THERMAL starts close in.
+The target is the point you fly to, unless you choose another: ◀ and ▶ in the header move it along the rest of the task, and back to the takeoff. `Dis`, `DH`, `ReqE` and the tape then speak of that point, through the points between; the task itself does not change. When you reach a point, the target moves on with it. Once you have finished, the header says FINISHED in green in place of TO:, and `tTime` and `tSpd` keep your task's time and speed. TASK in the header opens the Flight Computer's task list over the map, to choose a task or step a point by hand; it closes when you choose a task or press TASK again. The name of the screen in the header changes the screen. GLIDE and INFO keep their own zoom. THERMAL always opens close in, about 1 km across, whatever the window's size; zoom there as you like, and it opens close in again next time. On THERMAL the track is coloured by climb instead of height, on a scale that never moves, so a circle shows where you climbed and where you sank: red for 3 m/s or more, orange 2 to 3, yellow 1 to 2, green 0 to 1, light blue sinking up to 1 m/s, dark blue sinking more (with aviation units the steps are 2 kt: red from 6 kt, dark blue below −2 kt). Each stretch of track is coloured by the total-energy climb flown along it, second by second, with no vario's lag, and the legend shows the scale.
 
 When you circle, the computer goes to THERMAL by itself, once you have turned the same way for 15 s, so a turn onto a new course does not. After 20 s of straight flight it goes back to the screen you were on; a few straight seconds to move the circle keep THERMAL. A screen you choose while circling is kept. To turn this off, set `computer_auto_thermal` to `false` in `Output/xp-gliding/config.json` with X-Plane closed.
 

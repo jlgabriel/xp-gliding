@@ -10,7 +10,10 @@ the track sees it itself when the simulator's time goes back or the glider moved
 glider flies (JUMP_SPEED_MS) since the last point.
 
 Each point has the glider's height above sea level too, to the metre, for the map to colour the
-line by: [lat, lon, msl], msl null where it was not known.
+line by, and the climb since the point before: [lat, lon, msl, climb], either null where it is not
+known. The climb is the total energy gained over the second between the two points (m/s, to a
+tenth), so the line from one point to the next is coloured by exactly the climb flown along it,
+with no vario's lag: the Glide Computer's THERMAL screen shows where the glider climbed and sank.
 
 The page holds what it was sent and asks only for what it does not have (`json_from`): its epoch
 and the number of the point after its last. Each point is turned into text once, when kept, so an
@@ -38,7 +41,8 @@ class Track:
         self.epoch = 0
         self.count = 0  # points kept in this epoch, dropped ones included: the next point's number
         self._points = []  # (t, lat, lon, msl), the last ones kept
-        self._texts = []  # the same points as JSON text, "[lat,lon,msl]"
+        self._texts = []  # the same points as JSON text, "[lat,lon,msl,climb]"
+        self._energy = None  # (t, total energy as a height, m) at the last point kept, if known
         self.sent = 0  # the number after the last point sent: what the page holds, for the test pilot
 
     @property
@@ -52,15 +56,16 @@ class Track:
         self.count = 0
         self._points = []
         self._texts = []
+        self._energy = None
         self.sent = 0
 
     def due(self, t):
         """Would a place at simulator time t be kept? Asked first, so the place is read only then."""
         return not self._points or not 0.0 <= t - self._points[-1][0] < PERIOD_S - SOON_S
 
-    def add(self, t, lat, lon, msl=None):
-        """Offer the position at simulator time t (s), and the height (m MSL) if known; True if it
-        was kept as a point."""
+    def add(self, t, lat, lon, msl=None, energy=None):
+        """Offer the position at simulator time t (s), and the height (m MSL) and the total energy
+        as a height (m) if known; True if it was kept as a point."""
         if not (math.isfinite(t) and math.isfinite(lat) and math.isfinite(lon)):
             return False
         if self._points:
@@ -74,9 +79,18 @@ class Track:
                 self.restart()
         if msl is not None and not math.isfinite(msl):
             msl = None
+        if energy is not None and not math.isfinite(energy):
+            energy = None
+        climb = None
+        last, self._energy = self._energy, None if energy is None else (t, energy)
+        if self._points and last is not None and energy is not None and last[0] == self._points[-1][0]:
+            dt = t - last[0]
+            if 0.0 < dt <= 2.0 * PERIOD_S:  # the point before a paused or missed second is too far
+                climb = (energy - last[1]) / dt
         self._points.append((t, lat, lon, msl))
         height = "null" if msl is None else f"{msl:.0f}"
-        self._texts.append(f"[{lat:.6f},{lon:.6f},{height}]")
+        rate = "null" if climb is None else f"{climb:.1f}"
+        self._texts.append(f"[{lat:.6f},{lon:.6f},{height},{rate}]")
         self.count += 1
         if len(self._points) > self.capacity + TRIM:
             del self._points[:-self.capacity]

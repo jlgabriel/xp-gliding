@@ -31,6 +31,12 @@ window.xpg = xpg;
   var askingTrack = false;
   var view = null;  // the view shown; the first snapshot's until the pilot picks one
   var viewSent = null;  // the view as Python last sent it: a new one (a command) is shown
+  // The Glide Computer's screen as Python last sent it, the same way. A screen clicked shows at
+  // once (glide.js sets `xpg.glide.chosen`); until Python's snapshot has it too, or CHOSEN_WAIT_MS
+  // have gone by, a snapshot with another screen was asked for before Python had the click and must
+  // not put the old screen back for a moment.
+  var screenSent = null;
+  var CHOSEN_WAIT_MS = 2000;
   var layout = null;  // "flight" or "glide": which computer the page is
   var lastKey = null;  // the number of the last command done, from the snapshot's keys
   var started = Date.now();
@@ -61,6 +67,7 @@ window.xpg = xpg;
     name = name === "glide" ? "glide" : "flight";
     if (name === layout) return;
     layout = name;
+    screenSent = null;  // back on the Glide Computer: its screen as Python has it
     document.body.setAttribute("data-layout", name);
     xpg.map.setLayout(name);
     if (name === "flight") {
@@ -93,7 +100,14 @@ window.xpg = xpg;
     if (!s || typeof s !== "object") return;
     setLayout(s.layout);
     if (layout === "glide") {
-      xpg.glide.show(s.screen);
+      var chosen = xpg.glide.chosen;
+      if (chosen && (s.screen === chosen.screen || Date.now() - chosen.at > CHOSEN_WAIT_MS)) {
+        xpg.glide.chosen = null;
+        if (s.screen !== chosen.screen) xpg.glide.show(s.screen);  // the click was lost: Python's
+      } else if (!chosen && (screenSent === null || s.screen !== screenSent)) {
+        xpg.glide.show(s.screen);
+      }
+      screenSent = s.screen;
       xpg.glide.draw(s);
     } else {
       if (view === null || (s.view && s.view !== viewSent)) show(s.view || "map");

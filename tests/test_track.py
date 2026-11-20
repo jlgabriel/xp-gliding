@@ -98,7 +98,7 @@ def test_the_page_gets_what_it_does_not_have():
     first = answer(track, None, 0)  # a new page knows no epoch: everything
     assert first["epoch"] == 0 and first["from"] == 0 and first["n"] == 10 and len(first["points"]) == 10
     lat0, lon0 = track.points()[0][1:3]
-    assert first["points"][0] == [pytest.approx(lat0, abs=1e-6), pytest.approx(lon0, abs=1e-6), None]
+    assert first["points"][0] == [pytest.approx(lat0, abs=1e-6), pytest.approx(lon0, abs=1e-6), None, None]
     fly(track, 3.0, t0=110.0, lat=track.points()[-1][1], lon=track.points()[-1][2])
     more = answer(track, 0, 10)
     assert more["from"] == 10 and more["n"] == 13 and len(more["points"]) == 3
@@ -155,5 +155,33 @@ def test_each_point_carries_its_height_to_the_metre():
     track.add(1.0, -33.45, -70.55, 1234.56)
     track.add(2.0, -33.45, -70.5497, float("nan"))  # not known: null
     got = answer(track, 0, 0)
-    assert got["points"] == [[-33.45, -70.55, 1235], [-33.45, -70.5497, None]]
+    assert got["points"] == [[-33.45, -70.55, 1235, None], [-33.45, -70.5497, None, None]]
     assert track.points()[0][3] == 1234.56 and track.points()[1][3] is None
+
+
+def test_each_point_has_the_climb_along_the_second_before_it():
+    # Circling: 2.5 m/s up for 3 s, then 1.2 m/s down; offered at 10 Hz, kept once a second.
+    track = Track()
+    energy = 1500.0
+    for k in range(60):
+        t = 100.0 + k / 10.0
+        energy += (2.5 if k <= 30 else -1.2) / 10.0  # the point at 103 s ends the climb
+        track.add(t, -33.45, -70.55 + k * 1e-5, 1480.0, energy)
+    climbs = [p[3] for p in answer(track, None, 0)["points"]]
+    assert climbs == [None, 2.5, 2.5, 2.5, -1.2, -1.2]
+
+
+def test_no_climb_without_energy_or_across_a_gap():
+    track = Track()
+    track.add(100.0, -33.45, -70.55, 1500.0, 1500.0)
+    track.add(101.0, -33.45, -70.5497, 1500.0, None)  # the vario not sampled
+    track.add(102.0, -33.45, -70.5494, 1500.0, 1502.0)  # nothing to compare with
+    track.add(103.0, -33.45, -70.5491, 1500.0, float("nan"))
+    track.add(104.0, -33.45, -70.5488, 1500.0, 1504.0)
+    track.add(108.0, -33.45, -70.5485, 1500.0, 1508.0)  # four seconds missed: no climb over them
+    track.add(109.0, -33.45, -70.5482, 1500.0, 1509.5)
+    climbs = [p[3] for p in answer(track, None, 0)["points"]]
+    assert climbs == [None, None, None, None, None, None, 1.5]
+    track.restart()
+    track.add(110.0, -33.45, -70.5479, 1500.0, 1511.0)  # a new epoch begins without a climb
+    assert answer(track, None, 0)["points"][0][3] is None

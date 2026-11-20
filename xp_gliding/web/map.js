@@ -3,7 +3,8 @@
 // Draws what Python sends and computes nothing that matters: the glider at its place, turned to
 // its heading; the wind at the glider, an arrow pointing where it goes (the map is north up) and
 // its speed in knots, as on the HUD; the track as Python kept it (xpg_track, one point a second),
-// coloured by height from blue (the flight's lowest) to red (its highest), with a legend; raster tiles from the
+// coloured by height from blue (the flight's lowest) to red (its highest), with a legend (on the
+// Glide Computer's THERMAL screen by climb instead: see CLIMB_EDGES); raster tiles from the
 // address in the settings, with their attribution always shown; a lat/lon grid under the tiles,
 // which shows where tiles do not load (no network), so glider and track still have a frame.
 // With a task (task.js gives it, as xpg_task sent it): its legs, its points named, each zone as
@@ -22,8 +23,9 @@
 // from the glider to the way to fly; a heading tape along the top (blue ticks, the bearing to the
 // way to fly a red mark, centred when flying straight at it) and a glide-slope bar down the right
 // edge (its mark waits for the polar and MacCready); the wind bottom left as "from/speed", the
-// map's width bottom right. Each screen keeps its own zoom; the tiles can be turned off (the map's
-// display, a command).
+// map's width bottom right. GLIDE and INFO keep their own zoom; THERMAL always opens close in, about
+// THERMAL_WIDTH_M across whatever the window's size, and a zoom there is not kept. The tiles can be
+// turned off (the map's display, a command).
 //
 // Text from settings (the attribution) goes in escaped: Leaflet writes it as HTML, and a link
 // would take X-Plane's browser window away from the page.
@@ -43,13 +45,18 @@ xpg.map = (function () {
   var TRACK_COLOURS = ["#2f6bff", "#00b4d8", "#22c55e", "#d4d81c", "#ff9a1f", "#ff3b30"];
   var TRACK_STEP_M = 100;
   var TRACK_MIN_SPAN_M = 300;
+  // THERMAL colours the track by the climb along each second instead (nav/track.py), on a scale
+  // that never moves, so that a circle shows where it climbs and where it sinks: the same six
+  // colours, split at these climbs in the pilot's unit (blue sinking more than 1 m/s, red climbing
+  // 3 m/s or more).
+  var CLIMB_EDGES = {metric: [-1, 0, 1, 2, 3], aviation: [-2, 0, 2, 4, 6]};
   // Points held at most, as Python keeps them (nav/track.py: six hours at one a second); past
   // this the oldest go, this many at a time, so that the line is built again only now and then.
   var TRACK_CAPACITY = 6 * 3600;
   var TRACK_TRIM = 600;
   var GRID_STEPS = [10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001];  // degrees
   var GLIDER_SVG =
-    '<svg viewBox="-16 -16 32 32" width="32" height="32" aria-hidden="true">' +
+    '<svg viewBox="-16 -16 32 32" width="48" height="48" aria-hidden="true">' +
     '<g class="outline"><path d="M0,-7 L0,10 M-15,-1.5 L15,-1.5 M-4.5,10 L4.5,10"/></g>' +
     '<g class="body"><path d="M0,-7 L0,10 M-15,-1.5 L15,-1.5 M-4.5,10 L4.5,10"/></g></svg>';
 
@@ -63,7 +70,8 @@ xpg.map = (function () {
   var windText = null;
   var windTurn = null;
   var trackLayer = null;  // the track's lines, one per run of a colour
-  var held = [];  // every point held, [lat, lon, msl]
+  var held = [];  // every point held, [lat, lon, msl] with its climb as `.climb` (see held3)
+  var byClimb = false;  // the track coloured by climb (THERMAL), not by height
   var lo = null, hi = null;  // the colour scale (m MSL)
   var seg = null, segPoints = null, segBand = -1;  // the last line, its points and colour
   var legend = null;
@@ -95,9 +103,11 @@ xpg.map = (function () {
     active: {color: RED, fillColor: RED, weight: 3, opacity: 1, fillOpacity: 0.2},
     armed: {color: YELLOW, fillColor: YELLOW, weight: 3, opacity: 1, fillOpacity: 0.22},
     todo: {color: GREEN, fillColor: GREEN, weight: 2, opacity: 0.95, fillOpacity: 0.12},
-    taken: {color: GREEN, fillColor: GREEN, weight: 1.5, opacity: 0.55, fillOpacity: 0.05}
+    // As wide as the ones to come, and only a little fainter: thinner, it was lost on the tiles
+    taken: {color: GREEN, fillColor: GREEN, weight: 2, opacity: 0.8, fillOpacity: 0.06}
   };
   var DEFAULT_ZOOMS = {map: DEFAULT_ZOOM, glide: 12, info: 11, thermal: 15};
+  var THERMAL_WIDTH_M = 1000;  // THERMAL's map across, to the nearest zoom: a few circles and their drift
   var TAPE_SPAN_DEG = 50;  // the heading tape shows this much each side of the track (Condor's span: to verify)
   var TAPE_STEP_DEG = 10;
   var BAR_TICKS = 10;
@@ -123,6 +133,7 @@ xpg.map = (function () {
 
   function storedZoom(key) {
     var fallback = DEFAULT_ZOOMS[key] || DEFAULT_ZOOM;
+    if (key === "thermal") return fallback;  // not kept: see zoomFor
     try {
       var z = parseInt(localStorage.getItem(zoomStore(key)), 10);
       return isFinite(z) ? z : fallback;
@@ -132,6 +143,7 @@ xpg.map = (function () {
   }
 
   function storeZoom() {
+    if (zoomKey === "thermal") return;  // THERMAL opens at its own width each time
     try { localStorage.setItem(zoomStore(zoomKey), String(map.getZoom())); } catch (e) { /* not kept */ }
   }
 
@@ -182,7 +194,7 @@ xpg.map = (function () {
       a.href = "#";
       a.title = "Follow the glider";
       a.setAttribute("role", "button");
-      a.innerHTML = '<svg viewBox="-10 -10 20 20" width="18" height="18" aria-hidden="true">' +
+      a.innerHTML = '<svg viewBox="-10 -10 20 20" width="24" height="24" aria-hidden="true">' +
         '<circle r="6"/><path d="M0,-9 L0,-4 M0,4 L0,9 M-9,0 L-4,0 M4,0 L9,0"/></svg>';
       L.DomEvent.disableClickPropagation(el);
       L.DomEvent.on(a, "click", function (e) {
@@ -199,7 +211,7 @@ xpg.map = (function () {
     options: {position: "topright"},
     onAdd: function () {
       var el = L.DomUtil.create("div", "wind-box");
-      el.innerHTML = '<svg viewBox="-10 -10 20 20" width="26" height="26" aria-hidden="true">' +
+      el.innerHTML = '<svg viewBox="-10 -10 20 20" width="34" height="34" aria-hidden="true">' +
         '<path d="M0,-8 L4,1 L1,1 L1,8 L-1,8 L-1,1 L-4,1 Z"/></svg><span></span>';
       windArrow = el.firstChild;
       windText = el.lastChild;
@@ -214,7 +226,7 @@ xpg.map = (function () {
     onAdd: function () {
       var el = L.DomUtil.create("div", "corner " + this.options.kind);
       if (this.options.kind === "corner-wind") {
-        el.innerHTML = '<svg viewBox="-10 -10 20 20" width="22" height="22" aria-hidden="true">' +
+        el.innerHTML = '<svg viewBox="-10 -10 20 20" width="30" height="30" aria-hidden="true">' +
           '<path d="M0,-8 L4,1 L1,1 L1,8 L-1,8 L-1,1 L-4,1 Z"/></svg>';
       }
       el.appendChild(document.createElement("span"));
@@ -368,7 +380,7 @@ xpg.map = (function () {
     trackLayer = L.layerGroup().addTo(map);
     legend = new Legend().addTo(map);
     glider = L.marker([0, 0], {
-      icon: L.divIcon({className: "glider", html: GLIDER_SVG, iconSize: [32, 32], iconAnchor: [16, 16]}),
+      icon: L.divIcon({className: "glider", html: GLIDER_SVG, iconSize: [48, 48], iconAnchor: [24, 24]}),
       interactive: false, keyboard: false
     });
     scale = new Scale().addTo(map);
@@ -394,6 +406,19 @@ xpg.map = (function () {
     zoneState = "";
     tapeAt = undefined;
     if (map) setTask(lastTask, false);
+    colourBy();
+  }
+
+  // The zoom a screen opens at: THERMAL's from its width, the others' as last left.
+  function zoomFor(key) {
+    if (key !== "thermal" || !map) return storedZoom(key);
+    var size = map.getSize();
+    if (!placed || !(size.x > 0)) return DEFAULT_ZOOMS.thermal;  // hidden: nothing to measure
+    var m = map.distance(map.containerPointToLatLng([0, size.y / 2]),
+                         map.containerPointToLatLng([size.x, size.y / 2]));
+    if (!(m > 0)) return DEFAULT_ZOOMS.thermal;
+    var z = Math.round(map.getZoom() + Math.log(m / THERMAL_WIDTH_M) / Math.LN2);
+    return Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), z));
   }
 
   // The zoom of this screen ("map" for the Flight Computer, or a Glide Computer screen). A Glide
@@ -401,9 +426,10 @@ xpg.map = (function () {
   function useZoom(key) {
     if (key === zoomKey) return;
     zoomKey = key;
+    colourBy();
     if (key !== "map" && map) setFollow(true);
     if (map && placed) {
-      var z = storedZoom(key);
+      var z = zoomFor(key);
       if (z !== map.getZoom()) {
         map.setZoom(z, {animate: false});
         lastFollow = 0;
@@ -434,6 +460,7 @@ xpg.map = (function () {
     if (unitsShown !== s.units) {
       unitsShown = s.units;
       scale.setNautical(s.units === "aviation");
+      if (byClimb) rebuild();  // the climb's edges are the pilot's units
       drawLegend();
       drawWidth();
     }
@@ -451,6 +478,7 @@ xpg.map = (function () {
     if (!placed) {
       placed = true;
       map.setView(here, storedZoom(zoomKey), {animate: false});
+      if (zoomKey === "thermal") map.setZoom(zoomFor("thermal"), {animate: false});
       drawWidth();
     }
     // Moved only once it would show: in straight flight the glider crosses a pixel about once a
@@ -500,18 +528,32 @@ xpg.map = (function () {
     return {epoch: trackEpoch, from: trackNext};
   }
 
+  // Python's [lat, lon, msl, climb] as Leaflet takes a point: it reads an array of three as
+  // [lat, lon, alt] and refuses one of four. The climb rides along as a property.
+  function held3(points) {
+    var out = new Array(points.length);
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      var q = [p[0], p[1], p[2]];
+      q.climb = p[3];
+      out[i] = q;
+    }
+    return out;
+  }
+
   // An answer of xpg_track: points from number `from` on. Not where the line ends: start again.
   // The line changes at the next state (flushTrack), so that the page draws one frame for both.
   function addTrack(r) {
     if (!r || !Array.isArray(r.points)) return;
+    var points = held3(r.points);
     if (r.epoch !== trackEpoch || r.from !== trackNext) {
       trackEpoch = r.epoch;
-      newLine = r.points.slice();
+      newLine = points;
       newPoints = [];
     } else if (newLine) {
-      newLine = newLine.concat(r.points);
+      newLine = newLine.concat(points);
     } else {
-      newPoints = newPoints.concat(r.points);
+      newPoints = newPoints.concat(points);
     }
     trackNext = r.from + r.points.length;
   }
@@ -529,7 +571,7 @@ xpg.map = (function () {
       if (held.length > TRACK_CAPACITY + TRACK_TRIM) {
         held = held.slice(-TRACK_CAPACITY);
         rebuild();
-      } else if (rescale(points)) rebuild();
+      } else if (rescale(points) && !byClimb) rebuild();
       else extend(points);
     }
   }
@@ -558,9 +600,28 @@ xpg.map = (function () {
   }
 
   function band(p, before) {
+    if (byClimb) return climbBand(p, before);
     if (!knownHeight(p) || lo === null) return before < 0 ? 0 : before;
     var k = Math.floor((p[2] - lo) / (hi - lo) * TRACK_COLOURS.length);
     return Math.max(0, Math.min(TRACK_COLOURS.length - 1, k));
+  }
+
+  function climbBand(p, before) {
+    if (typeof p.climb !== "number" || !isFinite(p.climb)) return before < 0 ? 2 : before;  // unknown: as the last
+    var v = p.climb * xpg.format.units(unitsShown).perClimb;
+    var edges = CLIMB_EDGES[unitsShown] || CLIMB_EDGES.metric;
+    var k = 0;
+    while (k < edges.length && v >= edges[k]) k++;
+    return k;
+  }
+
+  // Height or climb: by climb on the Glide Computer's THERMAL screen. The whole line again when it
+  // changes, or when the units move the climb's edges.
+  function colourBy() {
+    var climb = layout === "glide" && zoomKey === "thermal";
+    if (climb === byClimb) return;
+    byClimb = climb;
+    if (map && trackLayer) rebuild();
   }
 
   function newSeg(points, b) {
@@ -629,10 +690,16 @@ xpg.map = (function () {
   function drawLegend() {
     if (!legend) return;
     var el = legend.getContainer();
-    var shown = lo !== null;
+    var shown = byClimb ? held.length > 0 : lo !== null;
     el.style.display = shown ? "" : "none";
     if (!shown) return;
     var u = xpg.format.units(unitsShown);
+    if (byClimb) {  // the top colour's lower edge, the bottom colour's upper one
+      var edges = CLIMB_EDGES[unitsShown] || CLIMB_EDGES.metric;
+      el.querySelector(".hi").textContent = "+" + edges[edges.length - 1];
+      el.querySelector(".lo").textContent = "−" + Math.abs(edges[0]) + " " + u.climb;
+      return;
+    }
     el.querySelector(".hi").textContent = xpg.format.height(hi, u, false);
     el.querySelector(".lo").textContent = xpg.format.height(lo, u, false) + " " + u.height;
   }

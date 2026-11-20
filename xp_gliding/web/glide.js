@@ -79,6 +79,7 @@ xpg.glide = (function () {
 
   function find() {
     els = {screen: document.getElementById("g-screen"), tag: document.getElementById("g-tag"),
+           to: document.getElementById("g-to"), toWord: document.querySelector("#g-to .to"),
            name: document.getElementById("g-name"), clock: document.getElementById("g-clock"), cells: []};
     var cells = document.querySelectorAll("#readings .cell");
     for (var i = 0; i < cells.length; i++) {
@@ -87,6 +88,7 @@ xpg.glide = (function () {
     els.screen.addEventListener("click", function () {
       var next = SCREENS[(SCREENS.indexOf(screen) + 1) % SCREENS.length];
       xpg.glide.show(next);
+      xpg.glide.chosen = {screen: next, at: Date.now()};  // app.js: until Python has it too
       send({cmd: "set", screen: next});
     });
     document.getElementById("g-task").addEventListener("click", function () {
@@ -140,6 +142,10 @@ xpg.glide = (function () {
     var u = f.units(s.units);
     setText(els.clock, f.clock(s.local_s));
     var t = target(s);
+    // The task flown: FINISHED in green in place of TO:, while the target is still the finish.
+    var done = !!(s.nav && s.nav.finished && t && t.role === "finish");
+    setText(els.toWord, done ? "FINISHED" : "TO:");
+    els.to.classList.toggle("done", done);
     setText(els.tag, t ? t.label : "");
     els.tag.style.display = t ? "" : "none";
     setText(els.name, t ? t.name : NONE);

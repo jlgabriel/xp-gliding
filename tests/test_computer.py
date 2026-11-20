@@ -476,6 +476,25 @@ def fly(pi, data, seconds, step=0.1, north_ms=25.0):
         tick(pi, step)
 
 
+def test_the_track_has_the_climb_the_vario_measured(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Flight Computer")
+    vario = pi.computer.hud.vario
+    msl = data["sim/flightmodel/position/elevation"]
+    for k in range(60):  # climbing 1.5 m/s at a steady 25 m/s, the vario sampled as the HUD does
+        data["sim/time/total_running_time_sec"] += 0.1
+        data["sim/flightmodel/position/latitude"] += 2.5 / 111195.0
+        data["sim/flightmodel/position/elevation"] = msl + 0.15 * (k + 1)
+        vario.update(data["sim/time/total_running_time_sec"], data["sim/flightmodel/position/elevation"],
+                     25.0, 90.0, 0.0, 600.0)
+        tick(pi)
+    wid, window = the_window(xp)
+    call(window, "xpg_state")
+    got = json.loads(call(window, "xpg_track", {"epoch": None, "from": 0}))
+    climbs = [climb for lat, lon, m, climb in got["points"]]
+    assert climbs[-3:] == [1.5, 1.5, 1.5]
+
+
 def test_the_page_is_told_the_maps_tiles_and_their_attribution(plugin):
     pi, xp, data = plugin
     choose(xp, "Flight Computer")
@@ -497,7 +516,9 @@ def test_the_track_is_kept_once_a_second_and_the_page_gets_it_in_pieces(plugin):
     assert 9 <= state["track_n"] <= 10 and state["track_epoch"] == epoch
     got = json.loads(call(window, "xpg_track", {"epoch": None, "from": 0}))
     assert got["epoch"] == epoch and got["from"] == 0 and len(got["points"]) == got["n"] == pi.computer.track.count
-    lats = [lat for lat, lon, msl in got["points"]]
+    lats = [lat for lat, lon, msl, climb in got["points"]]
+    climbs = [climb for lat, lon, msl, climb in got["points"]]
+    assert climbs == [None] * len(climbs)  # the HUD's vario was never sampled: no climb, not a stale one
     assert lats == sorted(lats) and got["points"][0][1] == pytest.approx(-103.217)
     assert got["points"][0][2] == round(data["sim/flightmodel/position/elevation"])
     assert dataref(xp, "computer/track_shown") == got["n"]
