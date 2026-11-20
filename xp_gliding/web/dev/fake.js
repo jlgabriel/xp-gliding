@@ -1,6 +1,7 @@
 // A fake window.xplane for developing the page in a desktop browser: open index.html?dev, or
 // index.html?dev&offline for a map whose tiles never load, &ago=600 to start ten minutes in, and
-// &view=task to open on another view than the map, as the pilot's last one would.
+// &view=task to open on another view than the map, as the pilot's last one would; &glide for the
+// Glide Computer (&screen=info or thermal to open on another screen).
 // The glider glides north-east for 40 s, then circles three times in a 2 m/s thermal while drifting in a
 // 12 kt wind, again and again; units switch every 20 s. The track is kept one point a second as
 // nav/track.py keeps it, and answered in the same form. Tasks: one file with a triangle ahead of
@@ -15,6 +16,10 @@
   var t0 = Date.now() - (ago ? parseInt(ago[1], 10) * 1000 : 0);
   var offline = /[?&]offline\b/.test(location.search);
   var startView = (/[?&]view=(map|flight|task)\b/.exec(location.search) || [0, "map"])[1];
+  var layout = /[?&]glide\b/.test(location.search) ? "glide" : "flight";
+  var screen = (/[?&]screen=(glide|info|thermal)\b/.exec(location.search) || [0, "glide"])[1];
+  var ahead = 0;  // the target browsed past the point flown to (-1: the takeoff)
+  var startT = null;
   var M_PER_DEG = 111195;
   var START = [-33.45, -70.55];
   var WIND_TO = 60, WIND_MS = 6.2;  // the wind blows from 240
@@ -74,6 +79,7 @@
       if (active === 0 && dist(at(0), here) > 300 && Math.abs(((bearing(at(0), here) - 60) + 540) % 360 - 180) < 90) {
         active = 1;
         started = true;
+        startT = (Date.now() - t0) / 1000;
       } else if (active > 0 && dist(at(active), here) < 600) {
         if (active === pts.length - 1) finished = true;
         else active++;
@@ -81,10 +87,20 @@
     }
     var d = dist(here, at(active));
     var left = finished ? 0 : d + TASK.legs_m.slice(active).reduce(function (a, b) { return a + b; }, 0);
+    var t = (Date.now() - t0) / 1000;
+    var task_s = started && startT !== null ? t - startT : null;
+    var ti = Math.min(active + Math.max(ahead, 0), pts.length - 1);
+    var tdist = d + TASK.legs_m.slice(active, ti).reduce(function (a, b) { return a + b; }, 0);
+    var dh = p.msl - pts[ti].elev_m;
+    var tag = pts[ti].role === "start" ? "S" : pts[ti].role === "finish" ? "F" : String(ti);
     return {name: pts[active].name, code: pts[active].code, index: active, count: pts.length, role: pts[active].role,
             bearing_deg: bearing(here, at(active)), dist_m: d, task_left_m: left,
             task_done: started ? Math.max(0, 1 - left / TASK.total_m) : 0, in_zone: d < 600,
-            started: started, finished: finished};
+            started: started, finished: finished, armed: !started && d < 1000,
+            task_s: task_s, task_speed_ms: task_s > 10 ? (TASK.total_m - left) / task_s : null,
+            target: {index: ti, name: pts[ti].name, role: pts[ti].role, label: tag, elev_m: pts[ti].elev_m,
+                     dist_m: tdist, bearing_deg: bearing(here, at(active)), legs: ti - active + 1,
+                     dh_m: dh, req_ld: dh > 0 ? tdist / dh : null}};
   }
 
   function snapshot() {
@@ -99,7 +115,13 @@
     // Every third 10 s a steep dive, for the widest readings (-14.4 kt fits the default window).
     var dive = Math.floor(t / 10) % 3 === 2;
     var te = dive ? -7.41 : 2.0 + 1.6 * Math.sin((turn - 130) * Math.PI / 180) + 0.2 * Math.sin(t * 1.7);
+    var n = nav(p);
+    var gs = 24 + 5 * Math.cos(turn * Math.PI / 180);
+    var track = (turn + 8) % 360;
     return {
+      layout: layout, screen: screen, keys: [],
+      ld: p.circling ? null : 24, thm_gain_m: t > 8 ? 230 : null, thm4_ms: t > 60 ? 1.6 : null,
+      vmg_ms: n ? gs * Math.cos((track - n.target.bearing_deg) * Math.PI / 180) : null,
       t: t, local_s: 13 * 3600 + 42 * 60 + t, valid: t > 1.5, units: Math.floor(t / 20) % 2 ? "aviation" : "metric", view: startView, poll_hz: 5,
       lat: p.lat, lon: p.lon, msl_m: p.msl, agl_m: p.msl - 600,
       track_deg: (turn + 8) % 360, heading_deg: turn, gs_ms: 24 + 5 * Math.cos(turn * Math.PI / 180),
@@ -108,7 +130,7 @@
       circling: p.circling, aid_valid: false, aid_core_az_deg: null, aid_amp_ms: null,
       wind_from_deg: 240, wind_ms: WIND_MS, top_m: 650 - 1.8 * t,
       track_n: points.length, track_epoch: 0,
-      task_rev: taskRev, tasks_rev: tasksRev, nav: nav(p)
+      task_rev: taskRev, tasks_rev: tasksRev, nav: n
     };
   }
 
@@ -144,6 +166,8 @@
     xpg_do: function (request) {
       var cmd = request && request.cmd;
       if (cmd === "log") console.log("page:", request.text);
+      if (cmd === "set" && request.screen) screen = request.screen;
+      if (cmd === "target") ahead = Math.max(0, Math.min(TASK.points.length - 1 - active, ahead + request.delta));
       if (cmd === "list_tasks") setTimeout(function () { tasksRev++; }, 150);
       if (cmd === "load_task") setTimeout(function () { loaded = true; active = 0; started = finished = false; taskRev++; }, 150);
       if (cmd === "clear_task") { loaded = false; taskRev++; }

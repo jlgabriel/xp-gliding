@@ -134,6 +134,9 @@ xpg.task = (function () {
     taskRev = t.rev;
     task = t.name === null ? null : t;
     loading = null;
+    // In the Glide Computer the picker covers the map: a task picked closes it, so the map can
+    // show the task whole.
+    if (fitNext && task && xpg.glide) xpg.glide.setTaskShown(false);
     xpg.map.setTask(task, fitNext);
     fitNext = false;
     drawTask();

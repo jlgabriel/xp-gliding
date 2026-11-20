@@ -356,6 +356,117 @@ def test_nav_bearing_distance_and_what_is_left():
     assert nav["finished"] and nav["task_left_m"] == 0.0 and nav["task_done"] == 1.0 and nav["in_zone"]
 
 
+def with_takeoff():
+    """The triangle with a takeoff 3 km south of the start, at 500 m."""
+    task = triangle()
+    task.takeoff = cup.Waypoint("Home", *at(HOME, 180.0, 3000.0), 500.0)
+    return task
+
+
+def test_the_target_follows_the_point_flown_to():
+    task = triangle()
+    p = Progress(task)
+    here = at(HOME, 225.0, 5000.0)
+    target = p.nav(*here)["target"]
+    assert target["index"] == 0 and target["label"] == "S" and target["role"] == "start"
+    assert target["dist_m"] == pytest.approx(5000.0, abs=0.1) and target["legs"] == 1
+    assert target["elev_m"] == 600.0
+    p.step(1)
+    target = p.nav(*here)["target"]
+    assert target["index"] == 1 and target["label"] == "1" and target["name"] == "T1"
+
+
+def test_browsing_ahead_sums_the_route_through_the_points_between():
+    task = triangle()
+    p = Progress(task)
+    p.step(1)  # flying to T1
+    here = at(HOME, 0.0, 4000.0)
+    to_t1 = distance_m(*here, task.points[1].lat, task.points[1].lon)
+    p.browse(1)
+    target = p.nav(*here)["target"]
+    assert target["index"] == 2 and target["legs"] == 2
+    assert target["dist_m"] == pytest.approx(to_t1 + task.legs_m[1], abs=0.2)
+    assert target["bearing_deg"] == pytest.approx(0.0, abs=0.05)  # still the way to T1
+    p.browse(5)
+    target = p.nav(*here)["target"]
+    assert target["index"] == 3 and target["label"] == "F" and target["role"] == "finish"
+    assert target["dist_m"] == pytest.approx(to_t1 + task.legs_m[1] + task.legs_m[2], abs=0.3)
+    assert p.active == 1 and p.started  # browsing changes nothing of the progress
+    p.browse(-9)  # no takeoff in this task: back to the point flown to, no further
+    assert p.target_index() == 1
+
+
+def test_browsing_back_reaches_the_takeoff():
+    task = with_takeoff()
+    p = Progress(task)
+    p.browse(-1)
+    target = p.nav(*HOME)["target"]
+    assert target["index"] == -1 and target["label"] == "T" and target["role"] == "takeoff"
+    assert target["dist_m"] == pytest.approx(3000.0, abs=0.1) and target["elev_m"] == 500.0
+    assert target["bearing_deg"] == pytest.approx(180.0, abs=0.05)
+    p.browse(-1)
+    assert p.target_index() == -1
+    p.browse(1)
+    assert p.target_index() == 0
+
+
+def test_a_target_reached_by_flying_goes_back_to_following():
+    task = triangle()
+    p = Progress(task)
+    p.step(1)
+    p.browse(1)  # T2 while flying to T1
+    t1 = (task.points[1].lat, task.points[1].lon)
+    fly(p, [at(HOME, 0.0, 8000.0), t1])
+    assert p.active == 2 and p.target_index() == 2
+    p.browse(1)
+    t2 = (task.points[2].lat, task.points[2].lon)
+    fly(p, [t1, t2])  # the finish browsed to stays the target
+    assert p.active == 3 and p.target_index() == 3
+
+
+def test_the_start_is_armed_inside_its_zone():
+    task = triangle({0: cup.ZoneSpec(style=2, r1_m=3000.0, a1_deg=180.0)})
+    p = Progress(task)
+    assert p.nav(*at(HOME, 0.0, 2000.0))["armed"]
+    assert not p.nav(*at(HOME, 0.0, 4000.0))["armed"]
+    line = Progress(triangle())  # a line: armed behind it, within its length
+    assert line.nav(*at(HOME, 180.0, 500.0))["armed"]
+    assert not line.nav(*at(HOME, 0.0, 500.0))["armed"]
+    line.step(1)
+    assert not line.nav(*at(HOME, 180.0, 500.0))["armed"]  # started: no longer armed
+
+
+def test_task_time_and_speed_from_the_start():
+    task = triangle()
+    p = Progress(task)
+    p.update(*at(HOME, 180.0, 15.0), t=100.0)
+    p.update(*at(HOME, 0.0, 15.0), t=101.0)  # across the line, at 30 m/s
+    assert p.started and p.start_t == 101.0
+    nav = p.nav(*at(HOME, 0.0, 120.0), t=105.0)
+    assert nav["task_s"] == 4.0 and nav["task_speed_ms"] is None  # too soon for a speed
+    here = at(HOME, 0.0, 3000.0)
+    nav = p.nav(*here, t=201.0)
+    left = distance_m(*here, task.points[1].lat, task.points[1].lon) + task.legs_m[1] + task.legs_m[2]
+    assert nav["task_s"] == 100.0
+    assert nav["task_speed_ms"] == pytest.approx((task.total_m - left) / 100.0, abs=0.01)
+
+
+def test_task_time_stops_at_the_finish_and_by_hand():
+    p = Progress(triangle())
+    p.update(*HOME, t=50.0)
+    p.step(1)  # started by hand: at the last time known
+    assert p.start_t == 50.0
+    p.update(*HOME, t=60.0)
+    p.step(1), p.step(1), p.step(1)
+    assert p.finished and p.finish_t == 60.0
+    nav = p.nav(*HOME, t=500.0)
+    assert nav["task_s"] == 10.0 and nav["task_speed_ms"] == pytest.approx(p.task.total_m / 10.0, abs=0.01)
+    p.step(-1)
+    assert p.finish_t is None
+    p.step(-1), p.step(-1), p.step(-1)
+    assert not p.started and p.start_t is None and p.nav(*HOME, t=600.0)["task_s"] is None
+
+
 def test_the_task_for_the_page():
     spec = cup.ZoneSpec(style=1, r1_m=10000.0, a1_deg=45.0, r2_m=500.0, a2_deg=180.0)
     task = triangle({1: spec, 2: cup.ZoneSpec(style=1, r1_m=3000.0, a1_deg=45.0)})

@@ -55,6 +55,12 @@ DEFAULTS = {
     "computer_enabled": False,
     "computer_window": [],  # [left, top, right, bottom] in X-Plane's global coordinates; [] for the default place
     "computer_view": "map",  # the view shown, a name in COMPUTER_VIEWS
+    # Which computer the window is: "flight", the Flight Computer (strip, MAP, FLIGHT and TASK), or
+    # "glide", the Glide Computer (three screens with the functions of Condor 3's flight computer).
+    "computer_layout": "flight",
+    "computer_screen": "glide",  # the Glide Computer's screen shown, a name in COMPUTER_SCREENS
+    # The Glide Computer goes to THERMAL by itself while circling, and back after leaving the thermal.
+    "computer_auto_thermal": True,
     # The task loaded: "file.cup#n", task n (from 0) of a CUP file in Output/xp-gliding/tasks/; "" for none.
     "computer_task": "",
     # And what it is (nav.task.task_key): n is trusted only while that task still matches it.
@@ -90,7 +96,10 @@ LIMITS = {
 # The settings that take one of a few names. Another name is left out.
 UNIT_NAMES = ("metric", "aviation")
 COMPUTER_VIEWS = ("map", "flight", "task")  # THERMAL joins with its stage
-NAMES = {"sky": tuple(SKIES), "hud_units": UNIT_NAMES, "computer_view": COMPUTER_VIEWS}
+COMPUTER_LAYOUTS = ("flight", "glide")
+COMPUTER_SCREENS = ("glide", "info", "thermal")
+NAMES = {"sky": tuple(SKIES), "hud_units": UNIT_NAMES, "computer_view": COMPUTER_VIEWS,
+         "computer_layout": COMPUTER_LAYOUTS, "computer_screen": COMPUTER_SCREENS}
 WINDOW_LIMIT = 100000  # no coordinate of a saved window is further out than this (pop-out windows go to 100000)
 
 # Named days: each sets the sky, the strength and depth of the day, and whether it is blue, which
@@ -135,29 +144,44 @@ MENU_CHOICES = (
     )),
 )
 
-# The Instrument submenu: which of the two instruments is shown, at most one (`instrument_of`).
-# Not a setting: it sets hud_enabled and computer_enabled together.
+# The Instrument submenu: which instrument is shown, at most one (`instrument_of`). Not a setting:
+# it sets hud_enabled, computer_enabled and computer_layout together. Both computers are one
+# window (adapter/computer.py), in two layouts.
 INSTRUMENTS = (
     ("Soaring HUD", "hud"),
     ("Flight Computer", "computer"),
+    ("Glide Computer", "glide"),
     ("None", "none"),
 )
+COMPUTERS = {"computer": "flight", "glide": "glide"}  # instrument -> computer_layout
 
 
 def instrument_of(settings):
-    """The Instrument submenu's tick: "hud", "computer" or "none"; None when both are on, which only
-    config.json can do (both are then shown, and the submenu ticks neither)."""
+    """The Instrument submenu's tick: "hud", "computer", "glide" or "none"; None when the HUD and a
+    computer are both on, which only config.json can do (both are then shown, and the submenu ticks
+    neither)."""
     if settings.hud_enabled and settings.computer_enabled:
         return None
     if settings.hud_enabled:
         return "hud"
-    return "computer" if settings.computer_enabled else "none"
+    if not settings.computer_enabled:
+        return "none"
+    return "glide" if settings.computer_layout == "glide" else "computer"
 
 
 def choose_instrument(settings, name):
-    """Show one instrument, or none: the other is turned off."""
+    """Show one instrument, or none: the others are turned off."""
     settings.hud_enabled = name == "hud"
-    settings.computer_enabled = name == "computer"
+    settings.computer_enabled = name in COMPUTERS
+    if name in COMPUTERS:
+        settings.computer_layout = COMPUTERS[name]
+
+
+def instrument_on(settings, name):
+    """Is this instrument the one shown (as its toggle command sees it)?"""
+    if name == "hud":
+        return settings.hud_enabled
+    return settings.computer_enabled and settings.computer_layout == COMPUTERS.get(name)
 
 
 class Settings:

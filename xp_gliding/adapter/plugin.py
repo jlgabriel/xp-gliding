@@ -20,7 +20,7 @@ and the loop starts again from a clean state with a new flight or aircraft, or w
 unticks and ticks Enabled, up to MAX_RESTARTS times; after that only re-enabling the plugin does.
 
 The Plugins > XP-Gliding menu has the switches below, and submenus to choose the instrument
-(the HUD, the Flight Computer or none, `config.INSTRUMENTS`), the sky, the day, by name
+(the HUD, the Flight Computer, the Glide Computer or none, `config.INSTRUMENTS`), the sky, the day, by name
 (`config.DAYS`) or one setting at a time, and the instruments' units (`config.MENU_CHOICES`),
 and the clouds' style, from the styles found when the plugin starts (`styles.py`). What is chosen
 there is saved to `config.json`. Its last item,
@@ -37,9 +37,11 @@ Commands (also in the menu):
                                (off by default, to compare in shear)
   xp_gliding/markers/toggle    training markers on / off (off by default)
   xp_gliding/clouds/toggle     cumulus on / off
-  xp_gliding/hud/toggle        soaring HUD on / off; on turns the Flight Computer off
-  xp_gliding/computer/toggle   Flight Computer on / off; on turns the HUD off (the Instrument
-                               submenu does both; X-Plane 12.4.4 and XPPython3 4.8.0 only)
+  xp_gliding/hud/toggle        soaring HUD on / off; on turns the computers off
+  xp_gliding/computer/toggle   Flight Computer on / off; on turns the others off (the Instrument
+                               submenu does all three; X-Plane 12.4.4 and XPPython3 4.8.0 only)
+  xp_gliding/glide_computer/toggle  Glide Computer on / off, the same way; the computers' own
+                               commands (screens, zoom, target) are listed in `computer.py`
   xp_gliding/day/weather/toggle  zi from the cloud base in X-Plane's weather, not the menu's
                                (off by default; greys out the zi submenu)
   xp_gliding/audio_vario/toggle  X-Plane's own audio vario on / off, for gliders with no switch
@@ -68,8 +70,8 @@ import xp
 from .. import __version__
 from .aircraft import DEFAULT_GEOMETRY, read_acf_geometry
 from .computer import Computer
-from .config import (DAYS, INSTRUMENTS, MENU_CHOICES, choose_instrument, day_index, instrument_of,
-                     load_settings, save_settings)
+from .config import (COMPUTERS, DAYS, INSTRUMENTS, MENU_CHOICES, choose_instrument, day_index, instrument_of,
+                     instrument_on, load_settings, save_settings)
 from .core import AircraftState, Injection, Injector, NativeThermalGuard
 from ..engine.airstart import SPEED_MS, clouds_from, pick_cloud, place_near, start_height_m
 from ..engine.sun import SUN_MIN_DEG
@@ -192,6 +194,10 @@ DATAREFS = (
     ("computer/nav_index", "computer", "nav_index", "i", 0),  # the task point flown to (0 the start), -1 without a task
     ("computer/nav_dist_m", "computer", "nav_dist_m", "f", 0),  # to it, as the page shows
     ("computer/nav_bearing_deg", "computer", "nav_bearing_deg", "f", 0),
+    ("computer/target_index", "computer", "target_index", "i", 0),  # the Glide Computer's target: -1 the takeoff, -2 no task
+    ("computer/target_dist_m", "computer", "target_dist_m", "f", 0),  # to it along the route
+    ("computer/ld", "computer", "ld", "f", 0),  # E, the glide ratio achieved; 0 when not shown
+    ("computer/auto_thermal", "computer", "auto_thermal", "i", 0),  # THERMAL shown by itself while circling
     ("seed", "settings", "seed", "i", 1),
     ("wstar_ms", "settings", "wstar_ms", "f", 1),
     ("zi_m", "settings", "zi_m", "f", 1),  # the setting; day/zi_m is the one in use
@@ -437,6 +443,7 @@ class PythonInterface:
         self.instrument_cmds = (
             (xp.createCommand("xp_gliding/hud/toggle", "XP-Gliding: soaring HUD on/off"), "hud"),
             (xp.createCommand("xp_gliding/computer/toggle", "XP-Gliding: Flight Computer on/off"), "computer"),
+            (xp.createCommand("xp_gliding/glide_computer/toggle", "XP-Gliding: Glide Computer on/off"), "glide"),
         )
         for cmd, name in self.instrument_cmds:
             xp.registerCommandHandler(cmd, self.on_instrument_toggle, 1, name)
@@ -456,8 +463,9 @@ class PythonInterface:
             self.choices.append(("instrument", name))
         self.submenus.append((submenu, "instrument", tuple(name for _, name in INSTRUMENTS)))
         if not self.computer.available:
-            computer_index = next(k for k, (_, name) in enumerate(INSTRUMENTS) if name == "computer")
-            xp.enableMenuItem(submenu, computer_index, 0)
+            for k, (_, name) in enumerate(INSTRUMENTS):
+                if name in COMPUTERS:
+                    xp.enableMenuItem(submenu, k, 0)
         for title, attr, options in MENU_CHOICES:
             item = xp.appendMenuItem(self.menu, title, None)
             if attr == "zi_m":
@@ -717,11 +725,14 @@ class PythonInterface:
         self.refresh_menu()
 
     def on_instrument_toggle(self, commandRef, phase, name):
-        """The HUD's or the Flight Computer's command: on or off, and on turns the other off."""
+        """An instrument's command (the HUD, the Flight Computer, the Glide Computer): on or off, and on
+        turns the others off."""
         if phase == xp.CommandBegin:
-            attr = f"{name}_enabled"
-            if getattr(self.settings, attr):
-                setattr(self.settings, attr, False)
+            if instrument_on(self.settings, name):
+                if name == "hud":
+                    self.settings.hud_enabled = False
+                else:
+                    self.settings.computer_enabled = False
             elif name == "hud" or self.computer.available:
                 choose_instrument(self.settings, name)
             print(f"{TAG} instrument: {instrument_of(self.settings)}")
@@ -841,7 +852,7 @@ class PythonInterface:
             attr, value = self.choices[itemRef]
             zi = self.settings.zi_m
             if attr == "instrument":
-                if value == "computer" and not self.computer.available:
+                if value in COMPUTERS and not self.computer.available:
                     return
                 choose_instrument(self.settings, value)
                 print(f"{TAG} instrument: {value}")

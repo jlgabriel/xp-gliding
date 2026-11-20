@@ -144,12 +144,18 @@ def tick(pi, seconds=0.1):
 
 def test_the_instrument_submenu_keeps_at_most_one_on_and_is_saved(plugin):
     pi, xp, data = plugin
-    assert [name for name, _ in xp.menus["Instrument"]["items"]] == ["Soaring HUD", "Flight Computer", "None"]
+    assert [name for name, _ in xp.menus["Instrument"]["items"]] == ["Soaring HUD", "Flight Computer",
+                                                                     "Glide Computer", "None"]
     assert ticked(xp) == ["Soaring HUD"]  # a fresh install shows the HUD, as before
     choose(xp, "Flight Computer")
     assert (pi.settings.hud_enabled, pi.settings.computer_enabled) == (False, True)
     assert ticked(xp) == ["Flight Computer"]
     assert saved(pi)["computer_enabled"] is True and saved(pi)["hud_enabled"] is False
+    choose(xp, "Glide Computer")
+    assert (pi.settings.hud_enabled, pi.settings.computer_enabled, pi.settings.computer_layout) == (False, True, "glide")
+    assert ticked(xp) == ["Glide Computer"] and saved(pi)["computer_layout"] == "glide"
+    choose(xp, "Flight Computer")
+    assert pi.settings.computer_layout == "flight" and ticked(xp) == ["Flight Computer"]
     choose(xp, "None")
     assert (pi.settings.hud_enabled, pi.settings.computer_enabled) == (False, False) and ticked(xp) == ["None"]
     choose(xp, "Soaring HUD")
@@ -169,6 +175,14 @@ def test_each_instruments_command_turns_the_other_off(plugin):
     handler("xp_gliding/hud/toggle", xp.CommandBegin, name)
     assert (pi.settings.hud_enabled, pi.settings.computer_enabled) == (True, False)
     assert ticked(xp) == ["Soaring HUD"]
+    glide, name = xp.handlers["xp_gliding/glide_computer/toggle"]
+    glide("xp_gliding/glide_computer/toggle", xp.CommandBegin, name)
+    assert (pi.settings.hud_enabled, pi.settings.computer_enabled, pi.settings.computer_layout) == (False, True, "glide")
+    handler, name = xp.handlers["xp_gliding/computer/toggle"]
+    handler("xp_gliding/computer/toggle", xp.CommandBegin, name)  # the other computer: switched to it
+    assert pi.settings.computer_enabled and pi.settings.computer_layout == "flight"
+    handler("xp_gliding/computer/toggle", xp.CommandBegin, name)
+    assert not pi.settings.computer_enabled and ticked(xp) == ["None"]
 
 
 def test_both_on_from_the_file_shows_both_and_ticks_neither(tmp_path, monkeypatch):
@@ -185,7 +199,7 @@ def test_without_browser_windows_the_entry_is_greyed_and_the_hud_stands_in(tmp_p
     pi, xp, data = start(tmp_path, monkeypatch, browser=False,
                          config={"hud_enabled": False, "computer_enabled": True})
     assert not pi.computer.available and dataref(xp, "computer/available") == 0
-    assert 1 in xp.menus["Instrument"]["disabled"]
+    assert {1, 2} <= xp.menus["Instrument"]["disabled"]
     assert (pi.settings.hud_enabled, pi.settings.computer_enabled) == (True, False)
     choose(xp, "Flight Computer")
     assert (pi.settings.hud_enabled, pi.settings.computer_enabled) == (True, False)
@@ -846,3 +860,159 @@ def test_a_jump_does_not_take_the_start(plugin, tmp_path):
     pi.hud.reset_instruments()
     fly(pi, data, 2.0)
     assert dataref(xp, "computer/nav_index") == 0 and not state_of(window)["nav"]["started"]
+
+
+# --- the Glide Computer ------------------------------------------------------------------------
+
+
+def press(xp, name):
+    handler, refcon = xp.handlers[f"xp_gliding/computer/{name}"]
+    handler(f"xp_gliding/computer/{name}", xp.CommandBegin, refcon)
+
+
+def test_the_glide_computer_is_the_same_window_in_its_own_layout(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Glide Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    assert window["title"] == "XP-Gliding Glide Computer"
+    state = state_of(window)
+    assert state["layout"] == "glide" and state["screen"] == "glide" and state["keys"] == []
+    choose(xp, "Flight Computer")  # the other computer: the same window, its title and layout
+    tick(pi), tick(pi)
+    assert the_window(xp) == (wid, window) and window["title"] == "XP-Gliding Flight Computer"
+    assert state_of(window)["layout"] == "flight"
+
+
+def test_the_commands_ship_unbound_and_change_screens_in_order(plugin):
+    pi, xp, data = plugin
+    for name in ("screen_next", "screen_prev", "zoom_in", "zoom_out", "map_mode_next", "map_mode_prev",
+                 "target_next", "target_prev"):
+        assert f"xp_gliding/computer/{name}" in xp.handlers
+    press(xp, "screen_next")  # the HUD shown: no computer, no change
+    assert pi.settings.computer_screen == "glide"
+    choose(xp, "Glide Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    press(xp, "screen_next")
+    assert pi.settings.computer_screen == "info" and saved(pi)["computer_screen"] == "info"
+    press(xp, "screen_next"), press(xp, "screen_next")
+    assert pi.settings.computer_screen == "glide"
+    press(xp, "screen_prev")
+    tick(pi), tick(pi)
+    assert state_of(window)["screen"] == "thermal"
+    choose(xp, "Flight Computer")  # the same commands step the Flight Computer's views
+    press(xp, "screen_next")
+    assert pi.settings.computer_view == "flight"
+
+
+def test_zoom_and_map_display_go_to_the_page_numbered(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Glide Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    press(xp, "zoom_in"), press(xp, "map_mode_next")
+    tick(pi), tick(pi)
+    assert state_of(window)["keys"] == [[1, "zoom_in"], [2, "map_mode_next"]]
+    for _ in range(10):
+        press(xp, "zoom_out")
+    tick(pi), tick(pi)
+    keys = state_of(window)["keys"]
+    assert len(keys) == 8 and keys[-1] == [12, "zoom_out"]
+
+
+def test_the_glide_readings_with_a_task(plugin, tmp_path):
+    pi, xp, data = plugin
+    write_tasks(tmp_path)
+    choose(xp, "Glide Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    call(window, "xpg_do", load_request(tmp_path, 0))
+    tick(pi)
+    data["sim/flightmodel/position/elevation"] = 2000.0
+    fly(pi, data, 1.0)
+    nav = state_of(window)["nav"]
+    target = nav["target"]
+    assert target["index"] == 0 and target["label"] == "S" and target["elev_m"] == 1000.0
+    assert target["dh_m"] == pytest.approx(1000.0, abs=0.1)
+    assert target["req_ld"] == pytest.approx(target["dist_m"] / 1000.0, abs=0.05)
+    assert state_of(window)["vmg_ms"] == pytest.approx(25.0, abs=0.5)  # flying north, straight at it
+    press(xp, "target_next"), press(xp, "target_next")
+    tick(pi), tick(pi)
+    target = state_of(window)["nav"]["target"]
+    assert target["label"] == "F" and target["dist_m"] == pytest.approx(4300.0 - 25.0, abs=10.0)
+    assert dataref(xp, "computer/target_index") == 2
+    assert pi.computer.progress.active == 0  # browsing moved nothing
+    assert json.loads(call(window, "xpg_do", {"cmd": "target", "delta": -1}))["ok"]
+    assert not json.loads(call(window, "xpg_do", {"cmd": "target", "delta": 5}))["ok"]
+    tick(pi), tick(pi)
+    assert state_of(window)["nav"]["target"]["label"] == "1"
+
+
+def test_e_and_the_task_time_while_flying(plugin, tmp_path):
+    pi, xp, data = plugin
+    write_tasks(tmp_path)
+    choose(xp, "Glide Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    call(window, "xpg_do", load_request(tmp_path, 0))
+    tick(pi)
+    data["sim/flightmodel/position/elevation"] = 2000.0
+    for _ in range(40):  # 40 s north at 25 m/s, losing 1 m/s: 25:1
+        data["sim/flightmodel/position/elevation"] -= 1.0
+        fly(pi, data, 1.0)
+    tick(pi)
+    state = state_of(window)
+    assert state["ld"] == pytest.approx(25.0, rel=0.02) and dataref(xp, "computer/ld") == pytest.approx(25.0, rel=0.02)
+    nav = state["nav"]
+    assert nav["started"] and nav["task_s"] == pytest.approx(28.0, abs=1.5)  # the line at 300 m, 12 s in
+    assert nav["task_speed_ms"] > 0.0
+
+
+def turn(pi, data, seconds, way, step=0.1):
+    """The glider turning one way (or flying straight, way 0) for some simulator seconds."""
+    for _ in range(round(seconds / step)):
+        data["sim/time/total_running_time_sec"] += step
+        pi.hud.aid.turning = way
+        tick(pi, step)
+
+
+def test_the_glide_computer_shows_thermal_while_circling_and_goes_back(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Glide Computer")
+    tick(pi)
+    pi.settings.computer_screen = "info"
+    turn(pi, data, 8.0, 1)  # a turn onto a new course: nothing
+    turn(pi, data, 5.0, 0)
+    assert pi.settings.computer_screen == "info"
+    turn(pi, data, 16.0, 1)  # circling
+    assert pi.settings.computer_screen == "thermal" and dataref(xp, "computer/auto_thermal") == 1
+    turn(pi, data, 10.0, 0)  # straight a while to move the circle: still the thermal
+    turn(pi, data, 5.0, 1)
+    assert pi.settings.computer_screen == "thermal"
+    turn(pi, data, 21.0, 0)  # left
+    assert pi.settings.computer_screen == "info" and dataref(xp, "computer/auto_thermal") == 0
+
+
+def test_a_screen_chosen_while_circling_is_kept(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Glide Computer")
+    tick(pi)
+    turn(pi, data, 16.0, -1)
+    assert pi.settings.computer_screen == "thermal"
+    press(xp, "screen_next")  # the pilot wants GLIDE while circling
+    assert pi.settings.computer_screen == "glide"
+    turn(pi, data, 21.0, 0)
+    assert pi.settings.computer_screen == "glide"
+
+
+def test_no_automatic_thermal_when_turned_off_or_in_the_flight_computer(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Flight Computer")
+    tick(pi)
+    turn(pi, data, 20.0, 1)
+    assert pi.settings.computer_screen == "glide" and pi.settings.computer_view == "map"
+    choose(xp, "Glide Computer")
+    pi.settings.computer_auto_thermal = False
+    turn(pi, data, 20.0, 1)
+    assert pi.settings.computer_screen == "glide"

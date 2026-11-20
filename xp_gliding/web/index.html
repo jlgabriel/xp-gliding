@@ -1,8 +1,9 @@
 <!doctype html>
-<!-- XP-Gliding Flight Computer: the page shown in X-Plane's browser window (adapter/computer.py).
+<!-- XP-Gliding Flight Computer and Glide Computer: the page shown in X-Plane's browser window
+     (adapter/computer.py), in the layout the snapshot names (body[data-layout]).
      Classic scripts only: X-Plane's browser refuses module scripts and fetch() on file:// pages.
      For a desktop browser, open index.html?dev to draw from a fake simulator (dev/fake.js), and
-     index.html?dev&offline to see the map with no tiles.
+     index.html?dev&offline to see the map with no tiles; &glide for the Glide Computer.
      License: GPL-3.0-or-later. -->
 <html lang="en">
 <head>
@@ -71,12 +72,31 @@
     <div id="task-list"></div>
   </section>
 </main>
+<!-- The Glide Computer (glide.js): a header with its screen and target, the map above, six
+     readings below; the three screens GLIDE, INFO and THERMAL change the readings and the zoom. -->
+<header id="ghead">
+  <button type="button" id="g-screen" title="Next screen">GLIDE</button>
+  <button type="button" class="g-step" data-delta="-1" title="Previous target">&#9664;</button>
+  <span id="g-to"><span class="to">TO:</span><b id="g-tag" class="ytag"></b><span id="g-name">--</span></span>
+  <button type="button" class="g-step" data-delta="1" title="Next target">&#9654;</button>
+  <button type="button" id="g-task" title="The task: pick one, step its points">TASK</button>
+  <span id="g-clock" title="Local time in the simulator">--:--</span>
+</header>
+<section id="readings">
+  <div class="cell"><span class="label"></span><div class="reading"><span class="value">--</span></div></div>
+  <div class="cell"><span class="label"></span><div class="reading"><span class="value">--</span></div></div>
+  <div class="cell"><span class="label"></span><div class="reading"><span class="value">--</span></div></div>
+  <div class="cell"><span class="label"></span><div class="reading"><span class="value">--</span></div></div>
+  <div class="cell"><span class="label"></span><div class="reading"><span class="value">--</span></div></div>
+  <div class="cell"><span class="label"></span><div class="reading"><span class="value">--</span></div></div>
+</section>
 <footer id="status">starting</footer>
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="format.js"></script>
 <script src="flight.js"></script>
 <script src="map.js"></script>
 <script src="task.js"></script>
+<script src="glide.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

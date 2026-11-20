@@ -35,6 +35,12 @@ along- and across-track parts of them, fine within the few kilometres of a line.
 This shows a task and guides along it: no scoring, no start time rules, no AAT optimisation. The
 pilot can step back and forward by hand, which always wins.
 
+Beside the point flown to, the progress keeps a *target*: the point the Glide Computer's readings
+are worked out for. It is the point flown to unless the pilot browses ahead to a later point (the
+route then runs through the points between) or back to the takeoff; browsing never changes the
+progress, and a target the flying reaches or passes goes back to following the point flown to.
+The start's and the finish's simulator times are kept for the task's time and speed.
+
 Pure Python: no `xp`, nothing of the engine.
 """
 
@@ -50,6 +56,8 @@ DEFAULT_POINT = {"style": 1, "r1_m": 500.0, "a1_deg": 180.0, "line": False}
 DEFAULT_FINISH = {"style": 3, "r1_m": 500.0, "a1_deg": 180.0, "line": False}
 ARC_STEP_DEG = 5.0  # a sector's arc is drawn with a point at least this often
 MAX_RADIUS_M = 1000e3  # a zone's radius is held to this: a file's absurd one is no geometry
+TAKEOFF = -1  # the target's index when it is the task's takeoff, which is not a task point
+TASK_SPEED_AFTER_S = 10.0  # the task's speed is shown from this long after the start
 
 
 def _wrap180(deg):
@@ -288,6 +296,10 @@ class Progress:
         # the next zone already takes it.
         self._point_in = False
         self._last = None  # (t, lat, lon) of the last place given with its time
+        self._t = None  # the last simulator time given, for the start's and the finish's times
+        self.start_t = None  # simulator time (s) the start was taken, None before
+        self.finish_t = None  # and the finish
+        self._target = None  # None: the point flown to; TAKEOFF; or the index of a later point
 
     def forget_place(self):
         self._lines = {}
@@ -300,6 +312,7 @@ class Progress:
         gone back, is a jump the adapter did not see (a short move on X-Plane's map): the last place
         is forgotten first."""
         if t is not None:
+            self._t = t
             last, self._last = self._last, (t, lat, lon)
             if last is not None:
                 dt = t - last[0]
@@ -333,7 +346,9 @@ class Progress:
         if not left:
             return False
         self.started = True
+        self.start_t = self._t
         self.active = 1
+        self._drop_target()
         self._in = None
         self._point_in = False
         self._line_from(1, here)
@@ -364,9 +379,11 @@ class Progress:
         self.taken.append((index, "line" if zone.line else "zone"))
         if index == len(self.task.points) - 1:
             self.finished = True
+            self.finish_t = self._t
         else:
             self.active = index + 1
             self._line_from(self.active, here)
+        self._drop_target()
         return True
 
     def step(self, delta):
@@ -386,22 +403,87 @@ class Progress:
             elif self.active > 0:
                 self.active -= 1
             self.started = self.active > 0
+        if not self.started:
+            self.start_t = None
+        elif self.start_t is None:
+            self.start_t = self._t
+        self.finish_t = (self.finish_t if self.finish_t is not None else self._t) if self.finished else None
+        self._drop_target()
         self._in = None
         self._point_in = None
         self._lines = {}  # a line's last place may be from before the step: it crosses nothing
         self.taken.append((self.active, "hand"))
 
-    def nav(self, lat, lon):
-        """The snapshot's `nav`: the point flown to, bearing and distance to it, and what is left."""
+    # --- the target ---------------------------------------------------------------------------
+
+    def _drop_target(self):
+        if self._target is not None and self._target != TAKEOFF and self._target <= self.active:
+            self._target = None
+
+    def target_index(self):
+        """The target: TAKEOFF, or a task point's index, never behind the point flown to."""
+        if self._target == TAKEOFF and self.task.takeoff is not None:
+            return TAKEOFF
+        if self._target is not None and self._target > self.active:
+            return self._target
+        return self.active
+
+    def browse(self, delta):
+        """Move the target by `delta` along the takeoff (if the task has one) and the points from the
+        one flown to on. Never changes the progress."""
+        choices = ([TAKEOFF] if self.task.takeoff is not None else []) + list(range(self.active, len(self.task.points)))
+        at = choices.index(self.target_index())
+        index = choices[min(max(at + delta, 0), len(choices) - 1)]
+        self._target = None if index == self.active else index
+
+    def label(self, index):
+        """The map's and the header's short name: T takeoff, S start, F finish, the turn points 1..n."""
+        if index == TAKEOFF:
+            return "T"
+        role = self.task.role(index)
+        return "S" if role == "start" else "F" if role == "finish" else str(index)
+
+    def target(self, lat, lon):
+        """The target, and the route to it from here: through the point flown to and the points
+        between, or straight to the takeoff. `bearing_deg` is to the route's first point: the way to fly."""
+        task = self.task
+        index = self.target_index()
+        if index == TAKEOFF:
+            w, first, along = task.takeoff, task.takeoff, 0.0
+            role, legs = "takeoff", 1
+        else:
+            w, first = task.points[index], task.points[self.active]
+            along = sum(task.legs_m[self.active:index])
+            role, legs = task.role(index), index - self.active + 1
+        return {"index": index, "name": w.name, "role": role, "label": self.label(index),
+                "elev_m": None if w.elev_m is None else round(w.elev_m, 1),
+                "dist_m": round(distance_m(lat, lon, first.lat, first.lon) + along, 1),
+                "bearing_deg": round(bearing_deg(lat, lon, first.lat, first.lon), 1), "legs": legs}
+
+    def nav(self, lat, lon, t=None):
+        """The snapshot's `nav`: the point flown to, bearing and distance to it, and what is left; the
+        target; whether the start is armed (the glider in the start's zone, not started); the
+        task's time and average speed at simulator time `t`, once started."""
         task = self.task
         index = self.active
         p = task.points[index]
         dist = distance_m(lat, lon, p.lat, p.lon)
         left = dist + sum(task.legs_m[index:]) if not self.finished else 0.0
         done = 1.0 - left / task.total_m if task.total_m > 0.0 and self.started else 0.0
+        task_s = speed = None
+        if self.started and self.start_t is not None:
+            end = self.finish_t if self.finished else t
+            if end is not None:
+                task_s = max(end - self.start_t, 0.0)
+                if task_s >= TASK_SPEED_AFTER_S:
+                    speed = round(max(task.total_m - left, 0.0) / task_s, 2)
+                task_s = round(task_s, 1)
         return {"name": p.name, "code": p.code, "index": index, "count": len(task.points),
                 "role": task.role(index),
                 "bearing_deg": round(bearing_deg(lat, lon, p.lat, p.lon), 1), "dist_m": round(dist, 1),
                 "task_left_m": round(left, 1), "task_done": round(min(max(done, 0.0), 1.0), 3),
                 "in_zone": task.zones[index].contains(lat, lon),
-                "started": self.started, "finished": self.finished}
+                "started": self.started, "finished": self.finished,
+                "armed": not self.started and task.zones[0].contains(lat, lon),
+                "task_s": task_s, "task_speed_ms": speed,
+                "target": self.target(lat, lon)}

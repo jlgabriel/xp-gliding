@@ -271,14 +271,17 @@ class ThermalAverage:
     `CentringAid.turning`, either way round.
 
     Output: `valid` once there is a value to show, `average_ms`, `gain_m` and `seconds`
-    since the thermal began, and `active` while in it.
+    since the thermal began, and `active` while in it. The Glide Computer's T4Ave: `recent_ms`,
+    the climb of the last `RECENT` thermals left (their gain over their time, the one being
+    circled not counted), None before the first; `recent_n` of them.
     """
 
     LEAVE_S = 20.0  # straight for longer than this: the glider left the thermal
     MIN_S = 10.0  # the first seconds of a circle say little: the pull into the turn
+    RECENT = 4
 
-    __slots__ = ("valid", "active", "average_ms", "gain_m", "seconds",
-                 "_start_t", "_start_e", "_last_t")
+    __slots__ = ("valid", "active", "average_ms", "gain_m", "seconds", "recent_ms", "recent_n",
+                 "_start_t", "_start_e", "_last_t", "_recent")
 
     def __init__(self):
         self.reset()
@@ -288,10 +291,23 @@ class ThermalAverage:
         self.average_ms = self.gain_m = self.seconds = 0.0
         self._start_t = self._start_e = 0.0
         self._last_t = -1e9
+        self._recent = []  # (gain_m, seconds) of the last thermals left, the latest last
+        self.recent_ms = None
+        self.recent_n = 0
+
+    def _left(self):
+        """The thermal is over: its climb joins the recent ones, if it had one to show."""
+        self.active = False
+        if self.valid and self.seconds > 0.0:
+            self._recent = (self._recent + [(self.gain_m, self.seconds)])[-self.RECENT:]
+            self.recent_n = len(self._recent)
+            self.recent_ms = sum(g for g, _ in self._recent) / sum(s for _, s in self._recent)
 
     def update(self, t, energy_m, circling):
         if circling:
             if not self.active or t - self._last_t > self.LEAVE_S:
+                if self.active:
+                    self._left()
                 self.active, self.valid = True, False
                 self._start_t, self._start_e = t, energy_m
             self._last_t = t
@@ -301,4 +317,4 @@ class ThermalAverage:
                 self.average_ms = self.gain_m / span
                 self.valid = True
         elif self.active and t - self._last_t > self.LEAVE_S:
-            self.active = False
+            self._left()

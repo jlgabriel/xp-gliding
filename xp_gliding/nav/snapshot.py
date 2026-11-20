@@ -31,12 +31,17 @@ FIELDS = {
     "wind_from_deg": 1, "wind_ms": 2,  # X-Plane's wind at the glider
     "top_m": 1,  # up from the glider to the clouds, as the HUD's TOP; null with thermals off
     "aid_core_az_deg": 1, "aid_amp_ms": 2,  # the centring aid: where the stronger side is
+    "thm_gain_m": 1,  # height gained in this thermal, null until it has an average
+    "thm4_ms": 2,  # the climb of the last four thermals left, null before the first
+    "ld": 1,  # E, the glide ratio achieved (nav/glide.py), null while it means nothing
+    "vmg_ms": 2,  # the ground speed made good towards the target's route, null without a task
 }
 FLAGS = ("valid", "thm_valid", "thm_active", "circling", "aid_valid")
-TEXTS = ("units", "view")
+TEXTS = ("units", "view", "layout", "screen")  # layout: which computer; screen: the Glide Computer's
 INTS = ("poll_hz", "track_n", "track_epoch",  # track_*: the track's points and epoch (nav/track.py)
         "task_rev", "tasks_rev")  # change when the task loaded, or the list of tasks, is new
 OBJECTS = ("nav",)  # nav: the point flown to and what is left (nav/task.py, Progress.nav), or null
+LISTS = ("keys",)  # keys: the page's last commands, [number, name], done once each by the page
 
 
 def _number(value, decimals):
@@ -60,14 +65,21 @@ def snapshot_json(values):
         out[key] = int(value) if isinstance(value, (int, float)) and math.isfinite(value) else None
     for key in OBJECTS:
         value = values.get(key)
-        out[key] = {k: _clean(v) for k, v in value.items()} if isinstance(value, dict) else None
+        out[key] = _clean(value) if isinstance(value, dict) else None
+    for key in LISTS:
+        value = values.get(key)
+        out[key] = _clean(value) if isinstance(value, list) else []
     return json.dumps(out, separators=(",", ":"), allow_nan=False)
 
 
 def _clean(value):
-    """A value inside one of OBJECTS: a number that is not finite becomes null."""
+    """A value inside one of OBJECTS or LISTS, at any depth: a number that is not finite becomes null."""
     if isinstance(value, float) and not math.isfinite(value):
         return None
+    if isinstance(value, dict):
+        return {k: _clean(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_clean(v) for v in value]
     return value
 
 

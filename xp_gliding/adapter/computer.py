@@ -1,4 +1,10 @@
-"""The Flight Computer: a browser window showing a local page, the other instrument beside the HUD.
+"""The Flight Computer and the Glide Computer: a browser window showing a local page, the other
+instrument beside the HUD.
+
+Both computers are this one window and page, in two layouts (`computer_layout`): the Flight
+Computer's strip, MAP, FLIGHT and TASK; or the Glide Computer's three screens, GLIDE, INFO and
+THERMAL, with the functions of Condor 3's flight computer drawn our own way. What follows says
+"Flight Computer" for both.
 
 The window's content is X-Plane 12.4.4's browser (CEF, SDK 440, through XPPython3 4.8.0): one page
 from `xp_gliding/web/` covers it, and Python owns the data. The page asks for it through two
@@ -15,7 +21,8 @@ functions, registered before the page is loaded as the SDK requires:
                          the snapshot's `tasks_rev` says when it is ready
   xplane.xpg_task()      the task loaded, whole (`nav/task.py`), asked when `task_rev` changes
   xplane.xpg_do({cmd})   an action: "release_keys" (after every click on the page, see below),
-                         "set" a view, "log" a line from the page; for tasks "list_tasks",
+                         "set" a view or a screen, "target" (delta +1 or -1: browse the Glide
+                         Computer's target), "log" a line from the page; for tasks "list_tasks",
                          "load_task" (a file's name among those listed, never a path, the task's
                          number in it and its key as listed), "clear_task", "next_point",
                          "prev_point", all done by the next tick; a load also makes the list
@@ -52,6 +59,22 @@ The window, found by measuring (2026-11-17, X-Plane 12.4.4, XPPython3 4.8.0):
 - may load its page before `window.xplane` exists on the first window after a cold start: the page
   waits for it, and if no call arrives within LOAD_WATCHDOG_S of the load, the page is reloaded once.
 
+Commands, shipped with no key: the pilot binds them in X-Plane's settings (Condor's keys would
+clash with X-Plane's own). They act while a computer is shown:
+  xp_gliding/computer/screen_next, screen_prev     the next or previous screen (the Glide
+                                                   Computer's) or view (the Flight Computer's)
+  xp_gliding/computer/zoom_in, zoom_out            the map's zoom
+  xp_gliding/computer/map_mode_next, map_mode_prev the map's display: with tiles, or the grid only
+  xp_gliding/computer/target_next, target_prev     browse the target along the task (and back to
+                                                   the takeoff), never changing the progress
+The zoom and the map's display are the page's own: those commands go to it in the snapshot
+(`keys`, numbered, so each is done once). The screen and the target are Python's.
+
+The Glide Computer goes to THERMAL by itself (`computer_auto_thermal`, on by default) once the
+glider has turned one way for AUTO_IN_S, so a turn onto a new course does not; and back to the
+screen it was on once it has flown straight for AUTO_OUT_S, as the thermal's average ends
+(`ThermalAverage.LEAVE_S`). A screen the pilot chooses meanwhile is kept.
+
 Where X-Plane or XPPython3 is older, there is no Flight Computer (`browser_available`): the menu
 greys it out and the HUD is the instrument. An error here stops the Flight Computer only: it is
 logged, the window goes at the next tick (never from its own callback), and the thermals go on.
@@ -66,9 +89,11 @@ import traceback
 import xp
 
 from ..nav import cup
+from ..nav.glide import GlideRatio, height_over, required_ld, vmg
 from ..nav.snapshot import snapshot_json, track, wind_from
 from ..nav.task import Progress, Task, find_task, task_key
 from ..nav.track import Track
+from .config import COMPUTER_SCREENS
 
 PERIOD_S = 0.1  # as the HUD's sampling
 SNAPSHOT_EVERY = 2  # ticks: 5 Hz
@@ -85,7 +110,22 @@ LOAD_WATCHDOG_S = 3.0
 # loads under its main menu (2026-11-19, a flight started through the web API), where
 # setWindowResizingLimits raised that it "is available only in XPLM300 and up".
 OPEN_RETRY_S = 5.0
-TITLE = "XP-Gliding Flight Computer"
+TITLES = {"flight": "XP-Gliding Flight Computer", "glide": "XP-Gliding Glide Computer"}
+# (name, what X-Plane's keyboard settings show for it)
+COMMANDS = (
+    ("screen_next", "next screen"),
+    ("screen_prev", "previous screen"),
+    ("zoom_in", "zoom the map in"),
+    ("zoom_out", "zoom the map out"),
+    ("map_mode_next", "next map display"),
+    ("map_mode_prev", "previous map display"),
+    ("target_next", "next target"),
+    ("target_prev", "previous target"),
+)
+PAGE_COMMANDS = ("zoom_in", "zoom_out", "map_mode_next", "map_mode_prev")  # done by the page
+KEYS_KEPT = 8  # the page's commands, the last ones, in each snapshot
+AUTO_IN_S = 15.0  # turning one way this long (simulator time): circling, THERMAL shown
+AUTO_OUT_S = 20.0  # straight this long: the thermal left, the screen before it back
 KT_TO_MS = 0.514444
 WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
 PAGE = os.path.join(WEB_DIR, "index.html")
@@ -144,6 +184,18 @@ class Computer:
         self.nav_index = -1  # for the test pilot: the point flown to, -1 without a task
         self.nav_dist_m = 0.0
         self.nav_bearing_deg = 0.0
+        self.target_index = -2  # for the test pilot: the target's index, -1 the takeoff, -2 no task
+        self.target_dist_m = 0.0
+        self.glide = GlideRatio()  # E
+        self.ld = 0.0  # E for the test pilot, 0 when not shown
+        self._keys = []  # [number, command] of the page's last commands
+        self._key_number = 0
+        self._title = None
+        self._turn_since = None  # simulator time the glider began turning this way, or None
+        self._turn_way = 0
+        self._straight_since = None
+        self.auto_thermal = False  # THERMAL shown by itself, for the test pilot too
+        self._auto_back = None  # the screen to go back to, None to stay
         self.url = pathlib.Path(PAGE).as_uri()
         self._state = snapshot_json({})
         self._ticks = 0
@@ -174,6 +226,11 @@ class Computer:
         self._wind_x = ref("sim/weather/aircraft/wind_now_x_msc")
         self._wind_z = ref("sim/weather/aircraft/wind_now_z_msc")
         self.loop = xp.createFlightLoop(self.on_loop, xp.FlightLoop_Phase_AfterFlightModel, None)
+        self.commands = []
+        for name, what in COMMANDS:
+            cmd = xp.createCommand(f"xp_gliding/computer/{name}", f"XP-Gliding computer: {what}")
+            xp.registerCommandHandler(cmd, self.on_command, 1, name)
+            self.commands.append((cmd, name))
         if not self.available:
             log("Flight Computer: not available here (it needs X-Plane 12.4.4 and XPPython3 4.8.0); "
                 "the HUD is the instrument")
@@ -192,6 +249,8 @@ class Computer:
 
     def stop(self):
         xp.destroyFlightLoop(self.loop)
+        for cmd, name in self.commands:
+            xp.unregisterCommandHandler(cmd, self.on_command, 1, name)
         self._close()
 
     @property
@@ -247,6 +306,11 @@ class Computer:
             self._close()
             return
         self._record()
+        if self.settings.computer_layout == "glide" and self.settings.computer_auto_thermal:
+            self._auto_screen(xp.getDataf(self._time))
+        elif self.auto_thermal:
+            self.auto_thermal = False
+            self._auto_back = None
         if self._actions:
             self._do_actions()
         if window is None:
@@ -261,6 +325,8 @@ class Computer:
                 self.log(f"Flight Computer opened, after {self.open_failures} tries that did not")
                 self.open_failures = 0
             window = self.window
+        if self._title != self.settings.computer_layout:  # the other computer chosen, window open
+            self._set_title(window)
         if self._release_keys:
             self._release_keys = False
             # After a click the page keeps the keys although X-Plane says it has no focus:
@@ -291,7 +357,7 @@ class Computer:
                                    contentType=xp.WindowContentTypeBrowser,
                                    browserLoadFinished=self.on_load, browserLoadError=self.on_load_error)
         self.window = window
-        xp.setWindowTitle(window, TITLE)
+        self._set_title(window)
         xp.setWindowResizingLimits(window, MIN_SIZE[0], MIN_SIZE[1], MAX_SIZE[0], MAX_SIZE[1])
         # Before the first URL: functions added after it are ignored.
         xp.windowAddBrowserFunction(window, "xpg_setup", self.on_setup)
@@ -309,6 +375,10 @@ class Computer:
         self._seen_since = now
         self._placed = list(rect)
         xp.windowSetURL(window, self.url)
+
+    def _set_title(self, window):
+        self._title = self.settings.computer_layout
+        xp.setWindowTitle(window, TITLES.get(self._title, TITLES["flight"]))
 
     def _open_failed(self, now):
         """The window did not open: what was made of it goes, unsaved, and it is tried again
@@ -398,6 +468,7 @@ class Computer:
         if self.hud.resets != self._resets_seen:
             self._resets_seen = self.hud.resets
             self.track.restart()
+            self.glide.reset()
             if self.progress is not None:
                 self.progress.forget_place()
         if self.track_dump:
@@ -416,7 +487,9 @@ class Computer:
             return
         lat, lon = xp.getDatad(self._lat), xp.getDatad(self._lon)
         if due:
-            self.track.add(t, lat, lon, xp.getDatad(self._elevation))
+            msl = xp.getDatad(self._elevation)
+            self.track.add(t, lat, lon, msl)
+            self.glide.add(t, lat, lon, msl)
         if progress is not None and progress.update(lat, lon, t):
             self._log_taken()
 
@@ -453,6 +526,9 @@ class Computer:
                 if not self._load_task(action["file"], action["index"], action["key"]):
                     self._list_note = GONE_NOTE
                 self._list_tasks()
+            elif cmd == "target":
+                if self.progress is not None:
+                    self.progress.browse(action["delta"])
             elif cmd == "clear_task":
                 if self.task is not None:
                     self._set_task(None)
@@ -555,22 +631,40 @@ class Computer:
         wind_deg, wind_ms = wind_from(getf(self._wind_x), getf(self._wind_z))
         st = self.settings
         lat, lon = xp.getDatad(self._lat), xp.getDatad(self._lon)
+        t = getf(self._time)
+        msl = xp.getDatad(self._elevation)
+        thermal_gain = thermal.gain_m if thermal.valid else None
+        target_vmg = None
         if self.progress is not None:
-            nav = self._nav = self.progress.nav(lat, lon)
+            nav = self._nav = self.progress.nav(lat, lon, t)
             self.nav_index, self.nav_dist_m, self.nav_bearing_deg = nav["index"], nav["dist_m"], nav["bearing_deg"]
+            target = nav["target"]
+            dh = height_over(msl, target["elev_m"])
+            req = required_ld(target["dist_m"], dh)
+            target["dh_m"] = None if dh is None else round(dh, 1)
+            target["req_ld"] = None if req is None else round(req, 1)
+            target_vmg = vmg(gs_ms, track_deg, target["bearing_deg"])
+            self.target_index, self.target_dist_m = target["index"], target["dist_m"]
+        else:
+            self.target_index, self.target_dist_m = -2, 0.0
+        ld = self.glide.ld
+        self.ld = ld or 0.0
         values = {
-            "t": getf(self._time), "local_s": getf(self._local),
+            "t": t, "local_s": getf(self._local),
             "valid": vario.valid and not hud.failed,
             "units": st.hud_units,
             "view": st.computer_view,
+            "layout": st.computer_layout, "screen": st.computer_screen, "keys": self._keys,
             "poll_hz": self.poll_hz,
             "lat": lat, "lon": lon,
-            "msl_m": xp.getDatad(self._elevation), "agl_m": getf(self._agl),
+            "msl_m": msl, "agl_m": getf(self._agl),
             "track_deg": track_deg, "heading_deg": getf(self._psi), "gs_ms": gs_ms,
             "ias_ms": getf(self._ias) * KT_TO_MS, "tas_ms": getf(self._tas),
             "te_ms": vario.te_ms, "netto_ms": vario.netto_ms if vario.has_netto else None,
             "avg_ms": vario.average_ms,
             "thm_ms": thermal.average_ms, "thm_valid": thermal.valid, "thm_active": thermal.active,
+            "thm_gain_m": thermal_gain, "thm4_ms": thermal.recent_ms,
+            "ld": ld, "vmg_ms": target_vmg,
             "circling": aid.turning,
             "aid_valid": aid.valid, "aid_core_az_deg": aid.core_az_deg, "aid_amp_ms": aid.amp_ms,
             "wind_from_deg": wind_deg, "wind_ms": wind_ms,
@@ -580,6 +674,64 @@ class Computer:
             "nav": self._nav if self.progress is not None else None,
         }
         return snapshot_json(values)
+
+    # --- THERMAL by itself -------------------------------------------------------------
+
+    def _auto_screen(self, t):
+        st = self.settings
+        turning = self.hud.aid.turning
+        if turning:
+            if self._turn_since is None or turning != self._turn_way or t < self._turn_since:
+                self._turn_since, self._turn_way = t, turning
+            self._straight_since = None
+            if not self.auto_thermal and t - self._turn_since >= AUTO_IN_S:
+                self.auto_thermal = True
+                self._auto_back = st.computer_screen if st.computer_screen != "thermal" else None
+                st.computer_screen = "thermal"
+            return
+        self._turn_since = None
+        if not self.auto_thermal:
+            return
+        if self._straight_since is None or t < self._straight_since:
+            self._straight_since = t
+        elif t - self._straight_since >= AUTO_OUT_S:
+            self.auto_thermal = False
+            if self._auto_back is not None and st.computer_screen == "thermal":
+                st.computer_screen = self._auto_back
+            self._auto_back = None
+
+    def _screen_chosen(self):
+        """The pilot chose a screen: an automatic THERMAL does not take it back."""
+        self._auto_back = None
+
+    # --- the computers' commands --------------------------------------------------------
+
+    def on_command(self, commandRef, phase, name):
+        if phase == xp.CommandBegin:
+            try:
+                if self.wanted:
+                    self.command(name)
+            except Exception:
+                self._fail(f"its command {name}")
+        return 1
+
+    def command(self, name):
+        st = self.settings
+        if name in ("screen_next", "screen_prev"):
+            step = 1 if name == "screen_next" else -1
+            if st.computer_layout == "glide":
+                at = COMPUTER_SCREENS.index(st.computer_screen) if st.computer_screen in COMPUTER_SCREENS else 0
+                st.computer_screen = COMPUTER_SCREENS[(at + step) % len(COMPUTER_SCREENS)]
+                self._screen_chosen()
+            else:
+                at = DO_VIEWS.index(st.computer_view) if st.computer_view in DO_VIEWS else 0
+                st.computer_view = DO_VIEWS[(at + step) % len(DO_VIEWS)]
+            self.on_settings_changed()
+        elif name in PAGE_COMMANDS:
+            self._key_number += 1
+            self._keys = (self._keys + [[self._key_number, name]])[-KEYS_KEPT:]
+        elif name in ("target_next", "target_prev") and self.progress is not None:
+            self.progress.browse(1 if name == "target_next" else -1)
 
     # --- callbacks from the page and from CEF ------------------------------------------
 
@@ -629,6 +781,13 @@ class Computer:
                 if self.settings.computer_view != request["view"]:
                     self.settings.computer_view = request["view"]
                     self.on_settings_changed()
+            elif cmd == "set" and request.get("screen") in COMPUTER_SCREENS:
+                if self.settings.computer_screen != request["screen"]:
+                    self.settings.computer_screen = request["screen"]
+                    self._screen_chosen()
+                    self.on_settings_changed()
+            elif cmd == "target" and request.get("delta") in (-1, 1) and not isinstance(request.get("delta"), bool):
+                self._actions.append({"cmd": "target", "delta": request["delta"]})  # by the next tick
             elif cmd in TASK_ACTIONS:
                 action = {"cmd": cmd}
                 if cmd == "load_task":

@@ -1,4 +1,6 @@
-// XP-Gliding Flight Computer: start-up, the tabs and the bridge to Python (adapter/computer.py).
+// XP-Gliding Flight Computer and Glide Computer: start-up, the layout, the tabs and the bridge to
+// Python (adapter/computer.py). The snapshot says which computer the page is (layout) and, for the
+// Glide Computer, its screen; the pilot's zoom and map display commands come in it too (keys).
 //
 // Targets Chromium 117, X-Plane 12.4.4's browser (CEF): no JavaScript or CSS newer than that
 // (no Promise.withResolvers, no Set methods, no CSS nesting); classic scripts, no modules, no
@@ -28,6 +30,9 @@ window.xpg = xpg;
   var asking = false;
   var askingTrack = false;
   var view = null;  // the view shown; the first snapshot's until the pilot picks one
+  var viewSent = null;  // the view as Python last sent it: a new one (a command) is shown
+  var layout = null;  // "flight" or "glide": which computer the page is
+  var lastKey = null;  // the number of the last command done, from the snapshot's keys
   var started = Date.now();
   var dev = /[?&]dev\b/.test(location.search);
 
@@ -50,15 +55,63 @@ window.xpg = xpg;
     else xpg.flight.fit();
   }
 
+  // The computer the page is: the Flight Computer's views, or the Glide Computer's screens. Its map
+  // is the same Leaflet map in either, drawn in that computer's way.
+  function setLayout(name) {
+    name = name === "glide" ? "glide" : "flight";
+    if (name === layout) return;
+    layout = name;
+    document.body.setAttribute("data-layout", name);
+    xpg.map.setLayout(name);
+    if (name === "flight") {
+      xpg.map.useZoom("map");
+      var shown = view;
+      view = null;
+      show(shown || "map");
+    }
+    xpg.map.shown();
+    fit();
+  }
+
+  // The pilot's commands that are the page's own: each done once, in order. The first snapshot's
+  // are from before this page and are not done.
+  function doKeys(keys) {
+    if (!Array.isArray(keys)) return;
+    for (var i = 0; i < keys.length; i++) {
+      var n = keys[i][0], name = keys[i][1];
+      if (lastKey !== null && n > lastKey) {
+        if (name === "zoom_in") xpg.map.zoomBy(1);
+        else if (name === "zoom_out") xpg.map.zoomBy(-1);
+        else if (name === "map_mode_next" || name === "map_mode_prev") xpg.map.toggleTiles();
+      }
+      if (lastKey === null || n > lastKey) lastKey = n;
+    }
+    if (lastKey === null) lastKey = 0;
+  }
+
   function apply(s) {
     if (!s || typeof s !== "object") return;
-    if (view === null) show(s.view || "map");
-    xpg.flight.draw(s);
+    setLayout(s.layout);
+    if (layout === "glide") {
+      xpg.glide.show(s.screen);
+      xpg.glide.draw(s);
+    } else {
+      if (view === null || (s.view && s.view !== viewSent)) show(s.view || "map");
+      xpg.flight.draw(s);
+    }
+    viewSent = s.view;
+    doKeys(s.keys);
     xpg.map.draw(s);
     xpg.task.draw(s);
-    status(s.valid ? (view === "map" ? xpg.map.note() : "") : "waiting for the instruments");
+    var onMap = layout === "glide" || view === "map";
+    status(s.valid ? (onMap ? xpg.map.note() : "") : "waiting for the instruments");
     if (s.poll_hz !== pollHz) setRate(s.poll_hz);
     askTrack(xpg.map.trackWanted(s));
+  }
+
+  function fit() {
+    if (layout === "glide") xpg.glide.fit();
+    else xpg.flight.fit();
   }
 
   function ask() {
@@ -147,7 +200,7 @@ window.xpg = xpg;
   // The text follows the window's size (flight.js); a resize from X-Plane's frame reaches the page
   // as the viewport's (X-Plane resizes it, never scales it).
   xpg.flight.fit();
-  window.addEventListener("resize", xpg.flight.fit);
+  window.addEventListener("resize", fit);
 
   start();
 })();

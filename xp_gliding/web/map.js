@@ -15,6 +15,16 @@
 // without animation, and only once the glider is a few pixels off the centre; tiles fade in at
 // once and a drag stops dead. Zooming is the pilot's, and animates.
 //
+// The Glide Computer (setLayout("glide")) uses the same map with its overlays in the meanings and
+// colours of Condor 3's flight computer, drawn our way: the zone flown to red, the others green
+// (taken ones fainter), the start red, yellow once armed (the glider in its zone) and green once
+// taken; yellow tags T, S, 1..n, F by the names, a yellow cross on each point; a thin black line
+// from the glider to the way to fly; a heading tape along the top (blue ticks, the bearing to the
+// way to fly a red mark, centred when flying straight at it) and a glide-slope bar down the right
+// edge (its mark waits for the polar and MacCready); the wind bottom left as "from/speed", the
+// map's width bottom right. Each screen keeps its own zoom; the tiles can be turned off (the map's
+// display, a command).
+//
 // Text from settings (the attribution) goes in escaped: Leaflet writes it as HTML, and a link
 // would take X-Plane's browser window away from the page.
 // Classic script, Chromium 117. License: GPL-3.0-or-later.
@@ -79,23 +89,63 @@ xpg.map = (function () {
   var ZONE_STYLE = {weight: 1.5, opacity: 0.9, fillOpacity: 0.08};
   var ACTIVE_STYLE = {weight: 3, opacity: 1, fillOpacity: 0.22};
   var TASK_COLOUR = "#ff4fd8";
+  // The Glide Computer's zones: what each colour means is Condor's.
+  var RED = "#ff2d2d", GREEN = "#22d33a", YELLOW = "#ffd21a";
+  var GLIDE_ZONES = {
+    active: {color: RED, fillColor: RED, weight: 3, opacity: 1, fillOpacity: 0.2},
+    armed: {color: YELLOW, fillColor: YELLOW, weight: 3, opacity: 1, fillOpacity: 0.22},
+    todo: {color: GREEN, fillColor: GREEN, weight: 2, opacity: 0.95, fillOpacity: 0.12},
+    taken: {color: GREEN, fillColor: GREEN, weight: 1.5, opacity: 0.55, fillOpacity: 0.05}
+  };
+  var DEFAULT_ZOOMS = {map: DEFAULT_ZOOM, glide: 12, info: 11, thermal: 15};
+  var TAPE_SPAN_DEG = 50;  // the heading tape shows this much each side of the track (Condor's span: to verify)
+  var TAPE_STEP_DEG = 10;
+  var BAR_TICKS = 10;
+  var layout = "flight";
+  var zoomKey = "map";  // whose zoom the map keeps: the Flight Computer's map, or a screen
+  var tilesOn = true;
+  var lastTask = null;  // the task as given, to draw again when the layout changes
+  var zoneState = "";  // the Glide Computer's zones as last coloured
+  var tapeMark = null, tapeEl = null, barEl = null;
+  var tapeAt = null;
+  var cornerWind = null, cornerWidth = null;
+  var takeoffAt = null;  // [lat, lon] of the task's takeoff, or null
 
   function escapeText(text) {
     return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
   }
 
-  function storedZoom() {
+  // The Flight Computer's map keeps the key it always had; each Glide Computer screen its own.
+  function zoomStore(key) {
+    return key === "map" ? "xpg.map.zoom" : "xpg.map.zoom." + key;
+  }
+
+  function storedZoom(key) {
+    var fallback = DEFAULT_ZOOMS[key] || DEFAULT_ZOOM;
     try {
-      var z = parseInt(localStorage.getItem("xpg.map.zoom"), 10);
-      return isFinite(z) ? z : DEFAULT_ZOOM;
+      var z = parseInt(localStorage.getItem(zoomStore(key)), 10);
+      return isFinite(z) ? z : fallback;
     } catch (e) {
-      return DEFAULT_ZOOM;
+      return fallback;
     }
   }
 
   function storeZoom() {
-    try { localStorage.setItem("xpg.map.zoom", String(map.getZoom())); } catch (e) { /* not kept */ }
+    try { localStorage.setItem(zoomStore(zoomKey), String(map.getZoom())); } catch (e) { /* not kept */ }
+  }
+
+  function stored(name, fallback) {
+    try {
+      var v = localStorage.getItem(name);
+      return v === null ? fallback : v;
+    } catch (e) {
+      return fallback;
+    }
+  }
+
+  function store(name, value) {
+    try { localStorage.setItem(name, value); } catch (e) { /* not kept */ }
   }
 
   // The scale in the pilot's units: metric as Leaflet draws it, nautical miles (feet below one) for
@@ -157,6 +207,81 @@ xpg.map = (function () {
       return el;
     }
   });
+
+  // The Glide Computer's corners: the wind bottom left (an arrow where the air goes, "from/speed"
+  // in knots), the map's width bottom right. Shown only in its layout (app.css).
+  var Corner = L.Control.extend({
+    onAdd: function () {
+      var el = L.DomUtil.create("div", "corner " + this.options.kind);
+      if (this.options.kind === "corner-wind") {
+        el.innerHTML = '<svg viewBox="-10 -10 20 20" width="22" height="22" aria-hidden="true">' +
+          '<path d="M0,-8 L4,1 L1,1 L1,8 L-1,8 L-1,1 L-4,1 Z"/></svg>';
+      }
+      el.appendChild(document.createElement("span"));
+      L.DomEvent.disableClickPropagation(el);
+      return el;
+    }
+  });
+
+  function setText(el, text) {
+    if (el.textContent !== text) el.textContent = text;
+  }
+
+  function drawCorners(s) {
+    var f = xpg.format;
+    var el = cornerWind.getContainer();
+    var calm = !f.known(s.wind_from_deg);
+    var arrow = el.firstChild;
+    var turn = calm ? "" : "rotate(" + ((s.wind_from_deg + 180) % 360).toFixed(0) + "deg)";
+    if (arrow.style.transform !== turn) arrow.style.transform = turn;
+    arrow.style.visibility = calm ? "hidden" : "visible";
+    var d = f.known(s.wind_from_deg) ? ("00" + (Math.round(s.wind_from_deg) % 360 || 360)).slice(-3) : "";
+    setText(el.lastChild, !f.known(s.wind_ms) ? "--" : calm ? "calm" : d + "/" + (s.wind_ms / 0.514444).toFixed(0) + " kt");
+  }
+
+  // The map's width across its middle, in the pilot's distance unit.
+  function drawWidth() {
+    if (!map || !placed || !cornerWidth || !visible()) return;
+    var size = map.getSize();
+    var m = map.distance(map.containerPointToLatLng([0, size.y / 2]), map.containerPointToLatLng([size.x, size.y / 2]));
+    var u = xpg.format.units(unitsShown);
+    var v = m * u.perDistance;
+    setText(cornerWidth.getContainer().lastChild, (v < 9.95 ? v.toFixed(1) : v.toFixed(0)) + " " + u.distance);
+  }
+
+  // The heading tape: ticks every TAPE_STEP_DEG across the top, made once; the mark moved to the
+  // bearing to fly against the track, held at the edge (and hollow) when outside the tape.
+  function makeTape(container) {
+    tapeEl = L.DomUtil.create("div", "hdg-tape", container);
+    for (var a = -TAPE_SPAN_DEG; a <= TAPE_SPAN_DEG; a += TAPE_STEP_DEG) {
+      var tick = L.DomUtil.create("i", a === 0 ? "major" : "", tapeEl);
+      tick.style.left = (50 + 50 * a / TAPE_SPAN_DEG) + "%";
+    }
+    tapeMark = L.DomUtil.create("b", "mark", tapeEl);
+    barEl = L.DomUtil.create("div", "gs-bar", container);
+    for (var k = 0; k <= BAR_TICKS; k++) {
+      var t = L.DomUtil.create("i", k === BAR_TICKS / 2 ? "major" : "", barEl);
+      t.style.top = (100 * k / BAR_TICKS) + "%";
+    }
+  }
+
+  function drawTape(s) {
+    var f = xpg.format;
+    var target = s.nav && !s.nav.finished ? s.nav.target : (s.nav && s.nav.target && s.nav.target.index === -1 ? s.nav.target : null);
+    var course = f.known(s.track_deg) ? s.track_deg : s.heading_deg;
+    var at = null;
+    if (target && f.known(target.bearing_deg) && f.known(course)) {
+      var off = ((target.bearing_deg - course) % 360 + 540) % 360 - 180;
+      at = Math.max(-TAPE_SPAN_DEG, Math.min(TAPE_SPAN_DEG, off));
+      at = Math.round(at) + (Math.abs(off) > TAPE_SPAN_DEG ? "o" : "");
+    }
+    if (at === tapeAt) return;
+    tapeAt = at;
+    tapeMark.style.display = at === null ? "none" : "";
+    if (at === null) return;
+    tapeMark.classList.toggle("out", String(at).slice(-1) === "o");
+    tapeMark.style.left = (50 + 50 * parseFloat(at) / TAPE_SPAN_DEG) + "%";
+  }
 
   // Changed only when what it shows changes: a still page draws no frame.
   function drawWind(s) {
@@ -234,7 +359,8 @@ xpg.map = (function () {
       });
       tiles.on("tileerror", function () { tileErrors++; });
       tiles.on("tileload", function () { tileLoads++; tileErrors = 0; });
-      tiles.addTo(map);
+      tilesOn = stored("xpg.map.tiles", "on") !== "off";
+      if (tilesOn) tiles.addTo(map);
     }
     map.createPane("task");
     map.getPane("task").style.zIndex = 350;  // over the tiles, under the track (overlays, 400)
@@ -248,10 +374,56 @@ xpg.map = (function () {
     scale = new Scale().addTo(map);
     new Follow().addTo(map);
     new Wind().addTo(map);
+    cornerWind = new Corner({position: "bottomleft", kind: "corner-wind"}).addTo(map);
+    cornerWidth = new Corner({position: "bottomright", kind: "corner-width"}).addTo(map);
+    makeTape(map.getContainer());
     setFollow(true);
     map.on("dragstart", function () { setFollow(false); });
     map.on("moveend", drawGrid);
+    map.on("moveend", drawWidth);
     map.on("zoomend", storeZoom);
+    map.on("resize", drawWidth);
+  }
+
+  // --- the two computers --------------------------------------------------------------------
+
+  // "flight" or "glide": the task is drawn again in that computer's way.
+  function setLayout(name) {
+    if (name === layout) return;
+    layout = name;
+    zoneState = "";
+    tapeAt = undefined;
+    if (map) setTask(lastTask, false);
+  }
+
+  // The zoom of this screen ("map" for the Flight Computer, or a Glide Computer screen). A Glide
+  // Computer screen chosen follows the glider again, as Condor's screens are always centred on it.
+  function useZoom(key) {
+    if (key === zoomKey) return;
+    zoomKey = key;
+    if (key !== "map" && map) setFollow(true);
+    if (map && placed) {
+      var z = storedZoom(key);
+      if (z !== map.getZoom()) {
+        map.setZoom(z, {animate: false});
+        lastFollow = 0;
+      }
+    }
+  }
+
+  // The pilot's commands, as X-Plane passed them to the page (app.js).
+  function zoomBy(step) {
+    if (!map) return;
+    map.setZoom(map.getZoom() + step, {animate: false});
+    lastFollow = 0;
+  }
+
+  function toggleTiles() {
+    if (!map || !tiles) return;
+    tilesOn = !tilesOn;
+    if (tilesOn) tiles.addTo(map);
+    else tiles.remove();
+    store("xpg.map.tiles", tilesOn ? "on" : "off");
   }
 
   // --- each state ---------------------------------------------------------------------------
@@ -263,8 +435,13 @@ xpg.map = (function () {
       unitsShown = s.units;
       scale.setNautical(s.units === "aviation");
       drawLegend();
+      drawWidth();
     }
     drawWind(s);
+    if (layout === "glide") {
+      drawCorners(s);
+      drawTape(s);
+    }
     var f = xpg.format;
     if (!f.known(s.lat) || !f.known(s.lon)) {
       if (glider._map) glider.remove();
@@ -273,7 +450,8 @@ xpg.map = (function () {
     var here = L.latLng(s.lat, s.lon);
     if (!placed) {
       placed = true;
-      map.setView(here, storedZoom(), {animate: false});
+      map.setView(here, storedZoom(zoomKey), {animate: false});
+      drawWidth();
     }
     // Moved only once it would show: in straight flight the glider crosses a pixel about once a
     // second, and a page that changes nothing draws no frame for X-Plane to take.
@@ -490,15 +668,75 @@ xpg.map = (function () {
     return out;
   }
 
+  // The Glide Computer's short names: S start, F finish, the turn points by their number.
+  function pointTag(p, i) {
+    return p.role === "start" ? "S" : p.role === "finish" ? "F" : String(i);
+  }
+
+  // A name on the map: in the Glide Computer with its yellow tags in front. Text nodes only.
+  function nameLabel(tags, name) {
+    var label = document.createElement("span");
+    for (var i = 0; layout === "glide" && i < tags.length; i++) {
+      var b = document.createElement("b");
+      b.className = "ytag";
+      b.textContent = tags[i];
+      label.appendChild(b);
+    }
+    label.appendChild(document.createTextNode(name));  // a name from the file: text, never HTML
+    return label;
+  }
+
+  // The places to mark: in the Glide Computer the takeoff too, and one mark for points at the
+  // same place, with all their tags ("T S F" at a home field), so no name hides another.
+  function marks(t) {
+    var list = [];
+    function add(lat, lon, tag, name) {
+      if (layout === "glide") {
+        for (var k = 0; k < list.length; k++) {
+          if (Math.abs(list[k].at[0] - lat) < 1e-5 && Math.abs(list[k].at[1] - lon) < 1e-5) {
+            list[k].tags.push(tag);
+            return;
+          }
+        }
+      }
+      list.push({at: [lat, lon], tags: [tag], name: name});
+    }
+    if (layout === "glide" && t.takeoff && xpg.format.known(t.takeoff.lat) && xpg.format.known(t.takeoff.lon)) {
+      takeoffAt = [t.takeoff.lat, t.takeoff.lon];
+      add(t.takeoff.lat, t.takeoff.lon, "T", t.takeoff.name);
+    }
+    for (var i = 0; i < t.points.length; i++) add(t.points[i].lat, t.points[i].lon, pointTag(t.points[i], i), t.points[i].name);
+    return list;
+  }
+
+  // A point's place: a dot in the Flight Computer, a yellow cross in the Glide Computer.
+  function pointMark(latlng, tags, name) {
+    var marker;
+    if (layout === "glide") {
+      marker = L.marker(latlng, {pane: "task", interactive: false, keyboard: false,
+                                 icon: L.divIcon({className: "tp-cross", iconSize: [14, 14], iconAnchor: [7, 7],
+                                                  html: '<svg viewBox="-7 -7 14 14" width="14" height="14" aria-hidden="true">' +
+                                                        '<path d="M-6,0 L6,0 M0,-6 L0,6"/><path d="M-6,0 L6,0 M0,-6 L0,6"/></svg>'})});
+    } else {
+      marker = L.circleMarker(latlng, taskPath("task-dot", 1.5, {radius: 3, color: "#000", fillColor: "#fff",
+                                                                 fillOpacity: 1}));
+    }
+    return marker.bindTooltip(nameLabel(tags, name), {permanent: true, direction: "right", offset: [6, 0],
+                                                      className: "task-label"});
+  }
+
   // A new task, or none. `fit`: chosen by the pilot just now, so the map shows it whole (and stops
   // following until the pilot asks again).
   function setTask(t, fit) {
     if (!map) return;
+    lastTask = t;
     pendingFit = null;  // a fit waiting for the last task is not this one's
     taskLayer.clearLayers();
     taskZones = [];
     taskPoints = null;
+    takeoffAt = null;
     activeIndex = -1;
+    zoneState = "";
     if (nextLine) {
       nextLine.remove();
       nextLine = null;
@@ -506,19 +744,15 @@ xpg.map = (function () {
     if (!t || !Array.isArray(t.points) || !t.points.length) return;
     taskPoints = t.points.map(function (p) { return [p.lat, p.lon]; });
     L.polyline(taskPoints, taskPath("task-leg-outline", 5, {color: "#000", opacity: 0.55})).addTo(taskLayer);
-    L.polyline(taskPoints, taskPath("task-leg", 2, {})).addTo(taskLayer);
+    L.polyline(taskPoints, taskPath("task-leg", layout === "glide" ? 3 : 2, {})).addTo(taskLayer);
     for (var i = 0; i < t.points.length; i++) {
       var p = t.points[i];
       var layers = zoneLayers(p.zone);
       for (var j = 0; j < layers.length; j++) layers[j].addTo(taskLayer);
       taskZones.push(layers);
-      var label = document.createElement("span");
-      label.textContent = p.name;  // a name from the file: text, never HTML
-      L.circleMarker([p.lat, p.lon], taskPath("task-dot", 1.5, {radius: 3, color: "#000", fillColor: "#fff",
-                                                                fillOpacity: 1}))
-        .bindTooltip(label, {permanent: true, direction: "right", offset: [5, 0], className: "task-label"})
-        .addTo(taskLayer);
     }
+    var list = marks(t);
+    for (var m = 0; m < list.length; m++) pointMark(list[m].at, list[m].tags, list[m].name).addTo(taskLayer);
     if (fit) {
       var bounds = L.latLngBounds(taskPoints);
       for (var z = 0; z < taskZones.length; z++) {
@@ -534,6 +768,10 @@ xpg.map = (function () {
   // The zone flown to marked, and a line to its point, moved only when the glider moved a pixel
   // or the point changed.
   function drawNext(nav, here, moved) {
+    if (layout === "glide") {
+      drawGlideNext(nav, here, moved);
+      return;
+    }
     var index = nav && taskPoints && !nav.finished ? nav.index : -1;
     if (index >= pointCount()) index = -1;
     if (index !== activeIndex) {
@@ -543,10 +781,7 @@ xpg.map = (function () {
       moved = true;
     }
     if (index < 0) {
-      if (nextLine) {
-        nextLine.remove();
-        nextLine = null;
-      }
+      dropNextLine();
       return;
     }
     if (!nextLine) {
@@ -555,6 +790,55 @@ xpg.map = (function () {
     } else if (moved) {
       nextLine.setLatLngs([here, taskPoints[index]]);
     }
+  }
+
+  function dropNextLine() {
+    if (nextLine) {
+      nextLine.remove();
+      nextLine = null;
+    }
+  }
+
+  // The Glide Computer: every zone coloured by what it is now, and a thin black line (on a light
+  // edge, for dark ground) to the way to fly: the point flown to, or the takeoff when it is the target.
+  function drawGlideNext(nav, here, moved) {
+    var count = pointCount();
+    var state = nav && count ? [nav.index, nav.started, nav.finished, nav.armed].join() : "";
+    if (state !== zoneState) {
+      zoneState = state;
+      for (var i = 0; i < count; i++) setZoneStyle(taskZones[i], GLIDE_ZONES[zoneKind(nav, i)]);
+      moved = true;
+    }
+    var to = null;
+    if (nav && nav.target && nav.target.index === -1 && takeoffAt) to = takeoffAt;
+    else if (nav && !nav.finished && nav.index < count) to = taskPoints[nav.index];
+    if (!to) {
+      dropNextLine();
+      return;
+    }
+    var line = [here, to];
+    if (!nextLine) {
+      nextLine = L.layerGroup([
+        L.polyline(line, taskPath("target-edge", 4, {color: "#fff", opacity: 0.7})),
+        L.polyline(line, taskPath("target-line", 1.6, {color: "#000", opacity: 1}))
+      ]).addTo(taskLayer);
+      nextLine.to = to;
+    } else if (moved || nextLine.to !== to) {
+      nextLine.to = to;
+      nextLine.eachLayer(function (l) { l.setLatLngs(line); });
+    }
+  }
+
+  // What a zone is now, for its colour: Condor's meanings.
+  function zoneKind(nav, i) {
+    if (!nav) return "todo";
+    if (i === 0) {  // the start: red until armed, yellow armed, green taken
+      if (nav.started) return "taken";
+      return nav.armed ? "armed" : "active";
+    }
+    if (nav.finished) return "taken";
+    if (i === nav.index) return "active";
+    return i < nav.index ? "taken" : "todo";
   }
 
   function pointCount() {
@@ -580,14 +864,16 @@ xpg.map = (function () {
     fitPending();
     lastFollow = 0;
     drawGrid();
+    drawWidth();
   }
 
   // A line for the status bar while tiles fail and none load.
   function note() {
     if (!map || !tiles) return map ? "no map tiles set: grid only" : "";
+    if (!tilesOn) return "";  // turned off by the pilot (the map's display)
     return tileErrors >= 4 ? "map tiles not loading: grid only" : "";
   }
 
   return {init: init, draw: draw, trackWanted: trackWanted, addTrack: addTrack, shown: shown, note: note,
-          setTask: setTask};
+          setTask: setTask, setLayout: setLayout, useZoom: useZoom, zoomBy: zoomBy, toggleTiles: toggleTiles};
 })();

@@ -1,6 +1,6 @@
 # Pilot guide
 
-How to install XP-Gliding, make a first flight and read its sky. This guide is for version 2.0.2. Its known limits are listed at the end.
+How to install XP-Gliding, make a first flight and read its sky. This guide is for version 2.1. Its known limits are listed at the end.
 
 ![A Laminar ASK 21 banked in a climbing turn over Santiago, Chile, with cumulus over the foothills of the Andes beyond. The HUD on the left reads +1.5 m/s](images/climbing-among-cumulus.jpg)
 
@@ -12,7 +12,7 @@ How to install XP-Gliding, make a first flight and read its sky. This guide is f
 
 ## Installing
 
-1. Download `xp-gliding-2.0.2.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
+1. Download `xp-gliding-2.1.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
 2. Close X-Plane.
 3. From the unzipped folder, copy `PI_xp_gliding.py`, the whole `xp_gliding` folder and the `xp-gliding-cloud-styles` folder into `X-Plane 12/Resources/plugins/PythonPlugins/`. They must sit side by side there. The last one is for cloud styles of your own, and the plugin makes it if it is missing. `README.txt` and `LICENSE` do not need to be copied.
 4. Start X-Plane. *Plugins → XP-Gliding* appears in the menu.
@@ -131,6 +131,47 @@ Distances are in km, or nautical miles with *Units* set to aviation. Bearings an
 
 Where you leave the window, and its size, are kept for the next session. Its close box closes the Flight Computer (choose it again in the menu to bring it back). It stays inside X-Plane's window: its pop-out button puts it back at once, because X-Plane 12.4.4 draws a popped-out browser window wrong (a corner of the page, enlarged). A click in the window leaves the keyboard with X-Plane, so your keys and their commands work as before.
 
+## The Glide Computer
+
+A second computer, in the same window: *Plugins → XP-Gliding → Instrument → Glide Computer*. It follows the functions of the flight computer in Condor 3, which many soaring pilots know: three screens with six readings each, the same map colours, a target you can look ahead to, and control from keys or joystick buttons. The map, the glider and the track are the plugin's own, as in the Flight Computer. It needs what the Flight Computer needs, X-Plane 12.4.4 and XPPython3 4.8.0.
+
+The header shows the screen, `TO:` and the target, and the simulator's local time. The map fills the window under it, and the six readings sit below the map (beside it in a wide window).
+
+| Screen | Readings |
+| --- | --- |
+| GLIDE | `Dis`, `DH`, `E` / `VMG`, `DDH`, `ReqE` |
+| INFO | `tTime`, `tSpd`, `hAGL` / `TTG`, `GS`, `tDelta` |
+| THERMAL | `Dis`, `DH`, `TAve` / `T4Ave`, `DDH`, `TGain` |
+
+| Reading | What it shows |
+| --- | --- |
+| `Dis` | Distance to the target, through the points on the way when the target is further along the task |
+| `DH` | Your height above the target's elevation, from the CUP file; `--` if the file gives none |
+| `E` | The glide ratio you are getting: the ground covered in the last 30 s over the height lost. `--` while you hold or gain height |
+| `ReqE` | The glide ratio needed to reach the target with no height to spare: `Dis` over `DH`. It knows nothing of the wind, the glider or the hills on the way |
+| `VMG` | Your ground speed towards the target's direction: negative when you fly away from it |
+| `tTime`, `tSpd` | Time since the start, and the task's average speed: the distance done along the task over that time |
+| `hAGL`, `GS` | Height above the ground, ground speed |
+| `TAve`, `TGain` | The climb since you began circling in this thermal and the height gained in it (the HUD's `THM`) |
+| `T4Ave` | The climb of your last four thermals together: their gain over their time. The thermal you are in does not count |
+| `DDH`, `TTG` | Arrival height and time to go. They need the glider's polar and a MacCready setting, which come in a later version: `--` for now |
+| `tDelta` | For assigned area tasks, which the plugin does not fly: `--` |
+
+On the map, the zone you fly to is red, those still to come green and those you have taken a fainter green. The start is red, turns yellow while you are in its zone ready to start, and green once you have started. Yellow tags name the points: `T` the takeoff, `S` the start, `1`, `2`… the turn points, `F` the finish; a yellow cross marks each point. A thin black line runs from the glider to the way to fly. Along the top, a tape of blue ticks shows where the target lies against your track: its red mark is in the middle when you fly straight at it, and hollow at an end when the target lies further round. Down the right edge is the glide-slope bar, which will show `DDH` once that reading comes. Bottom left is the wind, where it comes from and its speed in knots; bottom right, the map's width.
+
+The target is the point you fly to, unless you choose another: ◀ and ▶ in the header move it along the rest of the task, and back to the takeoff. `Dis`, `DH`, `ReqE` and the tape then speak of that point, through the points between; the task itself does not change. When you reach a point, the target moves on with it. TASK in the header opens the Flight Computer's task list over the map, to choose a task or step a point by hand; it closes when you choose a task or press TASK again. The name of the screen in the header changes the screen. Each screen keeps its own zoom; THERMAL starts close in.
+
+When you circle, the computer goes to THERMAL by itself, once you have turned the same way for 15 s, so a turn onto a new course does not. After 20 s of straight flight it goes back to the screen you were on; a few straight seconds to move the circle keep THERMAL. A screen you choose while circling is kept. To turn this off, set `computer_auto_thermal` to `false` in `Output/xp-gliding/config.json` with X-Plane closed.
+
+The computer can be used without the mouse. These X-Plane commands come with no key: bind the ones you want in X-Plane's keyboard or joystick settings (search for "XP-Gliding computer"). They also work in the Flight Computer, where the screens are its tabs.
+
+| Command | What it does |
+| --- | --- |
+| `xp_gliding/computer/screen_next`, `screen_prev` | Next or previous screen |
+| `xp_gliding/computer/zoom_in`, `zoom_out` | Zoom the map |
+| `xp_gliding/computer/map_mode_next`, `map_mode_prev` | The map with its tiles, or the plain grid |
+| `xp_gliding/computer/target_next`, `target_prev` | Move the target along the task |
+
 ## The menu
 
 Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next session, and each switch is also a command you can bind to a key or a joystick button in X-Plane's keyboard or joystick settings.
@@ -153,7 +194,7 @@ Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next
 | X-Plane's audio vario | X-Plane's own audio vario on or off: the same switch as the AUDIO on the ASK 21's panel, for gliders without one. The tick follows the panel's switch. X-Plane's setting, not saved by the plugin | `xp_gliding/audio_vario/toggle` |
 | Treat this aircraft as a glider | For a motor glider: the plugin acts on the aircraft loaded, with its engine running or not, and remembers it by its file. Ticked and greyed out for a glider | `xp_gliding/aircraft/glider/toggle` |
 | Put me near a cloud | Sets the glider flying 1.5 km from the nearest cloud that will last a few minutes more, on the side you were on, heading for it, a little over halfway from the ground to the cloud's base. Needs *Cumulus clouds* on, and the clouds take a few seconds to form after a flight starts | `xp_gliding/airstart/near_cloud` |
-| Instrument | *Soaring HUD* (the default), *Flight Computer* or *None*: at most one is shown. The two commands turn their instrument on or off, and turning one on turns the other off. *Flight Computer* is greyed out without X-Plane 12.4.4 and XPPython3 4.8.0 | `xp_gliding/hud/toggle`, `xp_gliding/computer/toggle` |
+| Instrument | *Soaring HUD* (the default), *Flight Computer*, *Glide Computer* or *None*: at most one is shown. Each command turns its instrument on or off, and turning one on turns the others off. Both computers are greyed out without X-Plane 12.4.4 and XPPython3 4.8.0 | `xp_gliding/hud/toggle`, `xp_gliding/computer/toggle`, `xp_gliding/glide_computer/toggle` |
 | Day | A whole day at once, setting the four items below it: *Easy* (wide, strong thermals), *Typical* (the default), *Demanding* (narrower, stronger and higher), *Weak and low*, and *Blue*, a day with the same thermals and no clouds to read. The day you are on is ticked; change one of the items below and none is. With *Cloud base from X-Plane's weather* on, the weather sets the depth instead | |
 | Sky | How wide the thermals are: wide (the default and easiest), medium, or narrow (hardest) | |
 | Strength of the day (w\*) | How strong the thermals are at the best time of the day, with *Daily cycle* on, or all day with it off. 3 m/s by default | |

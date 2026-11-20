@@ -202,6 +202,37 @@ def test_leaving_keeps_the_last_average_until_the_next_thermal_has_one():
     assert thermal.valid and thermal.average_ms == pytest.approx(1.0, abs=0.01)
 
 
+def test_the_recent_climb_counts_the_last_four_thermals_left():
+    flight = Flight()
+    flight.fly(60.0, 2.0, True)
+    thermal = flight.fly(5.0, 1.0, True)
+    assert thermal.recent_ms is None and thermal.recent_n == 0  # the one being circled does not count
+    for climb, seconds in ((1.0, 100.0), (3.0, 50.0), (2.0, 40.0), (0.5, 80.0), (4.0, 30.0)):
+        flight.fly(seconds, climb, True)
+        thermal = flight.fly(30.0, -1.0, False)  # left: straight for longer than LEAVE_S
+    assert not thermal.active and thermal.recent_n == 4
+    # The last four: their gain over their time, each measured from its first circle to its last.
+    kept = [(3.0, 50.0), (2.0, 40.0), (0.5, 80.0), (4.0, 30.0)]
+    assert thermal.recent_ms == pytest.approx(sum(c * s for c, s in kept) / sum(s for _, s in kept), abs=0.01)
+
+
+def test_a_new_thermal_after_a_long_straight_while_circling_ends_the_last():
+    thermal = ThermalAverage()
+    for i in range(1, 401):
+        thermal.update(i * DT, 1000.0 + 2.0 * i * DT, 1)
+    thermal.update(70.0, 1080.0, 1)  # 30 s later, circling again: another thermal
+    assert thermal.recent_n == 1 and thermal.recent_ms == pytest.approx(2.0, abs=0.01)
+
+
+def test_a_thermal_too_short_to_show_is_not_counted():
+    flight = Flight()
+    flight.fly(5.0, 2.0, True)
+    thermal = flight.fly(30.0, -1.0, False)
+    assert thermal.recent_n == 0 and thermal.recent_ms is None
+    thermal.reset()
+    assert thermal.recent_ms is None
+
+
 def test_turning_the_other_way_is_the_same_thermal():
     thermal = ThermalAverage()
     for i in range(1, 301):
