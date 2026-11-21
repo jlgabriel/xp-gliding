@@ -81,6 +81,7 @@ logged, the window goes at the next tick (never from its own callback), and the 
 """
 
 import json
+import math
 import os
 import pathlib
 import time
@@ -636,7 +637,10 @@ class Computer:
         msl = xp.getDatad(self._elevation)
         thermal_gain = thermal.gain_m if thermal.valid else None
         target_vmg = None
-        if self.progress is not None:
+        # With a task, a place that is not a number is skipped, as the progress skips it: the last
+        # nav stands (None before the first) and VMG is unknown, rather than a distance from nowhere
+        # or an error that stops the computer. The next place read right is used as usual.
+        if self.progress is not None and math.isfinite(lat) and math.isfinite(lon):
             nav = self._nav = self.progress.nav(lat, lon, t)
             self.nav_index, self.nav_dist_m, self.nav_bearing_deg = nav["index"], nav["dist_m"], nav["bearing_deg"]
             target = nav["target"]
@@ -646,7 +650,7 @@ class Computer:
             target["req_ld"] = None if req is None else round(req, 1)
             target_vmg = vmg(gs_ms, track_deg, target["bearing_deg"])
             self.target_index, self.target_dist_m = target["index"], target["dist_m"]
-        else:
+        elif self.progress is None:
             self.target_index, self.target_dist_m = -2, 0.0
         ld = self.glide.ld
         self.ld = ld or 0.0

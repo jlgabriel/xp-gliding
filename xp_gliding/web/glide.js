@@ -137,6 +137,12 @@ xpg.glide = (function () {
     xpg.map.useZoom(name);
   }
 
+  // Back from the Flight Computer, which left the map at its own zoom and colours: the next show
+  // applies the screen again, the same screen as before included.
+  function forget() {
+    screen = null;
+  }
+
   function draw(s) {
     if (!els) find();
     var u = f.units(s.units);
@@ -188,5 +194,5 @@ xpg.glide = (function () {
     style.setProperty("--g-head", px(Math.min(head.width / 26, 18), 11, 18));
   }
 
-  return {draw: draw, show: show, fit: fit, setTaskShown: setTaskShown};
+  return {draw: draw, show: show, forget: forget, fit: fit, setTaskShown: setTaskShown};
 })();

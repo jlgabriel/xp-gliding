@@ -883,6 +883,52 @@ def test_a_jump_does_not_take_the_start(plugin, tmp_path):
     assert dataref(xp, "computer/nav_index") == 0 and not state_of(window)["nav"]["started"]
 
 
+@pytest.mark.parametrize("bad", [float("inf"), float("nan")])
+def test_a_place_that_is_not_a_number_is_skipped_by_the_task_readings(plugin, tmp_path, bad):
+    pi, xp, data = plugin
+    write_tasks(tmp_path)
+    choose(xp, "Flight Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    call(window, "xpg_do", load_request(tmp_path, 0))
+    fly(pi, data, 2.0)
+    before = state_of(window)["nav"]["dist_m"]
+    lon = data["sim/flightmodel/position/longitude"]
+    data["sim/flightmodel/position/longitude"] = bad
+    fly(pi, data, 0.4)  # two snapshots
+    state = state_of(window)
+    assert not pi.computer.failed and xp.windows
+    assert state["nav"]["dist_m"] <= before and state["vmg_ms"] is None  # never 20 015 km
+    data["sim/flightmodel/position/longitude"] = lon
+    fly(pi, data, 0.4)
+    state = state_of(window)
+    assert state["nav"]["dist_m"] < before and state["vmg_ms"] == pytest.approx(25.0, abs=0.5)
+
+
+def test_a_jump_straight_down_starts_the_track_and_e_over(plugin):
+    pi, xp, data = plugin
+    choose(xp, "Glide Computer")
+
+    def glide(seconds):  # 20:1 at 25 m/s, the HUD's instruments sampled as in the simulator
+        for _ in range(round(seconds / 0.1)):
+            data["sim/time/total_running_time_sec"] += 0.1
+            data["sim/flightmodel/position/latitude"] += 2.5 / 111195.0
+            data["sim/flightmodel/position/elevation"] -= 0.125
+            tick(pi)
+            pi.hud.tick()
+
+    glide(40.0)
+    assert pi.computer.ld == pytest.approx(20.0, abs=0.5)
+    epoch, resets = pi.computer.track.epoch, pi.hud.resets
+    data["sim/flightmodel/position/elevation"] -= 300.0  # placed lower, nothing else moved
+    glide(5.0)
+    assert pi.hud.resets == resets + 1 and pi.computer.track.epoch != epoch
+    assert pi.computer.ld == 0.0  # E not shown until it has flown its window again
+    wid, window = the_window(xp)
+    got = json.loads(call(window, "xpg_track", {"epoch": None, "from": 0}))
+    assert all(climb is None or abs(climb) < 5.0 for lat, lon, m, climb in got["points"])
+
+
 # --- the Glide Computer ------------------------------------------------------------------------
 
 

@@ -50,6 +50,10 @@ xpg.map = (function () {
   // colours, split at these climbs in the pilot's unit (blue sinking more than 1 m/s, red climbing
   // 3 m/s or more).
   var CLIMB_EDGES = {metric: [-1, 0, 1, 2, 3], aviation: [-2, 0, 2, 4, 6]};
+  // A second with no climb measured (the vario not yet sampled) is grey there, never the colour of
+  // the second before, which would draw a climb nobody flew.
+  var UNKNOWN_BAND = TRACK_COLOURS.length;
+  var UNKNOWN_COLOUR = "#8a8f98";
   // Points held at most, as Python keeps them (nav/track.py: six hours at one a second); past
   // this the oldest go, this many at a time, so that the line is built again only now and then.
   var TRACK_CAPACITY = 6 * 3600;
@@ -572,7 +576,10 @@ xpg.map = (function () {
         held = held.slice(-TRACK_CAPACITY);
         rebuild();
       } else if (rescale(points) && !byClimb) rebuild();
-      else extend(points);
+      else {
+        extend(points);
+        drawLegend();  // shown again once a track begun empty has points
+      }
     }
   }
 
@@ -600,14 +607,14 @@ xpg.map = (function () {
   }
 
   function band(p, before) {
-    if (byClimb) return climbBand(p, before);
+    if (byClimb) return climbBand(p);
     if (!knownHeight(p) || lo === null) return before < 0 ? 0 : before;
     var k = Math.floor((p[2] - lo) / (hi - lo) * TRACK_COLOURS.length);
     return Math.max(0, Math.min(TRACK_COLOURS.length - 1, k));
   }
 
-  function climbBand(p, before) {
-    if (typeof p.climb !== "number" || !isFinite(p.climb)) return before < 0 ? 2 : before;  // unknown: as the last
+  function climbBand(p) {
+    if (typeof p.climb !== "number" || !isFinite(p.climb)) return UNKNOWN_BAND;
     var v = p.climb * xpg.format.units(unitsShown).perClimb;
     var edges = CLIMB_EDGES[unitsShown] || CLIMB_EDGES.metric;
     var k = 0;
@@ -625,7 +632,7 @@ xpg.map = (function () {
   }
 
   function newSeg(points, b) {
-    seg = L.polyline(points, {color: TRACK_COLOURS[b], className: "track", interactive: false, weight: 3,
+    seg = L.polyline(points, {color: b === UNKNOWN_BAND ? UNKNOWN_COLOUR : TRACK_COLOURS[b], className: "track", interactive: false, weight: 3,
                               smoothFactor: 1});
     segPoints = points;
     segBand = b;

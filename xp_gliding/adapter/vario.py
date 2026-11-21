@@ -92,13 +92,15 @@ class Vario:
     """Total-energy rate and netto (m/s) with one filter, and a true average.
 
     The average is the energy difference over the window, so it has no filter
-    lag or drift. `update` returns False when the sample was ignored.
+    lag or drift. `update` returns False when the sample was ignored. `jumps` counts the samples
+    whose energy changed faster than air moves a glider (MAX_ENERGY_RATE_MS): a teleport, also one
+    straight up or down, which the vario sees first.
     """
 
     AVERAGE_STEP_S = 1.0
 
     __slots__ = ("polar", "tau_s", "te_ms", "netto_ms", "average_ms", "has_netto", "valid",
-                 "energy_m", "_t", "_energy", "_ring_t", "_ring_e", "_ring_next", "_ring_len",
+                 "energy_m", "jumps", "_t", "_energy", "_ring_t", "_ring_e", "_ring_next", "_ring_len",
                  "_ring_at")
 
     def __init__(self, polar=None, tau_s=1.0, average_s=30.0):
@@ -108,6 +110,7 @@ class Vario:
         self._ring_t = [0.0] * size
         self._ring_e = [0.0] * size
         self.has_netto = polar is not None
+        self.jumps = 0
         self.reset()
 
     def reset(self):
@@ -132,6 +135,8 @@ class Vario:
             return False
         rate = (energy - self._energy) / dt
         if dt > MAX_GAP_S or abs(rate) > MAX_ENERGY_RATE_MS:
+            if abs(rate) > MAX_ENERGY_RATE_MS:
+                self.jumps += 1
             self.reset()
             return self.update(t, elevation_m, tas_ms, ias_kmh, bank_deg, mass_kg)
         self._t, self._energy = t, energy

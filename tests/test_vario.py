@@ -86,6 +86,16 @@ def test_a_teleport_resets_instead_of_reading_as_lift():
     assert vario.te_ms == pytest.approx(-1.0, abs=0.05)
 
 
+def test_a_jump_straight_down_is_counted_and_a_gap_is_not():
+    vario = Vario(None)
+    t = fly(vario, 10.0, -1.0)
+    assert vario.update(t + DT, 700.0 - 25.0 ** 2 / (2 * G), 25.0, 90.0, 0.0, 541.0) is False  # 250 m down at once
+    assert vario.jumps == 1 and not vario.valid
+    t = fly(vario, 5.0, -1.0, t0=t + 2 * DT, z0=700.0)
+    assert vario.update(t + 3.0, 660.0, 25.0, 90.0, 0.0, 541.0) is False  # 3 s unsampled, about -1 m/s
+    assert vario.jumps == 1 and not vario.valid
+
+
 def test_a_paused_clock_is_ignored():
     vario = Vario(None)
     t = fly(vario, 5.0, -1.0)

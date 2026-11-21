@@ -75,6 +75,8 @@ window.xpg = xpg;
       var shown = view;
       view = null;
       show(shown || "map");
+    } else {
+      xpg.glide.forget();  // its screen's zoom and colours again, by apply() below
     }
     xpg.map.shown();
     fit();

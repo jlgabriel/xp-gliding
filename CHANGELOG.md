@@ -2,6 +2,13 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## 2.2.1 — 2026-11-20
+
+- **The Glide Computer comes back to THERMAL as you left it.** Going from THERMAL to the Flight Computer and back showed THERMAL in the header, but the map stayed at the Flight Computer's zoom and coloured the track by height. It now opens close in again, coloured by climb.
+- **A move straight up or down starts the track and `E` over.** A change of height alone on X-Plane's map, with no move across the ground, kept the glide before it: `E` mixed the two heights and THERMAL drew the drop as a climb of hundreds of metres a second. The vario already saw it; now the track, `E` and the centring aid start over with it, as after any other jump.
+- **THERMAL draws a stretch with no climb measured in grey,** where it took the colour of the stretch before and could make a strong climb look longer than it was. Its legend also stayed hidden after the track started over, until you changed screen.
+- **A place that is not a number no longer stops the computer.** With a task loaded, an infinite place still stopped the Flight Computer for the rest of the session, and one that was not a number showed a distance of 20 015 km for a moment. The last distance and bearing stay until the next place read right.
+
 ## 2.2 — 2026-11-20
 
 - **THERMAL colours the track by climb.** On the Glide Computer's THERMAL screen the track shows where you climbed and where you sank, on a fixed scale: red for 3 m/s or more down to dark blue for more than 1 m/s of sink (2 kt steps with aviation units). Each stretch is the total-energy climb flown along it, second by second. The other screens and the Flight Computer still colour it by height.

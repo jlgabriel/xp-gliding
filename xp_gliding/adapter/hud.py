@@ -152,7 +152,8 @@ class Hud:
         self._thermal_text = "THM --"
         self._thermal_color = WHITE
         self.top_msl_m = None  # where the clouds are, from the plugin's slow path
-        self.resets = 0  # jumps and new flights seen (reset_instruments)
+        self.resets = 0  # jumps and new flights seen (reset_instruments, or the vario's own jump test)
+        self._vario_jumps = 0  # the vario's jumps already counted in resets
         self.zi_m = settings.zi_m  # the zi in use, from the plugin's slow path: maybe the weather's
         ref = xp.findDataRef
         self._time = ref("sim/time/total_running_time_sec")
@@ -303,8 +304,14 @@ class Hud:
         msl_m = xp.getDatad(self._elevation)
         if not vario.update(t, msl_m, getf(self._tas),
                             getf(self._ias) * KT_TO_KMH, bank, getf(self._mass)):
-            if not vario.valid:  # it started over (a jump the vario saw itself): so does the thermal
+            if not vario.valid:  # it started over (a gap, or a jump the vario saw itself): so does the thermal
                 self.thermal.reset()
+                if vario.jumps != self._vario_jumps:
+                    # A jump nothing else saw, such as one straight up or down: the centring aid,
+                    # and through `resets` the Flight Computer's track and E, start over too.
+                    self._vario_jumps = vario.jumps
+                    self.aid.reset()
+                    self.resets += 1
             return
         self.aid.update(t, psi, bank, vario.netto_ms)
         thermal = self.thermal
