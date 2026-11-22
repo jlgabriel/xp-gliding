@@ -29,6 +29,13 @@ restarts the task. Once a point is taken, being in the next one's zone already t
 overlap); after a jump or a step by hand, only an entry seen afterwards does, so a placement on the
 map takes nothing, and a point stepped back to stays so until its zone is left and entered again.
 
+A zone may have height limits, above sea level (PLN soaring tasks, `pln.py`): a maximum, a minimum
+or both. It counts only within them, as MSFS's soaring tools count it (B21 Task Planner's checks,
+read in its code): a start line
+crossed too high (or too low) is no start, and a turn point or finish zone is taken once the
+glider is inside it and within its limits, so a glider over a turn point's maximum takes it by
+descending into the allowed band while still inside. Each refusal is kept for the log.
+
 Zone tests use the distance and bearing from the point on the sphere (`geodesy`); a line uses the
 along- and across-track parts of them, fine within the few kilometres of a line.
 
@@ -67,9 +74,10 @@ def _wrap180(deg):
 class Zone:
     """An observation zone around a task point, with its centre line worked out."""
 
-    __slots__ = ("lat", "lon", "axis", "r1", "a1", "r2", "a2", "line", "given")
+    __slots__ = ("lat", "lon", "axis", "r1", "a1", "r2", "a2", "line", "given", "max_m", "min_m")
 
-    def __init__(self, lat, lon, axis, r1, a1=180.0, r2=0.0, a2=0.0, line=False, given=False):
+    def __init__(self, lat, lon, axis, r1, a1=180.0, r2=0.0, a2=0.0, line=False, given=False,
+                 max_m=None, min_m=None):
         self.lat, self.lon = lat, lon
         self.axis = axis % 360.0  # bearing from the point into the zone
         self.r1 = min(max(r1, 1.0), MAX_RADIUS_M)
@@ -78,6 +86,21 @@ class Zone:
         self.a2 = min(max(a2, 0.0), 180.0)
         self.line = line
         self.given = given  # from the file, not our default
+        # Height limits, metres above sea level, or None: the glider must be at or under max_m and
+        # at or over min_m for the zone to count (PLN soaring tasks; a CUP file gives none).
+        self.max_m = max_m
+        self.min_m = min_m
+
+    def height(self, msl):
+        """Where a height stands against the limits: "high", "low", or None when within them (or
+        when there are none, or the height is not known)."""
+        if msl is None or not math.isfinite(msl):
+            return None
+        if self.max_m is not None and msl > self.max_m:
+            return "high"
+        if self.min_m is not None and msl < self.min_m:
+            return "low"
+        return None
 
     @property
     def is_cylinder(self):
@@ -158,7 +181,9 @@ def task_key(taskdef):
     gives them. A file's tasks may be reordered or edited between the pilot's choice and its
     loading, so a task is kept by its file, its number and this, and the number is trusted only
     while this still matches."""
+    # The height limits only when there are some, so a CUP task's key is the same as before them.
     zones = [[i, z.style, z.r1_m, z.a1_deg, z.r2_m, z.a2_deg, z.a12_deg, bool(z.line)]
+             + ([z.max_alt_m, z.min_alt_m] if z.max_alt_m is not None or z.min_alt_m is not None else [])
              for i, z in sorted(taskdef.zones.items())]
     text = json.dumps([taskdef.label(), [[p.name, round(p.lat, 6), round(p.lon, 6)] for p in taskdef.points],
                        zones], ensure_ascii=False, separators=(",", ":"))
@@ -235,7 +260,8 @@ def make_zone(spec, index, points):
         axis = (value("a12_deg", 0.0) + 180.0) % 360.0
     p = points[index]
     return Zone(p.lat, p.lon, axis, value("r1_m", default["r1_m"]), value("a1_deg", default["a1_deg"]),
-                value("r2_m", 0.0), value("a2_deg", 0.0), line, given)
+                value("r2_m", 0.0), value("a2_deg", 0.0), line, given,
+                value("max_alt_m", None), value("min_alt_m", None))
 
 
 class Task:
@@ -250,6 +276,7 @@ class Task:
         self.zones = [make_zone(taskdef.zones.get(i), i, self.points) for i in range(len(self.points))]
         self.legs_m = [distance_m(a.lat, a.lon, b.lat, b.lon) for a, b in zip(self.points, self.points[1:])]
         self.total_m = sum(self.legs_m)
+        self.remarks = list(taskdef.remarks)
 
     def role(self, index):
         return "start" if index == 0 else "finish" if index == len(self.points) - 1 else "point"
@@ -268,11 +295,18 @@ class Task:
             entry["role"] = self.role(i)
             entry["zone"] = self.zones[i].shape()
             entry["zone_given"] = self.zones[i].given
+            entry["max_m"] = _rounded(self.zones[i].max_m)
+            entry["min_m"] = _rounded(self.zones[i].min_m)
             points.append(entry)
         return json.dumps({"rev": rev, "name": self.name, "source": self.source, "points": points,
                            "legs_m": [round(m, 1) for m in self.legs_m], "total_m": round(self.total_m, 1),
-                           "takeoff": wp(self.takeoff), "landing": wp(self.landing)},
+                           "takeoff": wp(self.takeoff), "landing": wp(self.landing),
+                           "remarks": self.remarks},
                           separators=(",", ":"), allow_nan=False)
+
+
+def _rounded(v):
+    return None if v is None else round(v, 1)
 
 
 class Progress:
@@ -289,6 +323,11 @@ class Progress:
         self.started = False
         self.finished = False
         self.taken = []  # (index, how): "zone", "line" or "hand", the latest last, for the log
+        # (index, "high" or "low", height): a zone reached, or a line crossed, outside its height
+        # limits, which does not take the point; the latest last, for the log.
+        self.refused = []
+        self._msl = None  # the last height given, metres above sea level, or None
+        self._geo_in = False  # was the last place in the zone flown to, whatever its height
         self._lines = {}  # zone index -> (along, across) of the last place, for its line
         self._in = None  # was the last place in the start's zone
         # Was the last place in the zone of the point flown to: None not known (after a jump or a
@@ -305,9 +344,14 @@ class Progress:
         self._lines = {}
         self._in = None
         self._point_in = None
+        self._geo_in = False
 
-    def update(self, lat, lon, t=None):
-        """Look at a new place, at simulator time `t` (seconds); True if a point was taken. A place
+    def update(self, lat, lon, t=None, msl=None):
+        """Look at a new place, at simulator time `t` (seconds) and `msl` metres above sea level;
+        True if a point was taken. A zone with height limits counts only within them: a line
+        crossed, or a zone entered, above its maximum or below its minimum takes nothing, and the
+        point is taken once the glider is inside the zone and within the limits. A height not
+        given (None) meets every limit. A place
         reached from the last faster than a glider flies (`track.JUMP_SPEED_MS`), or with the clock
         gone back, is a jump the adapter did not see (a short move on X-Plane's map): the last place
         is forgotten first. A place or time that is not a number is skipped, and the last place
@@ -317,6 +361,7 @@ class Progress:
             self._last = None
             self.forget_place()
             return False
+        self._msl = msl if msl is not None and math.isfinite(msl) else None
         if t is not None:
             self._t = t
             last, self._last = self._last, (t, lat, lon)
@@ -351,12 +396,17 @@ class Progress:
             left = was is True and not inside
         if not left:
             return False
+        height = zone.height(self._msl)
+        if height is not None:
+            self.refused.append((0, height, self._msl))
+            return False
         self.started = True
         self.start_t = self._t
         self.active = 1
         self._drop_target()
         self._in = None
         self._point_in = False
+        self._geo_in = False
         self._line_from(1, here)
         self.taken.append((0, "line" if zone.line else "zone"))
         return True
@@ -373,15 +423,24 @@ class Progress:
     def _watch_point(self, here):
         index = self.active
         zone = self.task.zones[index]
+        height = zone.height(self._msl)
         if zone.line:
             entered = self._crossing(index, here) == 1
+            if entered and height is not None:
+                self.refused.append((index, height, self._msl))
+                entered = False
         else:
-            inside = zone.contains(*here)
+            geo_in = zone.contains(*here)
+            inside = geo_in and height is None
+            if geo_in and height is not None and not self._geo_in:
+                self.refused.append((index, height, self._msl))  # once each time the zone is reached
+            self._geo_in = geo_in
             was, self._point_in = self._point_in, inside
             entered = inside and was is False
         if not entered:
             return False
         self._point_in = False
+        self._geo_in = False
         self.taken.append((index, "line" if zone.line else "zone"))
         if index == len(self.task.points) - 1:
             self.finished = True
@@ -417,6 +476,7 @@ class Progress:
         self._drop_target()
         self._in = None
         self._point_in = None
+        self._geo_in = False
         self._lines = {}  # a line's last place may be from before the step: it crosses nothing
         self.taken.append((self.active, "hand"))
 
@@ -466,10 +526,12 @@ class Progress:
                 "dist_m": round(distance_m(lat, lon, first.lat, first.lon) + along, 1),
                 "bearing_deg": round(bearing_deg(lat, lon, first.lat, first.lon), 1), "legs": legs}
 
-    def nav(self, lat, lon, t=None):
+    def nav(self, lat, lon, t=None, msl=None):
         """The snapshot's `nav`: the point flown to, bearing and distance to it, and what is left; the
         target; whether the start is armed (the glider in the start's zone, not started); the
-        task's time and average speed at simulator time `t`, once started."""
+        task's time and average speed at simulator time `t`, once started; the height limits of
+        the point flown to (`max_m`, `min_m`, None without) and where `msl` stands against them
+        (`height`: "high", "low", or None within them)."""
         task = self.task
         index = self.active
         p = task.points[index]
@@ -484,6 +546,7 @@ class Progress:
                 if task_s >= TASK_SPEED_AFTER_S:
                     speed = round(max(task.total_m - left, 0.0) / task_s, 2)
                 task_s = round(task_s, 1)
+        zone = task.zones[index]
         return {"name": p.name, "code": p.code, "index": index, "count": len(task.points),
                 "role": task.role(index),
                 "bearing_deg": round(bearing_deg(lat, lon, p.lat, p.lon), 1), "dist_m": round(dist, 1),
@@ -492,4 +555,6 @@ class Progress:
                 "started": self.started, "finished": self.finished,
                 "armed": not self.started and task.zones[0].contains(lat, lon),
                 "task_s": task_s, "task_speed_ms": speed,
+                "max_m": _rounded(zone.max_m), "min_m": _rounded(zone.min_m),
+                "height": None if self.finished else zone.height(msl),
                 "target": self.target(lat, lon)}

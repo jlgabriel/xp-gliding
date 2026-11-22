@@ -94,7 +94,8 @@ THE MENU (Plugins > XP-Gliding)
 - Put me near a cloud: start flying 1.5 km from a cloud, heading for it.
 - Instrument: the Soaring HUD (the default), the Flight Computer, the Glide
   Computer or none. The Flight Computer is a window with a map of your track,
-  larger readings and SeeYou CUP tasks: put CUP files in
+  larger readings and tasks: put SeeYou CUP files, or the Sim Soaring Club's
+  flight plans (.pln, height limits included), in
   X-Plane 12/Output/xp-gliding/tasks/ and choose a task in its TASK tab. An
   empty folder gets an example task, a 29.5 km triangle from Tobalaba,
   Santiago, Chile. The Glide Computer is the same window with the functions

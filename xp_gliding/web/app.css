@@ -386,6 +386,10 @@ body:not(.has-task) #navrow {
 #nav-role { color: #ff4fd8; flex: none; }
 #nav-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 #nav-bearing, #nav-dist { flex: none; }
+/* A zone's height limits, PLN soaring tasks: red while the glider is outside them. */
+#nav-limit, #g-limit { flex: none; color: var(--dim); font-weight: 600; }
+#nav-limit:empty, #g-limit:empty { display: none; }
+#nav-limit.out, #g-limit.out { color: #fff; background: #d0302a; border-radius: 3px; padding: 0 4px; }
 
 /* TASK: the task loaded, then the picker; scrolls when it does not fit. */
 #task {
@@ -437,6 +441,10 @@ body:not(.has-task) #navrow {
 #task-points li.taken { color: var(--dim); }
 #task-points li.taken .tag { color: var(--dim); }
 #task-points li.left { border-top: 1px solid var(--line); margin-top: 2px; padding-top: 3px; }
+#task .lim { flex: none; color: var(--dim); font-size: 12px; }
+/* What the task's file asks that is not flown as written (an AAT, say), shown when it loads. */
+#task-remarks { margin: 4px 0; padding-left: 16px; color: #ffb02e; font-size: 12px; }
+#task-remarks:empty { display: none; }
 
 #task button {
   font: inherit;
@@ -535,7 +543,12 @@ body[data-layout="glide"] #status { grid-row: 4; }
 
 #g-screen { color: #8fc1ff !important; letter-spacing: 0.04em; }
 #ghead .g-step { padding: 0 4px; font-size: 0.8em; }
-#g-to { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+/* The name gives way, not the height limits after it. "safe": when it does not fit, the start
+   stays in sight (Chromium 115 and up). */
+#g-to { flex: 1; min-width: 0; display: flex; justify-content: safe center; align-items: baseline; overflow: hidden; }
+#g-to > * { flex: none; }
+#g-to #g-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#g-to #g-limit { margin-left: 0.35em; font-size: 0.85em; }
 #g-to .to { color: var(--dim); margin-right: 0.35em; }
 #g-to.done .to { color: var(--green); }
 #g-clock { flex: none; color: var(--text); }

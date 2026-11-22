@@ -26,6 +26,15 @@
   var points = [];  // [lat, lon], one a second
   // nav/task.py's Task.to_json for a fake triangle (written by hand from Python, 2026-11-18).
   var TASK = {"rev":0,"name":"Fake triangle","source":"santiago.cup","points":[{"name":"Fake Start","code":"FST","lat":-33.445503,"lon":-70.540666,"elev_m":700.0,"role":"start","zone":{"kind":"line","ends":[[-33.453291,-70.535276],[-33.437715,-70.546055]]},"zone_given":false},{"name":"Fake North-East","code":"FNE","lat":-33.418507,"lon":-70.484683,"elev_m":900.0,"role":"point","zone":{"kind":"circle","lat":-33.418507,"lon":-70.484683,"r_m":500.0},"zone_given":false},{"name":"Fake South (a long name to cut)","code":"FSO","lat":-33.465233,"lon":-70.452341,"elev_m":800.0,"role":"point","zone":{"kind":"polygons","rings":[[[-33.461694,-70.42028],[-33.464039,-70.420032],[-33.466393,-70.42003],[-33.468737,-70.420274],[-33.471056,-70.420762],[-33.47333,-70.42149],[-33.475542,-70.422453],[-33.477676,-70.423643],[-33.479715,-70.425053],[-33.481644,-70.426669],[-33.483448,-70.428482],[-33.485114,-70.430476],[-33.486628,-70.432637],[-33.487979,-70.434947],[-33.489157,-70.43739],[-33.490153,-70.439947],[-33.490959,-70.442599],[-33.49157,-70.445325],[-33.49198,-70.448104],[-33.465233,-70.452341]]]},"zone_given":true},{"name":"Fake Start","code":"FST","lat":-33.445503,"lon":-70.540666,"elev_m":700.0,"role":"finish","zone":{"kind":"circle","lat":-33.445503,"lon":-70.540666,"r_m":500.0},"zone_given":false}],"legs_m":[6000.0,6000.0,8482.6],"total_m":20482.6,"takeoff":null,"landing":null};
+  // Height limits as PLN soaring tasks give them (nav/pln.py), so the page shows them: at most 1500 m at
+  // the start, at most 1150 m at the first turn point (too high there for a while), at least 800 m
+  // at the finish; and a remark, as a task with assigned areas gets one.
+  [[1500, null], [1150, null], [null, null], [null, 800]].forEach(function (lim, i) {
+    TASK.points[i].max_m = lim[0];
+    TASK.points[i].min_m = lim[1];
+  });
+  TASK.remarks = ["Assigned areas (AAT) flown as cylinders, to be entered: Fake South (a long name to cut). " +
+                  "The task is not scored as an AAT."];
   var LIST = {folder: "D:/Laminar/X-Plane 12/Output/xp-gliding/tasks", files: [
     {file: "santiago.cup", error: null, tasks: [{index: 0, name: TASK.name, points: 4, total_m: TASK.total_m}]},
     {file: "turnpoints only.cup", error: "no tasks in this file", tasks: []}]};
@@ -92,12 +101,15 @@
     var ti = Math.min(active + Math.max(ahead, 0), pts.length - 1);
     var tdist = d + TASK.legs_m.slice(active, ti).reduce(function (a, b) { return a + b; }, 0);
     var dh = p.msl - pts[ti].elev_m;
+    var lim = finished ? {} : pts[active];
+    var height = lim.max_m != null && p.msl > lim.max_m ? "high" : lim.min_m != null && p.msl < lim.min_m ? "low" : null;
     var tag = pts[ti].role === "start" ? "S" : pts[ti].role === "finish" ? "F" : String(ti);
     return {name: pts[active].name, code: pts[active].code, index: active, count: pts.length, role: pts[active].role,
             bearing_deg: bearing(here, at(active)), dist_m: d, task_left_m: left,
             task_done: started ? Math.max(0, 1 - left / TASK.total_m) : 0, in_zone: d < 600,
             started: started, finished: finished, armed: !started && d < 1000,
             task_s: task_s, task_speed_ms: task_s > 10 ? (TASK.total_m - left) / task_s : null,
+            max_m: lim.max_m == null ? null : lim.max_m, min_m: lim.min_m == null ? null : lim.min_m, height: height,
             target: {index: ti, name: pts[ti].name, role: pts[ti].role, label: tag, elev_m: pts[ti].elev_m,
                      dist_m: tdist, bearing_deg: bearing(here, at(active)), legs: ti - active + 1,
                      dh_m: dh, req_ld: dh > 0 ? tdist / dh : null}};

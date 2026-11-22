@@ -1,8 +1,9 @@
-// XP-Gliding Flight Computer: the task. The TASK view (the task loaded, its points, the buttons to
-// step back and forward, and the picker: the CUP files in Output/xp-gliding/tasks/ and their
-// tasks), and the row under the strip with the point flown to, seen in every view.
+// XP-Gliding Flight Computer: the task. The TASK view (the task loaded, its points with their
+// height limits, what of the file is not flown as written, the buttons to step back and forward,
+// and the picker: the CUP and PLN files in Output/xp-gliding/tasks/ and their tasks), and the row
+// under the strip with the point flown to, seen in every view.
 //
-// Python does everything that matters (nav/cup.py, nav/task.py): reading the files, the zones,
+// Python does everything that matters (nav/cup.py, nav/pln.py, nav/task.py): reading the files, the zones,
 // which point is next, bearing and distance. The page asks for the list (xpg_do list_tasks, then
 // xpg_tasks once the snapshot's tasks_rev says it is made) and for the task (xpg_task, when
 // task_rev changes), and sends the pilot's choices (load_task, next_point, prev_point,
@@ -31,8 +32,9 @@ xpg.task = (function () {
 
   function find() {
     els = {};
-    ["navrow", "nav-role", "nav-name", "nav-arrow", "nav-bearing", "nav-dist", "task-name", "task-total",
-     "task-points", "task-buttons", "task-list", "task-folder", "task-refresh", "task-note"].forEach(function (id) {
+    ["navrow", "nav-role", "nav-name", "nav-limit", "nav-arrow", "nav-bearing", "nav-dist", "task-name",
+     "task-total", "task-remarks", "task-points", "task-buttons", "task-list", "task-folder", "task-refresh",
+     "task-note"].forEach(function (id) {
       els[id] = document.getElementById(id);
     });
     els["task-refresh"].addEventListener("click", list);
@@ -113,6 +115,7 @@ xpg.task = (function () {
     var u = f.units(s.units);
     setText(els["nav-role"], nav.finished ? "DONE" : roleTag(nav.role, nav.index));
     setText(els["nav-name"], nav.name);
+    drawLimit(els["nav-limit"], nav, u);
     setText(els["nav-bearing"], f.degrees(nav.bearing_deg));
     setText(els["nav-dist"], f.distance(nav.dist_m, u) + " " + u.distance);
     var turn = f.known(nav.bearing_deg) && f.known(s.heading_deg)
@@ -125,6 +128,18 @@ xpg.task = (function () {
       drawPoints(nav);
     }
     lastNav = nav;
+  }
+
+  // The height limits of the point flown to, red while the glider is outside them, with what is
+  // wrong unless `short` (the Glide Computer's header, where room is short).
+  function drawLimit(node, nav, u, short) {
+    var text = nav && !nav.finished ? f.limits(nav.max_m, nav.min_m, u) : "";
+    var out = !!(text && nav.height);
+    if (out && !short) text = (nav.height === "high" ? "TOO HIGH " : "TOO LOW ") + text;
+    setText(node, text);
+    node.classList.toggle("out", out);
+    node.title = !text ? "" : out ? "Too " + nav.height + " for this zone: it counts only within its height limits"
+      : "Height limits of this zone, above sea level: it counts only within them";
   }
 
   // --- the task loaded ----------------------------------------------------------------------
@@ -149,6 +164,10 @@ xpg.task = (function () {
     setText(els["task-name"], task ? task.name : "No task loaded");
     setText(els["task-total"], task ? f.distance(task.total_m, u) + " " + u.distance : "");
     els["task-buttons"].style.display = task ? "" : "none";
+    var ul = els["task-remarks"];
+    while (ul.firstChild) ul.removeChild(ul.firstChild);
+    var remarks = task && Array.isArray(task.remarks) ? task.remarks : [];
+    for (var i = 0; i < remarks.length; i++) ul.appendChild(el("li", "", String(remarks[i])));
     drawPoints(lastNav);
   }
 
@@ -163,6 +182,8 @@ xpg.task = (function () {
       var li = el("li");
       li.appendChild(el("span", "tag", roleTag(p.role, i)));
       li.appendChild(el("span", "name", p.name));
+      var lim = f.limits(p.max_m, p.min_m, u);
+      if (lim) li.appendChild(el("span", "lim", lim));
       li.appendChild(el("span", "leg", i > 0 ? f.distance(task.legs_m[i - 1], u) : ""));
       if (nav) {
         if (nav.finished || (nav.started && i < nav.index)) li.className = "taken";
@@ -195,7 +216,7 @@ xpg.task = (function () {
     els["task-folder"].title = folder;
     loading = null;  // a load makes the list again: the task, if it loaded, comes with task_rev
     setText(els["task-note"], files.length ? String(r.note || "") :
-      "No CUP files here. Put them in X-Plane's Output/xp-gliding/tasks/ folder and press ↻.");
+      "No task files here. Put CUP or PLN files in X-Plane's Output/xp-gliding/tasks/ folder and press ↻.");
     drawList();
   }
 
@@ -240,5 +261,5 @@ xpg.task = (function () {
     list();
   }
 
-  return {draw: draw, shown: shown};
+  return {draw: draw, shown: shown, drawLimit: drawLimit};
 })();

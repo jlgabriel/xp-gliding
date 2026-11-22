@@ -16,7 +16,8 @@ functions, registered before the page is loaded as the SDK requires:
   xplane.xpg_track({epoch, from})
                          the track's points the page does not have yet (`nav/track.py`); the page
                          asks when the snapshot's `track_n` or `track_epoch` say there are some
-  xplane.xpg_tasks()     the CUP files in the tasks folder and the tasks in each, for the picker;
+  xplane.xpg_tasks()     the task files in the tasks folder (CUP files and PLN soaring tasks,
+                         `nav/taskfiles.py`) and the tasks in each, for the picker;
                          made again by the next tick after the page asks with "list_tasks", and
                          the snapshot's `tasks_rev` says when it is ready
   xplane.xpg_task()      the task loaded, whole (`nav/task.py`), asked when `task_rev` changes
@@ -40,10 +41,11 @@ While the Flight Computer is the chosen instrument, window open or not, it offer
 place to the track, which keeps one point a second of simulator time (none paused or in replay),
 and starts the track again when the HUD's instruments start again: a jump or a new flight. With a
 task loaded it gives the place to the task's progress too (`nav/task.py`) five times a second, which
-takes each point as its zone is reached; a jump makes the progress forget the last place, so no
+takes each point as its zone is reached, with the glider's height for zones with height limits
+(PLN tasks); a jump makes the progress forget the last place, so no
 line is crossed by it nor zone entered. A jump it is not told of, such as a short move on X-Plane's
 map, the progress sees by itself from the speed between two places (`nav.task.Progress.update`). The task chosen is kept in the settings (`computer_task`,
-"file.cup#n", and `computer_task_key`, `nav.task.task_key`) and loaded again at start, its progress
+"file.cup#n" or "file.pln#0", and `computer_task_key`, `nav.task.task_key`) and loaded again at start, its progress
 from the start. A file may be edited after the choice: the number is trusted only while the key
 matches, else the task with that key is loaded, and with none nothing is (the pilot picks again).
 
@@ -89,7 +91,7 @@ import traceback
 
 import xp
 
-from ..nav import cup
+from ..nav import taskfiles
 from ..nav.glide import GlideRatio, height_over, required_ld, vmg
 from ..nav.snapshot import snapshot_json, track, wind_from
 from ..nav.task import Progress, Task, find_task, task_key
@@ -487,13 +489,17 @@ class Computer:
         if (not due and progress is None) or xp.getDatai(self._paused) or xp.getDatai(self._replay):
             return
         lat, lon = xp.getDatad(self._lat), xp.getDatad(self._lon)
+        msl = xp.getDatad(self._elevation)
         if due:
-            msl = xp.getDatad(self._elevation)
             # The total energy, for the climb along each second of track (THERMAL's colours)
             self.track.add(t, lat, lon, msl, self.hud.vario.energy_at(t))
             self.glide.add(t, lat, lon, msl)
-        if progress is not None and progress.update(lat, lon, t):
-            self._log_taken()
+        if progress is not None:
+            refused = len(progress.refused)
+            if progress.update(lat, lon, t, msl):
+                self._log_taken()
+            if len(progress.refused) > refused:
+                self._log_refused()
 
     def _dump_track(self):
         """For the test pilot: the track as kept, to compare with the flight log."""
@@ -516,6 +522,14 @@ class Computer:
         else:
             what = f"point {index}"
         self.log(f"Flight Computer: {what} {name!r} taken ({how})")
+
+    def _log_refused(self):
+        index, why, msl = self.progress.refused[-1]
+        zone = self.task.zones[index]
+        what = "start" if index == 0 else "finish" if index == len(self.task.points) - 1 else f"point {index}"
+        limit = zone.max_m if why == "high" else zone.min_m
+        self.log(f"Flight Computer: {what} {self.task.points[index].name!r} not taken: too {why}, "
+                 f"{msl:.0f} m against {'at most' if why == 'high' else 'at least'} {limit:.0f} m above sea level")
 
     def _do_actions(self):
         actions, self._actions = self._actions, []
@@ -545,15 +559,15 @@ class Computer:
                          + (", finished" if self.progress.finished else ""))
 
     def _task_files(self):
-        return cup.find_files(self.tasks_folder) if self.tasks_folder else []
+        return taskfiles.find_files(self.tasks_folder) if self.tasks_folder else []
 
     def _list_tasks(self):
-        """The picker's list: each CUP file with its tasks, or why it offers none."""
+        """The picker's list: each task file with its tasks, or why it offers none."""
         files = []
         for name in self._task_files():
             entry = {"file": name, "tasks": [], "error": None}
             try:
-                found = cup.load(os.path.join(self.tasks_folder, name))
+                found = taskfiles.load(os.path.join(self.tasks_folder, name))
             except OSError as exc:
                 entry["error"] = str(exc)
             else:
@@ -585,7 +599,7 @@ class Computer:
             return False
         path = os.path.join(self.tasks_folder, file)
         try:
-            found = cup.load(path)
+            found = taskfiles.load(path)
         except OSError as exc:
             self.log(f"Flight Computer: could not read {path}: {exc}")
             return False
@@ -600,6 +614,8 @@ class Computer:
         self._set_task(task)
         self.log(f"Flight Computer: task {task.name!r} from {file}: {len(task.points)} points, "
                  f"{task.total_m / 1000.0:.1f} km" + (f" (now task {at} of the file)" if at != index else ""))
+        for remark in task.remarks:
+            self.log(f"Flight Computer: {file}: {remark}")
         if not saved or at != index or key != task.key:
             self.settings.computer_task = f"{file}#{at}"
             self.settings.computer_task_key = task.key
@@ -641,7 +657,7 @@ class Computer:
         # nav stands (None before the first) and VMG is unknown, rather than a distance from nowhere
         # or an error that stops the computer. The next place read right is used as usual.
         if self.progress is not None and math.isfinite(lat) and math.isfinite(lon):
-            nav = self._nav = self.progress.nav(lat, lon, t)
+            nav = self._nav = self.progress.nav(lat, lon, t, msl)
             self.nav_index, self.nav_dist_m, self.nav_bearing_deg = nav["index"], nav["dist_m"], nav["bearing_deg"]
             target = nav["target"]
             dh = height_over(msl, target["elev_m"])

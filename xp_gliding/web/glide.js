@@ -80,6 +80,7 @@ xpg.glide = (function () {
   function find() {
     els = {screen: document.getElementById("g-screen"), tag: document.getElementById("g-tag"),
            to: document.getElementById("g-to"), toWord: document.querySelector("#g-to .to"),
+           limit: document.getElementById("g-limit"),
            name: document.getElementById("g-name"), clock: document.getElementById("g-clock"), cells: []};
     var cells = document.querySelectorAll("#readings .cell");
     for (var i = 0; i < cells.length; i++) {
@@ -155,6 +156,8 @@ xpg.glide = (function () {
     setText(els.tag, t ? t.label : "");
     els.tag.style.display = t ? "" : "none";
     setText(els.name, t ? t.name : NONE);
+    // The height limits, while the target is the point flown to: they are its zone's.
+    xpg.task.drawLimit(els.limit, s.nav && t && t.index === s.nav.index ? s.nav : null, u, true);
     var list = READINGS[screen] || READINGS.glide;
     for (var i = 0; i < els.cells.length; i++) {
       var r = list[i], c = els.cells[i];

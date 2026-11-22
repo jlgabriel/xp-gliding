@@ -60,11 +60,13 @@ class Waypoint:
 
 
 class ZoneSpec:
-    """An `ObsZone` line as the file gives it: None for each value it leaves out."""
+    """An `ObsZone` line as the file gives it: None for each value it leaves out. The height
+    limits (metres above sea level) come from other files' tasks (`pln.py`); a CUP file gives none."""
 
-    __slots__ = ("style", "r1_m", "a1_deg", "r2_m", "a2_deg", "a12_deg", "line")
+    __slots__ = ("style", "r1_m", "a1_deg", "r2_m", "a2_deg", "a12_deg", "line", "max_alt_m", "min_alt_m")
 
-    def __init__(self, style=None, r1_m=None, a1_deg=None, r2_m=None, a2_deg=None, a12_deg=None, line=False):
+    def __init__(self, style=None, r1_m=None, a1_deg=None, r2_m=None, a2_deg=None, a12_deg=None, line=False,
+                 max_alt_m=None, min_alt_m=None):
         self.style = style
         self.r1_m = r1_m
         self.a1_deg = a1_deg
@@ -72,6 +74,8 @@ class ZoneSpec:
         self.a2_deg = a2_deg
         self.a12_deg = a12_deg
         self.line = line
+        self.max_alt_m = max_alt_m
+        self.min_alt_m = min_alt_m
 
     def __repr__(self):
         fields = ", ".join(f"{k}={getattr(self, k)!r}" for k in self.__slots__ if getattr(self, k) not in (None, False))
@@ -81,9 +85,9 @@ class ZoneSpec:
 class TaskDef:
     """A task as the file gives it: its task points (start first, finish last) and their zones."""
 
-    __slots__ = ("name", "takeoff", "points", "landing", "zones", "options", "line_no")
+    __slots__ = ("name", "takeoff", "points", "landing", "zones", "options", "line_no", "remarks")
 
-    def __init__(self, name, takeoff, points, landing, zones=None, options=None, line_no=0):
+    def __init__(self, name, takeoff, points, landing, zones=None, options=None, line_no=0, remarks=None):
         self.name = name  # "" when the file gives none
         self.takeoff = takeoff  # a Waypoint or None; not a task point
         self.points = points  # [Waypoint], two at least: start, turn points, finish
@@ -91,6 +95,9 @@ class TaskDef:
         self.zones = zones or {}  # task point index (start 0) -> ZoneSpec, only those the file gives
         self.options = options or {}  # the Options line's keys and values, as text
         self.line_no = line_no
+        # What the pilot should know when the task is loaded: rules of the file that are not
+        # flown as written. Shown with the task, not only logged.
+        self.remarks = remarks or []
 
     def label(self):
         """The name to show: the file's, or the task points' names when it gives none."""
@@ -172,22 +179,27 @@ def load(path):
         return parse(decode(f.read()))
 
 
-def find_files(folder):
-    """The CUP files in a folder, by name, sorted without regard to case."""
+# The task files the Flight Computer reads: CUP files, and PLN soaring tasks (`pln.py`).
+TASK_EXTENSIONS = (".cup", ".pln")
+
+
+def find_files(folder, extensions=(".cup",)):
+    """The files in a folder with one of `extensions` (CUP files by default), by name, sorted
+    without regard to case."""
     try:
         names = os.listdir(folder)
     except OSError:
         return []
-    found = [n for n in names if n.lower().endswith(".cup") and os.path.isfile(os.path.join(folder, n))]
+    found = [n for n in names if n.lower().endswith(extensions) and os.path.isfile(os.path.join(folder, n))]
     return sorted(found, key=str.lower)
 
 
 def add_examples(folder, examples):
-    """Copy the CUP files of `examples` into `folder` when it holds none, so that a first start
-    has a task to fly. A folder that has a file of its own is left as it is, so an example the
-    pilot removed comes back only if every file goes. Returns (the names copied, the last error
-    or None): a file that cannot be copied is skipped."""
-    if find_files(folder):
+    """Copy the CUP files of `examples` into `folder` when it holds no task file (CUP or PLN), so
+    that a first start has a task to fly. A folder that has a file of its own is left as it is, so
+    an example the pilot removed comes back only if every file goes. Returns (the names copied,
+    the last error or None): a file that cannot be copied is skipped."""
+    if find_files(folder, TASK_EXTENSIONS):
         return [], None
     copied, error = [], None
     for name in find_files(examples):

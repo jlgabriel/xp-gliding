@@ -2,6 +2,13 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## 2.4 — 2026-11-22
+
+- **PLN soaring tasks in both computers.** Put a task's `.pln` flight plan in `Output/xp-gliding/tasks/` beside your CUP files: the Sim Soaring Club's tasks, and those made with the SSC Task Generator, WeSimGlide's Task Builder or B21 Task Planner, load and fly like a CUP task. The plugin reads what these tools write into the waypoints' names: the start and the finish, each point's elevation, its zone's size (a diameter, so the radius is half of it) and its height limits. The start is a line across the first leg, each turn point a cylinder and the finish the half cylinder beyond its point. The departure and destination airfields are the task's takeoff and landing, not task points. The weather that comes with a task (`.wpr`) is not read yet.
+- **Height limits count.** A zone with a maximum or a minimum height counts only within it: a start line crossed too high is no start, and a turn point or the finish is taken once you are inside its zone and within its limits, so you can climb or descend into the band while inside. TASK shows each point's limits, the row under the strip shows those of the point you fly to, in red with TOO HIGH or TOO LOW while you are outside them, and the Glide Computer's header shows them in red after the target's name.
+- **What a task asks that is not flown as written is said when it loads,** under the task's name: assigned areas (AAT) are flown as cylinders to be entered, and a minimum task time is not used.
+- On the Glide Computer, a target's name that does not fit the header gives way to its limits, and TO: no longer slides out of sight in a narrow window.
+
 ## 2.3 — 2026-11-22
 
 - **A tow rope you can see.** In X-Plane's aerotow the plugin draws the rope in place of X-Plane's thin straight line, which it hides while its own is drawn. The rope lies on the runway before the roll, nearly straight to the tug, and pays out as the tug takes up the slack; it goes taut on the roll and hangs a few metres once you are flying, more when the tug eases and less when it pulls; after you release it falls and trails behind the tug for a minute and a half. It is drawn 25 mm thick so it can be seen from the seat. Only the look changes: the tug, how it flies and its pull on the glider stay X-Plane's. *Our tow rope (experiment)* in the menu turns it off; on by default.

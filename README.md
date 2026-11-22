@@ -6,7 +6,7 @@ It is an independent take on thermals, offered as another option for soaring in 
 
 ![A Laminar ASK 21 seen from below, circling under the cumulus that marks its thermal, with more cumulus over the hills of Santiago, Chile. The soaring HUD on the left reads +1.4 m/s](docs/images/circling-under-its-cloud.jpg)
 
-> **Version 2.3.** Its limits are stated in the guide. Download it from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and follow the [pilot guide](docs/pilot-guide.md) to install it: it needs only X-Plane 12 and [XPPython3](https://xppython3.readthedocs.io/).
+> **Version 2.4.** Its limits are stated in the guide. Download it from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and follow the [pilot guide](docs/pilot-guide.md) to install it: it needs only X-Plane 12 and [XPPython3](https://xppython3.readthedocs.io/).
 
 ## What it does today
 
@@ -19,7 +19,7 @@ It is an independent take on thermals, offered as another option for soaring in 
 - **Lift with no per-aircraft calibration.** It is applied as the energy rising air would give the glider, and measured within 0.01 m/s of the intended climb at different speeds, banks and frame rates. The reference glider is the Laminar ASK 21. Other gliders get the lift, and no netto on the HUD. A motor glider gets it once treated as a glider from the menu.
 - **Thermals and clouds that follow the wind.** The wind is X-Plane's, real or set by hand: the plugin reads it and has no wind of its own.
 - **A soaring HUD:** total energy, netto, average climb, height up to the clouds, the wind and a centring aid.
-- **A Flight Computer,** in place of the HUD if you prefer: a window with a topographic map of the track flown coloured by height, the HUD's readings larger, and SeeYou CUP tasks to fly, with the point you are flying to, its bearing and distance. Or the Glide Computer, the same window with the functions of Condor 3's flight computer: its three screens, its map colours and control from keys. Both need X-Plane 12.4.4 and XPPython3 4.8.0 or later.
+- **A Flight Computer,** in place of the HUD if you prefer: a window with a topographic map of the track flown coloured by height, the HUD's readings larger, and tasks to fly from SeeYou CUP files or PLN soaring tasks such as the Sim Soaring Club's (from the SSC Task Generator and other MSFS task tools, height limits included), with the point you are flying to, its bearing and distance. Or the Glide Computer, the same window with the functions of Condor 3's flight computer: its three screens, its map colours and control from keys. Both need X-Plane 12.4.4 and XPPython3 4.8.0 or later.
 - **A menu** in *Plugins → XP-Gliding* to choose the day, by name (easy, typical, demanding, weak and low, or blue, with no clouds to read) or one setting at a time, saved between sessions. As an experiment, the cloud base can come from X-Plane's weather instead.
 - **A hotspot flight:** a file of hotspots from [thermal.kk7.ch](https://thermal.kk7.ch/) in place of the plugin's own sky, so the thermals are where pilots find them at that site, and nowhere else.
 - **Put me near a cloud:** from the menu, the glider starts flying towards a cloud, with no tow.

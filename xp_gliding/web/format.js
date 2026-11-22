@@ -78,6 +78,15 @@ xpg.format = (function () {
     return ("0" + Math.floor(m / 60)).slice(-2) + ":" + ("0" + m % 60).slice(-2);
   }
 
+  // A zone's height limits (metres above sea level, null without): "≤1520", "≥460", "460–1520",
+  // with the height's unit; "" with none.
+  function limits(maxM, minM, u) {
+    var hi = known(maxM), lo = known(minM);
+    if (!hi && !lo) return "";
+    var text = hi && lo ? height(minM, u) + "–" + height(maxM, u) : hi ? "≤" + height(maxM, u) : "≥" + height(minM, u);
+    return text + " " + u.height;
+  }
+
   return {units: units, known: known, climb: climb, height: height, speed: speed, distance: distance,
-          degrees: degrees, wind: wind, clock: clock};
+          degrees: degrees, wind: wind, clock: clock, limits: limits};
 })();

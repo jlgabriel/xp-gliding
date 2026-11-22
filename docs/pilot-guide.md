@@ -1,6 +1,6 @@
 # Pilot guide
 
-How to install XP-Gliding, make a first flight and read its sky. This guide is for version 2.3. Its known limits are listed at the end.
+How to install XP-Gliding, make a first flight and read its sky. This guide is for version 2.4. Its known limits are listed at the end.
 
 ![A Laminar ASK 21 banked in a climbing turn over Santiago, Chile, with cumulus over the foothills of the Andes beyond. The HUD on the left reads +1.5 m/s](images/climbing-among-cumulus.jpg)
 
@@ -12,7 +12,7 @@ How to install XP-Gliding, make a first flight and read its sky. This guide is f
 
 ## Installing
 
-1. Download `xp-gliding-2.3.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
+1. Download `xp-gliding-2.4.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
 2. Close X-Plane.
 3. From the unzipped folder, copy `PI_xp_gliding.py`, the whole `xp_gliding` folder and the `xp-gliding-cloud-styles` folder into `X-Plane 12/Resources/plugins/PythonPlugins/`. They must sit side by side there. The last one is for cloud styles of your own, and the plugin makes it if it is missing. `README.txt` and `LICENSE` do not need to be copied.
 4. Start X-Plane. *Plugins → XP-Gliding* appears in the menu.
@@ -112,7 +112,7 @@ The readings are the HUD's own: the two instruments never disagree. Like the HUD
 
 ### TASK
 
-A task from a SeeYou CUP file, to fly without leaving X-Plane. Put CUP files in `Output/xp-gliding/tasks/` in your X-Plane folder (the plugin makes the folder on its first start). While the folder holds no CUP file, the plugin puts an example in it when X-Plane starts: `santiago-short-triangle.cup`, a 29.5 km triangle from Tobalaba airfield in Santiago, Chile, round Cerro Manquehue and Cerro San Cristóbal, with the default zones. Start south of Tobalaba and cross its start line heading north. Once the folder has a file of yours, the example is not put back if you delete it. Open the TASK tab: it lists each file and the tasks in it, with their length; press one to load it. ↻ reads the folder again, so a file you add while flying shows at once. The task you load is kept and loaded again at the next start, from its beginning. If you edit the file in the meantime, the same task is found wherever it now is in the file; if it was changed or removed, nothing is loaded and you choose again.
+A task from a SeeYou CUP file, or from a PLN soaring task (an MSFS flight plan holding a task, such as the Sim Soaring Club's), to fly without leaving X-Plane. Put CUP or PLN files in `Output/xp-gliding/tasks/` in your X-Plane folder (the plugin makes the folder on its first start). While the folder holds no task file, the plugin puts an example in it when X-Plane starts: `santiago-short-triangle.cup`, a 29.5 km triangle from Tobalaba airfield in Santiago, Chile, round Cerro Manquehue and Cerro San Cristóbal, with the default zones. Start south of Tobalaba and cross its start line heading north. Once the folder has a file of yours, the example is not put back if you delete it. Open the TASK tab: it lists each file and the tasks in it, with their length; press one to load it. ↻ reads the folder again, so a file you add while flying shows at once. The task you load is kept and loaded again at the next start, from its beginning. If you edit the file in the meantime, the same task is found wherever it now is in the file; if it was changed or removed, nothing is loaded and you choose again.
 
 A CUP file can hold waypoints only, with no task: turn point files for a site or a competition are often like that. Such a file is listed with "no tasks in this file". Make the task in SeeYou (or another program that writes CUP files with tasks) from those waypoints and save it, then put that file in the folder.
 
@@ -126,6 +126,16 @@ The TASK tab shows the task's points, each with the length of the leg to it; the
 *Prev* and *Next* step back and forward by hand, for a point you want to skip or one taken by mistake; *Clear* unloads the task. A point you step back to stays the one you fly to until you leave its zone and enter it again. A move on X-Plane's map, *Put me near a cloud* or a new flight does not take any point or cross any line, even when it puts you inside a zone: fly out and back in.
 
 The zones are those the file gives (`ObsZone` lines). A point the file gives no zone gets the plugin's: a start line 2 km long across the first leg, and a 500 m cylinder at each turn point and at the finish. The task is shown and followed, not scored: start opening times, task times and assigned areas in the file are not used, and with several starts (`STARTS=`) only the task's own one is.
+
+#### PLN soaring tasks
+
+MSFS's soaring task tools save a task as a flight plan (`.pln`) in a common form, which they call "B21/NB21-compatible": the SSC Task Generator, WeSimGlide's Task Builder and B21 Task Planner among them. A Sim Soaring Club task comes as a zip with its flight plan, its weather (`.wpr`) and pictures. Put the `.pln` in the tasks folder; the weather is not read. Each PLN holds one task, listed under the file's name with the plan's title. The plugin reads it as those tools do:
+
+- the plan begins at the departure airfield and ends at the destination; these are the task's takeoff and landing, not task points. The start is the first waypoint whose name begins with `*` and the finish the second; without them, the second waypoint and the one before last. Waypoints between the departure and the start, or between the finish and the destination, are left out;
+- the name carries the rest, in feet above sea level and metres: `*Start+725|5000x5000` is a start at 725 ft elevation, at most 5000 ft, 5000 m across. `+` is the elevation, `|` the most height allowed in the zone, `/` the least, and `x` the zone's diameter, so the radius is half of it;
+- the start is a line across the first leg, as long as its diameter (5 km by default), crossed going the way of the leg; each turn point a cylinder (1 km across by default); the finish the half of its cylinder beyond the point, on the far side from the point before it (4 km across by default), entered.
+
+A zone with height limits counts only within them, as in MSFS's soaring tools: a start line crossed too high is no start, so come back and cross it lower; a turn point or the finish is taken once you are inside its zone and within its limits, so if you arrive over a turn point's maximum, descend inside it. The TASK tab shows each point's limits beside its name (`≤1520 m`, `≥460 m`, in your height units), and the row under the strip shows those of the point you are flying to, in red with TOO HIGH or TOO LOW while you are outside them; the Glide Computer's header shows them in red after the target's name. Assigned areas (`;AAT` in a name) are flown as cylinders to be entered, and a minimum task time is not used: the TASK tab says so under the task's name when it loads. The task's length is worked out on a sphere, so it can differ from the tools' figure, worked out on the WGS-84 ellipsoid, by up to 0.3 %.
 
 Distances are in km, or nautical miles with *Units* set to aviation. Bearings and distances are worked out on a sphere, as soaring instruments show them, within about 0.5 % of the true distance.
 
@@ -148,7 +158,7 @@ The header shows the screen, `TO:` and the target, and the simulator's local tim
 | Reading | What it shows |
 | --- | --- |
 | `Dis` | Distance to the target, through the points on the way when the target is further along the task |
-| `DH` | Your height above the target's elevation, from the CUP file; `--` if the file gives none |
+| `DH` | Your height above the target's elevation, from the task's file; `--` if the file gives none |
 | `E` | The glide ratio you are getting: the ground covered in the last 30 s over the height lost. `--` while you hold or gain height, and for 15 s after you are moved on X-Plane's map |
 | `ReqE` | The glide ratio needed to reach the target with no height to spare: `Dis` over `DH`. It knows nothing of the wind, the glider or the hills on the way |
 | `VMG` | Your ground speed towards the target's direction: negative when you fly away from it |

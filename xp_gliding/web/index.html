@@ -26,10 +26,11 @@
   <div class="cell"><span class="label">AVG 30 s</span><div class="reading"><span class="value avg" id="strip-avg">--</span><span class="unit" data-unit="climb"></span></div></div>
   <div class="cell"><span class="label">ALT</span><div class="reading"><span class="value" id="strip-alt">--</span><span class="unit" data-unit="height"></span></div></div>
 </header>
-<!-- The point flown to, with a task loaded (task.js): which way to turn, its bearing and distance. -->
+<!-- The point flown to, with a task loaded (task.js): which way to turn, its height limits if it
+     has some (red while the glider is outside them), its bearing and distance. -->
 <div id="navrow">
   <svg class="arrow" id="nav-arrow" viewBox="-10 -10 20 20" aria-hidden="true"><path d="M0,-8 L4,1 L1,1 L1,8 L-1,8 L-1,1 L-4,1 Z"/></svg>
-  <span id="nav-role"></span><span id="nav-name"></span><span id="nav-bearing"></span><span id="nav-dist"></span>
+  <span id="nav-role"></span><span id="nav-name"></span><span id="nav-limit"></span><span id="nav-bearing"></span><span id="nav-dist"></span>
 </div>
 <nav id="tabs">
   <button type="button" data-view="map">MAP</button>
@@ -59,6 +60,7 @@
 <main id="task" class="view">
   <section class="panel">
     <div class="head"><span id="task-name">No task loaded</span><span id="task-total"></span></div>
+    <ul id="task-remarks"></ul>
     <ol id="task-points"></ol>
     <div id="task-buttons">
       <button type="button" data-cmd="prev_point" title="Back to the point before">&#9664; Prev</button>
@@ -77,7 +79,7 @@
 <header id="ghead">
   <button type="button" id="g-screen" title="Next screen">GLIDE</button>
   <button type="button" class="g-step" data-delta="-1" title="Previous target">&#9664;</button>
-  <span id="g-to"><span class="to">TO:</span><b id="g-tag" class="ytag"></b><span id="g-name">--</span></span>
+  <span id="g-to"><span class="to">TO:</span><b id="g-tag" class="ytag"></b><span id="g-name">--</span><span id="g-limit"></span></span>
   <button type="button" class="g-step" data-delta="1" title="Next target">&#9654;</button>
   <button type="button" id="g-task" title="The task: pick one, step its points">TASK</button>
   <span id="g-clock" title="Local time in the simulator">--:--</span>

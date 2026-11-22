@@ -687,6 +687,71 @@ def test_a_task_flown_takes_its_points_in_order(plugin, tmp_path, capsys):
     assert "finish 'Goal' taken (zone)" in out
 
 
+def write_plan(tmp_path, name="ssc.pln"):
+    """A PLN soaring task (nav/pln.py) straight ahead of the glider: its start line 300 m north, at most
+    5000 ft (1524 m); a turn point 2.3 km north, 1 km across, at most 4000 ft (1219.2 m); the
+    finish 4.3 km north, at least 2000 ft (609.6 m)."""
+    folder = tmp_path / "Output" / "xp-gliding" / "tasks"
+    folder.mkdir(parents=True, exist_ok=True)
+
+    def place(north_m):
+        lat = START_LAT + north_m / 111195.0
+        d, m = int(lat), (lat - int(lat)) * 60.0
+        lon = abs(START_LON)
+        e, n = int(lon), (lon - int(lon)) * 60.0
+        return f"N{d}° {m:.6f}',W{e}° {n:.6f}',+003000.00"
+
+    points = (("Hobbs", -1000.0), ("*Start+3000|5000x2000", 300.0), ("WP 1+3000|4000x1000", 2300.0),
+              ("*Finish+3000/2000x1000", 4300.0), ("Hobbs", -1000.0))
+    items = "".join(f'<ATCWaypoint id="{wid}"><ATCWaypointType>User</ATCWaypointType>'
+                    f"<WorldPosition>{place(m)}</WorldPosition></ATCWaypoint>\n" for wid, m in points)
+    (folder / name).write_text('<?xml version="1.0" encoding="UTF-8"?>\n<SimBase.Document><FlightPlan.FlightPlan>'
+                               f"<Title>SSC check</Title>\n{items}</FlightPlan.FlightPlan></SimBase.Document>\n",
+                               encoding="utf-8")
+    return folder
+
+
+def test_a_b21_flight_plan_is_listed_loaded_and_flown_within_its_height_limits(plugin, tmp_path, capsys):
+    pi, xp, data = plugin
+    write_tasks(tmp_path)
+    write_plan(tmp_path)
+    choose(xp, "Flight Computer")
+    tick(pi)
+    wid, window = the_window(xp)
+    call(window, "xpg_do", {"cmd": "list_tasks"})
+    tick(pi)
+    listed = json.loads(call(window, "xpg_tasks"))
+    assert [e["file"] for e in listed["files"]] == ["short.cup", "ssc.pln"]
+    (entry,) = [e for e in listed["files"] if e["file"] == "ssc.pln"]
+    assert [(t["index"], t["name"], t["points"]) for t in entry["tasks"]] == [(0, "SSC check", 3)]
+    call(window, "xpg_do", {"cmd": "load_task", "file": "ssc.pln", "index": 0, "key": entry["tasks"][0]["key"]})
+    tick(pi)
+    task = json.loads(call(window, "xpg_task"))
+    assert [p["max_m"] for p in task["points"]] == [1524.0, 1219.2, None]
+    assert task["points"][2]["min_m"] == 609.6 and task["remarks"] == []
+    assert saved(pi)["computer_task"] == "ssc.pln#0"
+    data["sim/flightmodel/position/elevation"] = 1600.0
+    fly(pi, data, 20.0)  # 500 m: across the start line, too high
+    nav = state_of(window)["nav"]
+    assert not nav["started"] and nav["height"] == "high" and nav["max_m"] == 1524.0
+    assert "start 'Start' not taken: too high, 1600 m against at most 1524 m" in capsys.readouterr().out
+    data["sim/flightmodel/position/latitude"] -= 400.0 / 111195.0  # put back south of the line
+    pi.computer.progress.forget_place()
+    data["sim/flightmodel/position/elevation"] = 1400.0
+    fly(pi, data, 20.0)
+    assert state_of(window)["nav"]["started"] and dataref(xp, "computer/nav_index") == 1
+    fly(pi, data, 70.0)  # inside the turn point's cylinder, above its 1219 m
+    assert dataref(xp, "computer/nav_index") == 1 and state_of(window)["nav"]["height"] == "high"
+    data["sim/flightmodel/position/elevation"] = 1200.0
+    fly(pi, data, 0.4)  # down into the band, still inside: taken
+    assert dataref(xp, "computer/nav_index") == 2
+    fly(pi, data, 100.0)
+    assert state_of(window)["nav"]["finished"]
+    out = capsys.readouterr().out
+    assert "point 1 'WP 1' not taken: too high" in out and "point 1 'WP 1' taken (zone)" in out
+    assert "finish 'Finish' taken (zone)" in out
+
+
 def test_points_by_hand_and_clearing_the_task(plugin, tmp_path):
     pi, xp, data = plugin
     write_tasks(tmp_path)
