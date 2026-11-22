@@ -1795,6 +1795,7 @@ MENU_SWITCHES = (
     ("Training markers", "xp_gliding/markers/toggle", "markers_enabled"),
     ("Cumulus clouds", "xp_gliding/clouds/toggle", "clouds_enabled"),
     ("Cloud base from X-Plane's weather (experiment)", "xp_gliding/day/weather/toggle", "weather_base_enabled"),
+    ("Our tow rope (experiment)", "xp_gliding/tow/rope/toggle", "tow_rope_enabled"),
 )
 MENU_SUBMENUS = (
     ("Sky", "sky", (("Wide thermals under the clouds (x2)", "wide_carriers"),
@@ -2855,3 +2856,30 @@ def test_a_hotspot_file_that_is_gone_gives_a_normal_flight_and_says_so(with_hots
     slow_frame(pi, data)
     assert pi.injector.field.hotspots is None and pi.injector.field.loaded_count() > 100
     assert status_line(xp) == "Normal flight: hotspot file hobbs.csv not found"
+
+
+def test_the_tow_rope_draws_over_an_aerotow_and_gives_the_line_back(plugin):
+    pi, xp, data = plugin
+    # A glider 800 m up on the tow: the line from its nose to the tug 55 m ahead, east.
+    data.update({
+        "sim/flightmodel/misc/line_aircraft_xyz": [2.6, 916.0, 0.0],
+        "sim/flightmodel/misc/line_payload_xyz": [57.6, 916.0, 0.0],
+        "sim/flightmodel2/misc/tow_in_progress": 1,
+        "sim/graphics/misc/kill_tow_lines": 0,
+        "sim/multiplayer/position/plane1_x": 61.9, "sim/multiplayer/position/plane1_y": 916.0,
+        "sim/multiplayer/position/plane1_z": 0.0, "sim/multiplayer/position/plane1_psi": 90.0,
+        "sim/multiplayer/position/plane1_the": 0.0, "sim/multiplayer/position/plane1_phi": 0.0,
+    })
+    for _ in range(3):
+        assert pi.tow_flight_loop(1 / 60, 0.0, 0, None) == -1
+    assert dataref(xp, "tow/state") == 1
+    ropes = [inst for inst in xp.instances.values() if "rope" in xp.objects[inst[0]]]
+    assert len(ropes) == 30 and all(inst[1] is not None for inst in ropes)
+    assert data["sim/graphics/misc/kill_tow_lines"] == 1
+    handler, refcon = xp.handlers["xp_gliding/tow/rope/toggle"]
+    handler("xp_gliding/tow/rope/toggle", xp.CommandBegin, refcon)
+    pi.tow_flight_loop(1 / 60, 0.0, 0, None)
+    assert dataref(xp, "tow/state") == 0
+    assert not any("rope" in xp.objects[inst[0]] for inst in xp.instances.values())
+    assert data["sim/graphics/misc/kill_tow_lines"] == 0
+    assert not pi.tow_failed

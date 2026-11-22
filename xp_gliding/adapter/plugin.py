@@ -50,6 +50,8 @@ Commands (also in the menu):
                                by its .acf name in `also_gliders`
   xp_gliding/airstart/near_cloud  put the glider in the air near a cloud worth flying to
                                (`engine/airstart.py`)
+  xp_gliding/tow/rope/toggle   our tow rope over X-Plane's aerotow, or X-Plane's straight line
+                               (on by default; `tow.py`, its own flight loop)
   xp_gliding/clouds/style/next  the next cloud style, as the Cloud style submenu would choose
                                it: for a key, to compare styles (not in the menu)
 
@@ -79,10 +81,11 @@ from ..engine.shade import RAIN_OFF
 from .clouds import CumulusClouds
 from .hud import Hud
 from .markers import TrainingMarkers
+from .tow import TowRope
 from ..engine.hotspots import find_files as hotspot_files_in, load as load_hotspots
 from ..nav.cup import add_examples as add_task_examples
 from .styles import FALLBACK_STYLE, OBJECT_FILE, OWN_FOLDER, find_styles, style_named
-from .xpio import SkyObjects, XPlaneIO
+from .xpio import SkyObjects, TowIO, XPlaneIO
 
 SLOW_PERIOD_S = 1.0
 LEAN_PERIOD_S = 5.0  # X-Plane's layers of wind are read this often
@@ -111,6 +114,12 @@ FAILED_LABEL = "Enabled: stopped by an error, see XPPython3Log.txt"
 # attribute of the plugin object; the attribute may be dotted.
 DATAREFS = (
     ("enabled", "settings", "enabled", "i", 1),
+    ("tow_rope_enabled", "settings", "tow_rope_enabled", "i", 1),
+    ("tow/state", "tow", "status.state", "i", 0),  # 0 no rope, 1 on the tow, 2 released
+    ("tow/frame_us", "tow", "status.frame_us", "f", 0),
+    ("tow/sag_m", "tow", "status.sag_m", "f", 0),
+    ("tow/span_m", "tow", "status.span_m", "f", 0),
+    ("tow/length_m", "tow", "length_m", "f", 1),  # the drawn rope's length, to tune its hang
     ("thermals_enabled", "settings", "thermals_enabled", "i", 1),
     ("edge_enabled", "settings", "edge_enabled", "i", 1),
     ("wind_enabled", "settings", "wind_enabled", "i", 1),
@@ -347,6 +356,8 @@ class PythonInterface:
         self.hotspot_note = ""  # why a hotspot flight chosen is not flown, for the status line
         self.use_hotspots()
         self.hud = Hud(self.settings, lambda text: print(f"{TAG} {text}"))
+        self.tow = TowRope(TowIO(), SkyObjects("rope"), lambda text: print(f"{TAG} {text}"))
+        self.tow_failed = False
         self.tasks_folder = os.path.join(folder, "tasks")
         self.make_tasks_folder()
         self.computer = Computer(self.settings, self.hud, lambda text: print(f"{TAG} {text}"),
@@ -420,6 +431,9 @@ class PythonInterface:
             (xp.createCommand("xp_gliding/day/weather/toggle",
                               "XP-Gliding: cloud base from X-Plane's weather, not the menu's zi"),
              self.on_toggle, "weather_base_enabled", "Cloud base from X-Plane's weather (experiment)"),
+            (xp.createCommand("xp_gliding/tow/rope/toggle",
+                              "XP-Gliding: our tow rope over X-Plane's aerotow on/off"),
+             self.on_toggle, "tow_rope_enabled", "Our tow rope (experiment)"),
         )
         self.menu_item = xp.appendMenuItem(xp.findPluginsMenu(), "XP-Gliding", 0)
         self.menu = xp.createMenu("XP-Gliding", xp.findPluginsMenu(), self.menu_item, None, None)
@@ -494,10 +508,14 @@ class PythonInterface:
         self.refresh_menu()
 
         self.loop = xp.createFlightLoop(self.flight_loop, xp.FlightLoop_Phase_BeforeFlightModel, None)
+        # After the flight model, so that the rope is drawn where the aircraft are this frame.
+        self.tow_loop = xp.createFlightLoop(self.tow_flight_loop, xp.FlightLoop_Phase_AfterFlightModel, None)
         return self.Name, self.Sig, self.Desc
 
     def XPluginStop(self):
         xp.destroyFlightLoop(self.loop)
+        xp.destroyFlightLoop(self.tow_loop)
+        self.tow.shutdown()
         self.computer.stop()
         self.hud.stop()
         for cmd, name in self.instrument_cmds:
@@ -521,12 +539,16 @@ class PythonInterface:
         xp.setMenuItemName(self.menu, 0, ENABLED_LABEL)
         self.load_aircraft()
         xp.scheduleFlightLoop(self.loop, -1, 1)
+        self.tow_failed = False
+        xp.scheduleFlightLoop(self.tow_loop, -1, 1)
         self.hud.enable()
         self.computer.enable()
         return 1
 
     def XPluginDisable(self):
         xp.scheduleFlightLoop(self.loop, 0, 1)
+        xp.scheduleFlightLoop(self.tow_loop, 0, 1)
+        self.tow.clear()
         self.guard.release()
         self.markers.shutdown()
         self.clouds.shutdown()
@@ -995,6 +1017,22 @@ class PythonInterface:
             self.guard.release()
             self.markers.clear()
             self.clouds.clear()
+            return 0
+
+    def tow_flight_loop(self, sinceLast, elapsedTime, counter, refCon):
+        """Our tow rope, every frame. Apart from the thermals: an error in one stops only that one.
+        An error here gives X-Plane's line back and stops the rope until the plugin is re-enabled."""
+        try:
+            self.tow.update(sinceLast, self.settings.enabled and self.settings.tow_rope_enabled)
+            return -1
+        except Exception:
+            self.tow_failed = True
+            print(f"{TAG} error in the tow rope; X-Plane's line is back until the plugin is re-enabled:\n"
+                  + traceback.format_exc())
+            try:
+                self.tow.clear()
+            except Exception:
+                print(f"{TAG} and clearing the tow rope failed too:\n" + traceback.format_exc())
             return 0
 
     def step(self):

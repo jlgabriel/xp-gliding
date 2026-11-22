@@ -7,7 +7,7 @@ How XP-Gliding builds its sky and puts its lift on a glider, for pilots who want
 The plugin is split in two, and the split is the main design decision.
 
 - **The atmospheric engine** (`xp_gliding/engine/`) decides where the thermals are, how strong, what clouds they carry and how they move. It is pure Python, never talks to X-Plane, and is deterministic: given a seed, a date, a place, a time and how far the wind has carried the air, it gives the same sky on every machine. It is tested and plotted outside the simulator.
-- **The X-Plane adapter** (`xp_gliding/adapter/`) is the only code that talks to X-Plane, through [XPPython3](https://xppython3.readthedocs.io/). Each frame it reads the glider's state and the wind, asks the engine for the lift, and applies it as a force. It also draws the clouds, the training markers and the HUD, shows the Flight Computer and the Glide Computer, and runs the menu.
+- **The X-Plane adapter** (`xp_gliding/adapter/`) is the only code that talks to X-Plane, through [XPPython3](https://xppython3.readthedocs.io/). Each frame it reads the glider's state and the wind, asks the engine for the lift, and applies it as a force. It also draws the clouds, the training markers, the tow rope and the HUD, shows the Flight Computer and the Glide Computer, and runs the menu.
 
 Positions in the engine are in metres, east, north and up from a local origin, converted from latitude and longitude with the ellipsoid's radii at the origin (the cos(latitude) factor on longitude). The adapter moves the origin when the glider gets 20 km from it, and nothing in the sky moves when it does.
 
@@ -102,9 +102,21 @@ The Glide Computer is the same window and page in another layout, with the funct
 
 The training markers show up to 20 thermals within 3 km with at least 1.5 m/s at their core at the glider's height: the core's own lift, without the neighbours'.
 
+## The tow rope
+
+In X-Plane's aerotow the plugin draws the rope, and nothing else: the tug, how it flies and its pull on the glider stay X-Plane's. X-Plane gives the two ends of its tow line in its local frame (`sim/flightmodel/misc/line_aircraft_xyz` at the glider's hook, `line_payload_xyz` at the tug's) and lets a plugin hide the straight line it draws between them (`sim/graphics/misc/kill_tow_lines`). The plugin hides it only while its own rope is drawn, so a rope that cannot be drawn leaves X-Plane's line.
+
+The rope (`engine/rope.py`) is 31 points joined by 30 segments, moved each frame by position-based dynamics: gravity and the air change each point's speed, the point moves, and then its place is corrected so that no segment stretches past its length or shortens by more than 3 %, no two neighbouring segments fold back on each other by more than about 80°, and no point is under the ground. The ground is probed under each end of the rope once a second and followed gently, never by a jump, and the ground never throws a point up, so a rope lying on the runway lies still. A rope laid out shorter than its length starts as a flat arc to one side, as a rope on a runway does. Pulled to its length or beyond, it is the straight line between its ends. It is drawn as 30 copies of one short object, each placed along a segment: X-Plane can move and turn an object a plugin draws, but not bend or stretch it.
+
+How long it is drawn, and how much it hangs, are chosen for the eye. Measured by script in X-Plane 12.4.4 (the Laminar ASK 21 behind the Laminar PA-18): X-Plane's line starts pulling when its ends are about 53 m apart and stretches about 1.5 mm per newton, to 56-57 m in the climb. A real rope pulling a glider hangs only a few decimetres, so a rope of the native line's length is a straight line all through the tow. On the ground roll the plugin's rope is 53 m long; once the glider is 3 m up it grows to 57 m over about ten seconds, so it hangs about 2 to 4 m in the climb, more when the tug eases and less when it pulls harder (worked out offline: 2.4 m with the ends 56.8 m apart, 4.5 m at 56.1 m). The air acts on it with a fifth of a real rope's drag: at full drag, a rope climbing steeply to a tug well above the glider is pushed up and back more than gravity pulls it down, and the longer rope bowed upwards.
+
+On release X-Plane's line stops moving. The tug is X-Plane's first AI aircraft, and where its hook sits on it is seen while towing, so after the release the rope's end follows the tug and the glider's end falls free, for 90 s or while the tug is within 3 km. A jump of the glider to another place, a new flight, drops the rope; a shift of X-Plane's local frame moves it with everything else.
+
 ## Cost
 
 Measured in X-Plane 12.4.3 on Windows 11: the flight loop takes 140 to 195 µs a frame. A frame at 60 frames per second lasts 16.7 ms.
+
+The tow rope has a loop of its own. Measured by script in X-Plane 12.4.4 during an aerotow, the reads, the rope's step and the 30 placements take about 300 µs a frame while the rope is taut and about 400 µs while it is slack, and only while a rope is drawn.
 
 The HUD draws in one of two ways. With X-Plane 12.4.4 and XPPython3 4.8.0 or later it uses Panel Graphics, X-Plane's own 2D drawing: its fixed part is recorded once and replayed, and all its text is TrueType. Elsewhere it draws with OpenGL, its fixed part from a display list and the large number in TrueType through XPPython3. Measured by script in X-Plane 12.4.4 under Vulkan, the Laminar ASK 21 in straight flight, switching between the two in the same flight: about 33 µs a frame in our draw callback with Panel Graphics, against about 280 µs with OpenGL, most of it the large number. If Panel Graphics fails, the HUD says so in `XPPython3Log.txt` and goes on with OpenGL until X-Plane restarts. Both ways show the same panel.
 
@@ -115,4 +127,5 @@ The Flight Computer, measured by script in X-Plane 12.4.4 under Vulkan, the Lami
 - The day's strength is the menu's, not the weather's. Only the cloud base can come from X-Plane's weather.
 - The sky depends a little on the flight: where there is water, the clouds' level and each thermal's floor are read from the ground as the glider meets it, and the wind's offset starts at zero when the aircraft is loaded. So two pilots at the same place and time do not see the same sky.
 - Only the Laminar ASK 21 has a measured polar, so other gliders get no netto.
+- The tow rope changes how an aerotow looks, not how it flies: the tug and its pull are X-Plane's. The rope is drawn 25 mm thick, against about 9 mm for a real one, so it can be seen from the seat at 50 m.
 - The numbers of the tuned sky are first guesses, kept or changed by flying.

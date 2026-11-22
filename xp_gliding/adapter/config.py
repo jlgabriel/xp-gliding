@@ -38,6 +38,8 @@ DEFAULTS = {
     "helix_enabled": True,  # cancel the climbing-turn overbanking of the energy force
     "markers_enabled": False,  # training mode: draw a ring and a column over nearby thermals
     "clouds_enabled": True,  # cumulus over the thermals that carry one
+    # Our tow rope drawn over X-Plane's aerotow in place of its straight line (adapter/tow.py).
+    "tow_rope_enabled": True,
     # How the cumulus look: a style's folder name (`styles.py`). One that is not there, removed
     # since, say, is drawn as the standard style and kept, for when it is back. Billow light by
     # default since 1.1.1, standard before; a saved choice is kept.

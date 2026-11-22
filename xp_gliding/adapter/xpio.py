@@ -16,6 +16,7 @@ import os
 import xp
 
 from ..engine.field import sky_time
+from .tow import LineReading
 
 STATE = (
     ("lat", "sim/flightmodel/position/latitude", "d"),
@@ -144,6 +145,68 @@ class XPlaneIO:
     def place_user(lat, lon, msl_m, heading_deg, speed_ms):
         """Put the user's aircraft in level flight here (XPLMPlaceUserAtLocation, X-Plane 12)."""
         xp.placeUserAtLocation(lat, lon, msl_m, heading_deg, speed_ms)
+
+
+class TowIO:
+    """The SDK calls behind our tow rope (`tow.py`). Per frame: `frozen` and `read_line`, 21
+    reads, and the kill switch written while our rope is drawn; a terrain probe once a second."""
+
+    def __init__(self):
+        ref = xp.findDataRef
+        self._paused = ref("sim/time/paused")
+        self._replay = ref("sim/time/is_in_replay")
+        self._aircraft = ref("sim/flightmodel/misc/line_aircraft_xyz")
+        self._payload = ref("sim/flightmodel/misc/line_payload_xyz")
+        self._towing = ref("sim/flightmodel2/misc/tow_in_progress")
+        self._kill = ref("sim/graphics/misc/kill_tow_lines")
+        self._glider = tuple(ref("sim/flightmodel/position/local_" + c) for c in "xyz")
+        self._agl = ref("sim/flightmodel/position/y_agl")
+        self._lat = ref("sim/flightmodel/position/latitude")
+        self._lon = ref("sim/flightmodel/position/longitude")
+        self._wind_x = ref("sim/weather/aircraft/wind_now_x_msc")
+        self._wind_z = ref("sim/weather/aircraft/wind_now_z_msc")
+        self._rho = ref("sim/weather/rho")
+        self._tug = tuple(ref("sim/multiplayer/position/plane1_" + c) for c in "xyz")
+        self._tug_att = tuple(ref("sim/multiplayer/position/plane1_" + c)
+                              for c in ("psi", "the", "phi"))
+        self._line = LineReading()
+        self._probe = None
+
+    def frozen(self):
+        return bool(xp.getDatai(self._paused) or xp.getDatai(self._replay))
+
+    def read_line(self):
+        r = self._line
+        getd, getf = xp.getDatad, xp.getDataf
+        del r.aircraft[:], r.payload[:]
+        xp.getDatavf(self._aircraft, r.aircraft, 0, 3)
+        xp.getDatavf(self._payload, r.payload, 0, 3)
+        r.towing = bool(xp.getDatai(self._towing))
+        for i in range(3):
+            r.glider[i] = getd(self._glider[i])
+            r.tug[i] = getd(self._tug[i])
+        r.agl_m = getf(self._agl)
+        r.lat, r.lon = getd(self._lat), getd(self._lon)
+        r.wind_x, r.wind_z = getf(self._wind_x), getf(self._wind_z)
+        r.rho = getf(self._rho)
+        r.tug_psi, r.tug_theta, r.tug_phi = (getf(ref) for ref in self._tug_att)
+        return r
+
+    def hide_native_line(self, hide):
+        xp.setDatai(self._kill, 1 if hide else 0)
+
+    def ground_y(self, x, y, z):
+        """The terrain's height (local y) under a local point, None where there is none. Once a
+        second at most: a probe costs more than a read."""
+        if self._probe is None:
+            self._probe = xp.createProbe(xp.ProbeY)
+        info = xp.probeTerrainXYZ(self._probe, x, y, z)
+        return info.locationY if info.result == xp.ProbeHitTerrain else None
+
+    def release(self):
+        if self._probe is not None:
+            xp.destroyProbe(self._probe)
+            self._probe = None
 
 
 class SkyObjects:
