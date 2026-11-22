@@ -1,6 +1,6 @@
 # Pilot guide
 
-How to install XP-Gliding, make a first flight and read its sky. This guide is for version 2.2.1. Its known limits are listed at the end.
+How to install XP-Gliding, make a first flight and read its sky. This guide is for version 2.3. Its known limits are listed at the end.
 
 ![A Laminar ASK 21 banked in a climbing turn over Santiago, Chile, with cumulus over the foothills of the Andes beyond. The HUD on the left reads +1.5 m/s](images/climbing-among-cumulus.jpg)
 
@@ -12,7 +12,7 @@ How to install XP-Gliding, make a first flight and read its sky. This guide is f
 
 ## Installing
 
-1. Download `xp-gliding-2.2.1.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
+1. Download `xp-gliding-2.3.zip` from the [releases page](https://github.com/jlgabriel/xp-gliding/releases) and unzip it.
 2. Close X-Plane.
 3. From the unzipped folder, copy `PI_xp_gliding.py`, the whole `xp_gliding` folder and the `xp-gliding-cloud-styles` folder into `X-Plane 12/Resources/plugins/PythonPlugins/`. They must sit side by side there. The last one is for cloud styles of your own, and the plugin makes it if it is missing. `README.txt` and `LICENSE` do not need to be copied.
 4. Start X-Plane. *Plugins → XP-Gliding* appears in the menu.
@@ -195,7 +195,7 @@ Everything is in *Plugins → XP-Gliding*. What you choose is saved for the next
 | Training markers | A ring at your height over each nearby thermal, and a column up to its cloud | `xp_gliding/markers/toggle` |
 | Cumulus clouds | The plugin's clouds | `xp_gliding/clouds/toggle` |
 | Cloud base from X-Plane's weather (experiment) | The clouds' height from the temperature and dew point of the weather you fly, kept between 1000 m and 3500 m above the ground, in place of the depth below, which is greyed out, and of a named day's height (said when you choose one). A cumulus layer set in X-Plane's weather moves it too, though our clouds can sit a few hundred metres off that layer. Off by default | `xp_gliding/day/weather/toggle` |
-| Our tow rope (experiment) | In X-Plane's aerotow, a rope drawn by the plugin in place of X-Plane's straight line. It lies on the runway before the roll, goes taut as the tug pulls, hangs a few metres once you are flying, more when the tug eases and less when it pulls, and after you release it trails behind the tug for a minute and a half. Only the look changes: the tug, how it flies and its pull on the glider stay X-Plane's. On by default | `xp_gliding/tow/rope/toggle` |
+| Our tow rope (experiment) | In X-Plane's aerotow, a rope drawn by the plugin in place of X-Plane's straight line. It lies on the runway before the roll, nearly straight to the tug, goes taut as the tug pulls, hangs a few metres once you are flying, more when the tug eases and less when it pulls, and after you release it trails behind the tug for a minute and a half. Only the look changes: the tug, how it flies and its pull on the glider stay X-Plane's. On by default | `xp_gliding/tow/rope/toggle` |
 | X-Plane's audio vario | X-Plane's own audio vario on or off: the same switch as the AUDIO on the ASK 21's panel, for gliders without one. The tick follows the panel's switch. X-Plane's setting, not saved by the plugin | `xp_gliding/audio_vario/toggle` |
 | Treat this aircraft as a glider | For a motor glider: the plugin acts on the aircraft loaded, with its engine running or not, and remembers it by its file. Ticked and greyed out for a glider | `xp_gliding/aircraft/glider/toggle` |
 | Put me near a cloud | Sets the glider flying 1.5 km from the nearest cloud that will last a few minutes more, on the side you were on, heading for it, a little over halfway from the ground to the cloud's base. Needs *Cumulus clouds* on, and the clouds take a few seconds to form after a flight starts | `xp_gliding/airstart/near_cloud` |
@@ -256,6 +256,7 @@ If *Plugins → XP-Gliding* is not in the menu at all, XPPython3 did not load th
 - **The Laminar ASK 21 is the reference.** Other gliders get the lift, and no netto on the HUD. A glider whose wings are not in the usual parts of its file is treated as an ASK 21 for the roll. An aircraft with engines gets nothing unless you treat it as a glider from the menu, which is how a motor glider gets the lift, with its engine running or not, since the air rises for it either way.
 - **A glider flies as well as its own flight model allows.** The Laminar ASK 21 sinks about 2.1 m/s circling at 45°, measured by a scripted autopilot in X-Plane 12.4.3, so steep turns cost a lot of climb.
 - **Lift is a push on the aircraft, not moving air,** since a plugin has no way to move X-Plane's air at a point. A climbing turn tends to overbank a little, and a glider's own netto instrument may read wrong. Its total energy vario reads right.
+- **The tow rope only changes how an aerotow looks.** The tug, how it flies and its pull are X-Plane's, and the rope is drawn from where X-Plane pulls. A tug whose aircraft file sets no tow hook pulls from its middle, and the rope comes out of its belly: Laminar's PA-18 and Cessna 172 set one at the tail, the Cirrus SR22 does not. In a replay X-Plane's own straight line shows instead.
 - **Two pilots at the same place and time do not see the same sky.**
 
 ## Reporting a problem

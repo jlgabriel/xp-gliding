@@ -2,6 +2,11 @@
 
 What changes for a pilot in each version. Each release on [GitHub](https://github.com/jlgabriel/xp-gliding/releases) has the zip and the same notes, with how to update.
 
+## 2.3 — 2026-11-22
+
+- **A tow rope you can see.** In X-Plane's aerotow the plugin draws the rope in place of X-Plane's thin straight line, which it hides while its own is drawn. The rope lies on the runway before the roll, nearly straight to the tug, and pays out as the tug takes up the slack; it goes taut on the roll and hangs a few metres once you are flying, more when the tug eases and less when it pulls; after you release it falls and trails behind the tug for a minute and a half. It is drawn 25 mm thick so it can be seen from the seat. Only the look changes: the tug, how it flies and its pull on the glider stay X-Plane's. *Our tow rope (experiment)* in the menu turns it off; on by default.
+- In a replay the plugin's rope gives way to X-Plane's line, and a new flight starts without the last tow's rope.
+
 ## 2.2.1 — 2026-11-20
 
 - **The Glide Computer comes back to THERMAL as you left it.** Going from THERMAL to the Flight Computer and back showed THERMAL in the header, but the map stayed at the Flight Computer's zoom and coloured the track by height. It now opens close in again, coloured by climb.
