@@ -2871,11 +2871,30 @@ def test_the_tow_rope_draws_over_an_aerotow_and_gives_the_line_back(plugin):
         "sim/multiplayer/position/plane1_the": 0.0, "sim/multiplayer/position/plane1_phi": 0.0,
     })
     for _ in range(3):
-        assert pi.tow_flight_loop(1 / 60, 0.0, 0, None) == -1
+        assert pi.tow_prepare(1 / 60, 0.0, 0, None) == -1  # before the flight model
+        assert pi.tow_flight_loop(1 / 60, 0.0, 0, None) == -1  # after it
     assert dataref(xp, "tow/state") == 1
     ropes = [inst for inst in xp.instances.values() if "rope" in xp.objects[inst[0]]]
     assert len(ropes) == 30 and all(inst[1] is not None for inst in ropes)
+    # Each segment drawn at its length: the drawn rope's 57 m in 30, hanging between ends 55 m apart.
+    assert all(inst[3] == ("xp_gliding/tow/half_m",) for inst in ropes)
+    assert all(inst[2][0] == pytest.approx(57.0 / 60, rel=0.03) for inst in ropes)
     assert data["sim/graphics/misc/kill_tow_lines"] == 1
+    # A replay takes ours away and gives X-Plane's line back.
+    data["sim/time/is_in_replay"] = 1
+    pi.tow_flight_loop(1 / 60, 0.0, 0, None)
+    assert dataref(xp, "tow/state") == 0 and data["sim/graphics/misc/kill_tow_lines"] == 0
+    data["sim/time/is_in_replay"] = 0
+    for _ in range(2):
+        pi.tow_prepare(1 / 60, 0.0, 0, None)
+        pi.tow_flight_loop(1 / 60, 0.0, 0, None)
+    assert dataref(xp, "tow/state") == 1 and data["sim/graphics/misc/kill_tow_lines"] == 1
+    # So does a new flight, until the rope is seen again.
+    pi.XPluginReceiveMessage(0, xp.MSG_AIRPORT_LOADED, 0)
+    assert dataref(xp, "tow/state") == 0 and data["sim/graphics/misc/kill_tow_lines"] == 0
+    for _ in range(2):
+        pi.tow_prepare(1 / 60, 0.0, 0, None)
+        pi.tow_flight_loop(1 / 60, 0.0, 0, None)
     handler, refcon = xp.handlers["xp_gliding/tow/rope/toggle"]
     handler("xp_gliding/tow/rope/toggle", xp.CommandBegin, refcon)
     pi.tow_flight_loop(1 / 60, 0.0, 0, None)

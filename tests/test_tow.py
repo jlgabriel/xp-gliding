@@ -4,15 +4,19 @@ import math
 
 import pytest
 
-from xp_gliding.adapter.tow import (NATIVE_SLACK_M, NONE, RELEASED, ROPE_LENGTH_M, SEGMENTS, TOWING,
-                                    TRAIL_S, LineReading, TowRope, body_axes, to_rope)
+from xp_gliding.adapter.tow import (DATAREFS, GROUND_CLEAR_M, GROUND_SLACK_M, HALF_MAX_M,
+                                    NATIVE_SLACK_M, NONE, OVERLAP_M, PIECE_M, RELEASED,
+                                    ROPE_LENGTH_M, SEGMENTS, TOWING, TRAIL_S, LineReading, TowRope,
+                                    body_axes, to_rope)
 
 
 class FakeIO:
     """A glider on the runway (local y up, z south) with the tug 50 m north, then a tow."""
 
     def __init__(self):
-        self.paused = False
+        self.paused_now = False
+        self.replay = False
+        self.prepared = 0
         self.hidden = []
         r = self.r = LineReading()
         r.glider = [0.0, 100.0, 0.0]
@@ -23,8 +27,14 @@ class FakeIO:
         r.lat, r.lon = -33.45, -70.55
         r.towing = False
 
-    def frozen(self):
-        return self.paused
+    def paused(self):
+        return self.paused_now
+
+    def in_replay(self):
+        return self.replay
+
+    def prepare(self):
+        self.prepared += 1
 
     def read_line(self):
         return self.r
@@ -50,9 +60,11 @@ class FakeIO:
 class FakeObjects:
     def __init__(self, load=True):
         self.load = load
-        self.created = self.destroyed = 0
+        self.created = self.destroyed = self.unloaded = 0
         self.positions = {}
+        self.data = {}
         self.pending = None
+        self.in_update = False  # set by the tests around update: nothing may be made there
 
     def load_async(self, name, loaded):
         self.pending = (name, loaded)
@@ -62,9 +74,12 @@ class FakeObjects:
         loaded("obj" if self.load else None, name)
 
     def unload(self, obj):
-        pass
+        assert obj
+        self.unloaded += 1
 
-    def create(self, obj):
+    def create(self, obj, datarefs=None):
+        assert not self.in_update, "an instance made after the flight model"
+        assert tuple(datarefs) == DATAREFS
         self.created += 1
         return self.created
 
@@ -72,8 +87,10 @@ class FakeObjects:
         self.destroyed += 1
         self.positions.pop(inst, None)
 
-    def set_position(self, inst, x, y, z, pitch=0.0, heading=0.0):
+    def set_position(self, inst, x, y, z, data=None, pitch=0.0, heading=0.0):
+        assert data is not None and len(data) == len(DATAREFS)
         self.positions[inst] = (x, y, z, pitch, heading)
+        self.data[inst] = data[0]
 
 
 class Clock:
@@ -84,20 +101,30 @@ class Clock:
         return self.t
 
 
+def frame(tow, dt=1 / 60, enabled=True):
+    """One frame as X-Plane runs it: before the flight model, then after it."""
+    tow.prepare(enabled)
+    tow.objects.in_update = True
+    try:
+        tow.update(dt, enabled)
+    finally:
+        tow.objects.in_update = False
+
+
 def make(load=True):
     io, objects, clock, logs = FakeIO(), FakeObjects(load), Clock(), []
     tow = TowRope(io, objects, logs.append, clock=clock)
-    tow.update(1 / 60, True)  # asks for the object
+    tow.prepare(True)  # asks for the object
     objects.finish()
     return tow, io, objects, clock, logs
 
 
 def run(tow, io, clock, seconds, climb_ms=0.0, speed_ms=0.0, dt=1 / 60):
-    for _ in range(int(seconds / dt)):
+    for _ in range(max(1, round(seconds / dt))):
         clock.t += dt
         io.move(0.0, climb_ms * dt, -speed_ms * dt)
         io.r.lat += speed_ms * dt / 111_195.0
-        tow.update(dt, True)
+        frame(tow, dt)
 
 
 def test_waiting_on_the_runway_the_rope_lies_on_the_ground_and_the_native_line_is_hidden():
@@ -107,11 +134,11 @@ def test_waiting_on_the_runway_the_rope_lies_on_the_ground_and_the_native_line_i
     assert objects.created == SEGMENTS
     assert io.hidden and all(io.hidden)
     ground = io.r.glider[1] - io.r.agl_m
-    lowest = min(p[2] for p in tow.rope.nodes)
-    assert lowest == pytest.approx(ground, abs=0.01)
+    lowest = min(p[2] for p in tow.rope.nodes[1:-1])
+    assert lowest == pytest.approx(ground + GROUND_CLEAR_M, abs=0.01)  # on it, not in it
     # Drawn where the rope is, in X-Plane's local frame (y up, z south).
     xs = [pos[1] for pos in objects.positions.values()]
-    assert min(xs) == pytest.approx(ground, abs=0.05)
+    assert min(xs) == pytest.approx(ground + GROUND_CLEAR_M, abs=0.05)
 
 
 def test_on_the_tow_and_after_release_the_rope_trails_behind_the_tug():
@@ -126,7 +153,7 @@ def test_on_the_tow_and_after_release_the_rope_trails_behind_the_tug():
         clock.t += 1 / 60
         io.move(0.0, 0.0, -30.0 / 60, line_too=False)
         io.r.lat += 0.5 / 111_195.0
-        tow.update(1 / 60, True)
+        frame(tow)
     assert tow.state == RELEASED
     hook = tow.rope.nodes[-1]
     tug = to_rope(*io.r.tug)
@@ -155,13 +182,13 @@ def test_a_new_flight_elsewhere_drops_the_rope_and_an_origin_shift_keeps_it():
     before = [list(p) for p in tow.rope.nodes]
     io.move(5000.0, 0.0, 3000.0)  # the local origin moved; same place on the Earth
     clock.t += 1 / 60
-    tow.update(1 / 60, True)
+    frame(tow)
     assert tow.state == TOWING
     moved = (before[10][0] + 5000.0, before[10][1] - 3000.0, before[10][2])
     assert math.dist(tow.rope.nodes[10], moved) < 1.0
     io.r.lat += 0.1  # 11 km away: a new flight
     clock.t += 1 / 60
-    tow.update(1 / 60, True)
+    frame(tow)
     assert tow.state in (NONE, TOWING)  # dropped, and picked up again if a tow is set up there
     assert objects.destroyed == SEGMENTS
 
@@ -169,12 +196,12 @@ def test_a_new_flight_elsewhere_drops_the_rope_and_an_origin_shift_keeps_it():
 def test_switched_off_gives_the_native_line_back_and_paused_holds_still():
     tow, io, objects, clock, logs = make()
     run(tow, io, clock, 1.0)
-    io.paused = True
+    io.paused_now = True
     nodes = [list(p) for p in tow.rope.nodes]
     run(tow, io, clock, 1.0)
     assert [list(p) for p in tow.rope.nodes] == nodes
-    io.paused = False
-    tow.update(1 / 60, False)
+    io.paused_now = False
+    frame(tow, enabled=False)
     assert tow.state == NONE
     assert io.hidden[-1] is False
     assert objects.destroyed == SEGMENTS
@@ -268,9 +295,28 @@ def test_with_the_tug_well_above_the_rope_still_hangs_down():
     assert middle[2] < (a[2] + b[2]) / 2 - 1.0
 
 
+def test_on_the_runway_the_rope_is_as_long_as_the_hooks_are_apart_and_pays_out():
+    tow, io, objects, clock, logs = make()
+    hooks = math.dist(io.r.aircraft, io.r.payload)  # 43.1 m: the tug nearer than 53 m
+    run(tow, io, clock, 2.0)
+    assert tow.state == TOWING
+    assert tow.rope.length_m == pytest.approx(hooks + GROUND_SLACK_M)
+    assert tow.status.sag_m < 1.5  # nearly straight, not the wide arc of a 53 m rope
+    # The tug takes up the slack: the rope pays out with it, up to the native rope's length.
+    for _ in range(4 * 60):
+        clock.t += 1 / 60
+        io.r.tug[2] -= 3.0 / 60
+        io.r.payload[2] -= 3.0 / 60
+        frame(tow)
+    assert tow.rope.length_m == NATIVE_SLACK_M
+    assert tow.status.sag_m < 0.05
+
+
 def test_on_the_ground_roll_the_rope_is_the_native_length_and_grows_after_lift_off():
     tow, io, objects, clock, logs = make()
     io.r.towing = True
+    io.r.payload[2] = io.r.aircraft[2] - 55.0  # the native rope pulling
+    io.r.tug[2] = io.r.payload[2] - 4.3
     run(tow, io, clock, 2.0)
     assert tow.rope.length_m == NATIVE_SLACK_M
     io.r.agl_m = 20.0
@@ -298,7 +344,7 @@ class SlopedIO(FakeIO):
 def test_a_rope_lying_on_the_runway_does_not_bounce():
     io, objects, clock = SlopedIO(), FakeObjects(), Clock()
     tow = TowRope(io, objects, lambda text: None, clock=clock)
-    tow.update(1 / 60, True)
+    tow.prepare(True)
     objects.finish()
     run(tow, io, clock, 3.0)
     fastest_up = 0.0
@@ -306,10 +352,100 @@ def test_a_rope_lying_on_the_runway_does_not_bounce():
     for _ in range(int(10 * 60)):
         clock.t += 1 / 60
         before = [p[2] for p in tow.rope.nodes]
-        tow.update(1 / 60, True)
+        frame(tow)
         ups = [(p[2] - b) * 60 for p, b in zip(tow.rope.nodes[third:-third], before[third:-third])]
         fastest_up = max(fastest_up, max(ups))
     assert io.probes >= 10
     # Lifted only as fast as the floor eases (FLOOR_RATE_MS), never thrown up by a floor that
     # jumped with each probe.
     assert fastest_up < 0.6
+
+
+def test_in_a_replay_ours_goes_and_the_native_line_comes_back():
+    tow, io, objects, clock, logs = make()
+    io.r.towing = True
+    io.r.agl_m = 200.0
+    run(tow, io, clock, 2.0, climb_ms=3.0, speed_ms=30.0)
+    assert tow.state == TOWING and objects.created == SEGMENTS
+    io.replay = True
+    run(tow, io, clock, 1.0, speed_ms=30.0)  # the aircraft move in the replay
+    assert tow.state == NONE
+    assert objects.destroyed == SEGMENTS
+    assert io.hidden[-1] is False
+    io.replay = False  # back to the flight, still on the tow
+    run(tow, io, clock, 1.0, climb_ms=3.0, speed_ms=30.0)
+    assert tow.state == TOWING
+    assert objects.created == 2 * SEGMENTS
+    assert io.hidden[-1] is True
+
+
+def test_a_restart_near_where_the_tow_ended_starts_without_the_old_rope():
+    tow, io, objects, clock, logs = make()
+    io.r.towing = True
+    run(tow, io, clock, 2.0)
+    io.r.towing = False  # released on the runway, the tug rolls on
+    for _ in range(60):
+        clock.t += 1 / 60
+        io.move(0.0, 0.0, -10.0 / 60, line_too=False)
+        frame(tow)
+    assert tow.state == RELEASED
+    tow.new_flight()  # X-Plane says: a new flight; the glider starts where it was
+    assert tow.state == NONE
+    assert objects.destroyed == SEGMENTS
+    assert io.hidden[-1] is False
+    io.r.payload = [0.0, 100.6, -48.0]  # the new tug's tail, the line there before the tow
+    io.r.tug = [0.0, 101.0, -52.3]
+    run(tow, io, clock, 1.0)
+    assert tow.state == TOWING
+    assert tow.rope.pinned_a and math.dist(tow.rope.nodes[0], to_rope(*io.r.aircraft)) < 0.01
+
+
+def test_a_line_set_up_again_where_the_rope_is_lays_the_rope_out_afresh():
+    tow, io, objects, clock, logs = make()
+    run(tow, io, clock, 1.0)
+    io.r.payload = [30.0, 100.6, -40.0]  # the tug's end 30 m to one side in one frame
+    io.r.tug = [30.0, 101.0, -44.3]
+    run(tow, io, clock, 1 / 60)
+    assert tow.state == TOWING
+    b = to_rope(*io.r.payload)
+    assert math.dist(tow.rope.nodes[-1], b) < 0.01
+    # Laid out between the new ends at once, not dragged across.
+    assert max(math.dist(p, b) for p in tow.rope.nodes) < tow.rope.length_m + 0.5
+
+
+def test_each_segment_is_drawn_at_its_length():
+    tow, io, objects, clock, logs = make()
+    io.r.towing = True
+    io.r.agl_m = 300.0
+    io.r.aircraft = [0.0, 400.0, -2.6]
+    io.r.payload = [0.0, 400.0, -2.6 - 64.0]  # stretched past the drawn 57 m
+    io.r.glider = [0.0, 400.6, 0.0]
+    run(tow, io, clock, 2.0)
+    poses = tow.rope.segment_poses()
+    for inst, pose in zip(tow.instances, poses):
+        assert objects.data[inst] == pytest.approx(pose[3] / 2)
+    assert all(pose[3] == pytest.approx(64.0 / SEGMENTS) for pose in poses)
+    # Lengths the object draws whole, without a gap or a piece past a joint: a stretched rope,
+    # a short one on the runway, and the longest the dataref allows, shortened or stretched.
+    assert PIECE_M - 2 * OVERLAP_M < 64.0 / SEGMENTS < 2 * (PIECE_M - OVERLAP_M)
+    assert PIECE_M - 2 * OVERLAP_M < 0.97 * 36.0 / SEGMENTS
+    assert 2 * (PIECE_M - OVERLAP_M) > 1.08 * 62.0 / SEGMENTS
+    assert HALF_MAX_M > PIECE_M
+
+
+def test_instances_are_made_before_the_flight_model():
+    tow, io, objects, clock, logs = make()
+    frame(tow)  # the first frame of a rope: none yet, X-Plane's line still shows
+    assert tow.state == TOWING and objects.created == 0 and not any(io.hidden)
+    frame(tow)
+    assert objects.created == SEGMENTS and io.hidden[-1] is True
+    assert io.prepared >= 2
+
+
+def test_an_object_that_did_not_load_is_not_unloaded():
+    tow, io, objects, clock, logs = make(load=False)
+    tow.shutdown()
+    assert objects.unloaded == 0
+    tow, io, objects, clock, logs = make()
+    tow.shutdown()
+    assert objects.unloaded == 1

@@ -51,7 +51,7 @@ Commands (also in the menu):
   xp_gliding/airstart/near_cloud  put the glider in the air near a cloud worth flying to
                                (`engine/airstart.py`)
   xp_gliding/tow/rope/toggle   our tow rope over X-Plane's aerotow, or X-Plane's straight line
-                               (on by default; `tow.py`, its own flight loop)
+                               (on by default; `tow.py`, two flight loops of its own)
   xp_gliding/clouds/style/next  the next cloud style, as the Cloud style submenu would choose
                                it: for a key, to compare styles (not in the menu)
 
@@ -120,6 +120,7 @@ DATAREFS = (
     ("tow/sag_m", "tow", "status.sag_m", "f", 0),
     ("tow/span_m", "tow", "status.span_m", "f", 0),
     ("tow/length_m", "tow", "length_m", "f", 1),  # the drawn rope's length, to tune its hang
+    ("tow/half_m", "tow", "status.half_dummy", "f", 0),  # per instance in the rope's object
     ("thermals_enabled", "settings", "thermals_enabled", "i", 1),
     ("edge_enabled", "settings", "edge_enabled", "i", 1),
     ("wind_enabled", "settings", "wind_enabled", "i", 1),
@@ -508,12 +509,16 @@ class PythonInterface:
         self.refresh_menu()
 
         self.loop = xp.createFlightLoop(self.flight_loop, xp.FlightLoop_Phase_BeforeFlightModel, None)
-        # After the flight model, so that the rope is drawn where the aircraft are this frame.
+        # The rope's object, instances and probe are made before the flight model (the SDK warns
+        # against making resources after it); the rope is moved after it, so that it is drawn
+        # where the aircraft are this frame.
+        self.tow_prepare_loop = xp.createFlightLoop(self.tow_prepare, xp.FlightLoop_Phase_BeforeFlightModel, None)
         self.tow_loop = xp.createFlightLoop(self.tow_flight_loop, xp.FlightLoop_Phase_AfterFlightModel, None)
         return self.Name, self.Sig, self.Desc
 
     def XPluginStop(self):
         xp.destroyFlightLoop(self.loop)
+        xp.destroyFlightLoop(self.tow_prepare_loop)
         xp.destroyFlightLoop(self.tow_loop)
         self.tow.shutdown()
         self.computer.stop()
@@ -540,6 +545,7 @@ class PythonInterface:
         self.load_aircraft()
         xp.scheduleFlightLoop(self.loop, -1, 1)
         self.tow_failed = False
+        xp.scheduleFlightLoop(self.tow_prepare_loop, -1, 1)
         xp.scheduleFlightLoop(self.tow_loop, -1, 1)
         self.hud.enable()
         self.computer.enable()
@@ -547,6 +553,7 @@ class PythonInterface:
 
     def XPluginDisable(self):
         xp.scheduleFlightLoop(self.loop, 0, 1)
+        xp.scheduleFlightLoop(self.tow_prepare_loop, 0, 1)
         xp.scheduleFlightLoop(self.tow_loop, 0, 1)
         self.tow.clear()
         self.guard.release()
@@ -558,6 +565,13 @@ class PythonInterface:
         self.out.clear()
 
     def XPluginReceiveMessage(self, inFromWho, inMessage, inParam):
+        new_flight = inMessage == xp.MSG_AIRPORT_LOADED or (inMessage == xp.MSG_PLANE_LOADED and inParam == 0)
+        if new_flight and not self.tow_failed:
+            # A new flight, or the same one restarted near where a tow ended: no rope carried over.
+            try:
+                self.tow.new_flight()
+            except Exception:
+                self.tow_stopped("a new flight")
         if inMessage == xp.MSG_PLANE_LOADED and inParam == 0:
             if self.failed:
                 self.restart("a new aircraft")
@@ -1019,21 +1033,38 @@ class PythonInterface:
             self.clouds.clear()
             return 0
 
+    def tow_prepare(self, sinceLast, elapsedTime, counter, refCon):
+        """Before the flight model: what the rope needs made (`TowRope.prepare`)."""
+        if self.tow_failed:
+            return 0
+        try:
+            self.tow.prepare(self.settings.enabled and self.settings.tow_rope_enabled)
+            return -1
+        except Exception:
+            self.tow_stopped("making what it needs")
+            return 0
+
     def tow_flight_loop(self, sinceLast, elapsedTime, counter, refCon):
         """Our tow rope, every frame. Apart from the thermals: an error in one stops only that one.
         An error here gives X-Plane's line back and stops the rope until the plugin is re-enabled."""
+        if self.tow_failed:
+            return 0
         try:
             self.tow.update(sinceLast, self.settings.enabled and self.settings.tow_rope_enabled)
             return -1
         except Exception:
-            self.tow_failed = True
-            print(f"{TAG} error in the tow rope; X-Plane's line is back until the plugin is re-enabled:\n"
-                  + traceback.format_exc())
-            try:
-                self.tow.clear()
-            except Exception:
-                print(f"{TAG} and clearing the tow rope failed too:\n" + traceback.format_exc())
+            self.tow_stopped("moving it")
             return 0
+
+    def tow_stopped(self, where):
+        """An error in the tow rope: X-Plane's line back, the rope stopped until re-enabled."""
+        self.tow_failed = True
+        print(f"{TAG} error in the tow rope ({where}); X-Plane's line is back until the plugin is re-enabled:\n"
+              + traceback.format_exc())
+        try:
+            self.tow.clear()
+        except Exception:
+            print(f"{TAG} and clearing the tow rope failed too:\n" + traceback.format_exc())
 
     def step(self):
         st = self.settings

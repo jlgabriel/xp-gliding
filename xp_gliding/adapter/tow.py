@@ -22,16 +22,23 @@ asked for the hang Condor and Aerofly FS4 show (2026-11-21). In the air ours is 
 than where the native one starts pulling, `ROPE_LENGTH_M`, so it always has some slack: a chord
 c with slack s hangs about sqrt(3 c s / 8). The slack comes from the native rope's stretch, so
 the hang follows the pull: 57 m over the 56.1-56.8 m of a climb hangs 2-4 m, less when the tug
-pulls harder, more when it eases. Past 57 m between the ends it is straight. On the ground roll
-it is the native rope's 53 m, so that it does not lie in a wide curve on the runway, and it
+pulls harder, more when it eases. Past 57 m between the ends it is straight. On the runway it
+is as long as the hooks are apart, a little more (`GROUND_SLACK_M`), so that it does not lie in
+a wide curve, and pays out as the tug takes up the slack, up to the native rope's 53 m; it
 grows to 57 m once the glider is up (`GROUND_AGL_M`, `LENGTH_RATE_MS`). A departure from a real
 rope, for the eye; `length_m` (a dataref) changes the length in the air, to tune it.
 
 States: no rope; on the tow (both ends X-Plane's); released (the glider's end free, the other
-on the tug while the tug can be seen, for `TRAIL_S` seconds). The glider put somewhere else, a
-new flight say, starts over; a shift of X-Plane's local origin moves the rope with it.
+on the tug while the tug can be seen, for `TRAIL_S` seconds). A new flight starts over (the
+plugin says so, `new_flight`; a glider put elsewhere is seen too); a shift of X-Plane's local
+origin moves the rope with it. In a replay ours is taken away and X-Plane's line given back:
+the line's ends are not replayed, so ours would hang where the flight left it.
 
-Every frame: 21 reads; while there is a rope, also its step and one position per segment,
+Two flight loops. Before the flight model, `prepare` makes what the rope needs (its object, its
+instances, the terrain probe): the SDK warns against making resources after the flight model.
+After it, `update` moves the rope, so that it is drawn where the aircraft are this frame.
+
+Every frame: 22 reads; while there is a rope, also its step and one position per segment,
 300-400 us a frame in all (measured in X-Plane 12.4.4). No `xp` here: the SDK calls are in
 `xpio.TowIO` and `xpio.SkyObjects`. Frames: the rope is solved in X-Plane's local frame with
 its axes renamed (east, north, up) = (x, -z, y), which `engine.rope` allows for a rope this
@@ -62,10 +69,34 @@ TUG_HOOK_REACH_M = 15.0  # the tug's hook is this close to AI plane 1's referenc
 TRAIL_S = 90.0  # the released rope is drawn this long behind the tug
 TRAIL_REACH_M = 3000.0  # and while the tug is this close to the glider
 MAX_DT_S = 0.1
-PROBE_PERIOD_S = 1.0  # the ground under each end of the rope is probed this often
+PROBE_PERIOD_S = 1.0  # the ground under the rope is probed this often
 FLOOR_RATE_MS = 0.5  # and the rope's floor follows a new probe this fast, never by a jump
 GROUND_AGL_M = 3.0  # the glider is on its ground roll below this
 LENGTH_RATE_MS = 0.4  # the drawn length goes from the native rope's to the hanging one this fast
+# Waiting on the runway the tug is often nearer than NATIVE_SLACK_M, and a rope that long lay in
+# a wide arc to one side (Juan Luis, 2026-11-22: "súper curva"). There it is drawn as long as
+# the hooks are apart and this much more, and pays out as the tug takes up the slack.
+GROUND_SLACK_M = 0.1
+PROBE_POINTS = 5  # the ground is probed under this many nodes: the ends and between them
+# A rope resting on the runway lies on it: its axis one radius up, and a little more, since the
+# ground between two probes may be higher than a straight line between them. With its axis on
+# the ground it was half buried and could not be seen (Juan Luis, 2026-11-22).
+ROPE_RADIUS_M = 0.0125  # drawn 25 mm thick: see tools/make_rope_obj.py
+GROUND_CLEAR_M = ROPE_RADIUS_M + 0.02
+END_JUMP_M = 10.0  # on the tow, a line end that moved farther than this in a frame jumped,
+END_JUMP_MS = 80.0  # or farther than this speed allows in a long frame
+
+# Each segment is drawn at its own length, as two rigid pieces PIECE_M long, one from each of its
+# nodes toward the other, moved apart by the per-instance HALF_DATAREF (half the segment's
+# length): a segment between PIECE_M - 2 OVERLAP_M and 2 (PIECE_M - OVERLAP_M) long is drawn
+# whole, and no piece sticks out past a joint (`tools/make_rope_obj.py`). One fixed object for
+# every length left gaps where the rope stretched and sticks where it was shorter (ChatGPT's
+# review, 2026-11-22).
+HALF_DATAREF = "xp_gliding/tow/half_m"
+DATAREFS = (HALF_DATAREF,)
+OVERLAP_M = 0.03  # each piece reaches this far past its node, to close the joint at a bend
+PIECE_M = 36.0 / SEGMENTS  # segments of 1.14-2.34 m: a rope of 34-70 m in 30 of them
+HALF_MAX_M = 5.0  # the object's animation range
 
 NONE, TOWING, RELEASED = 0, 1, 2
 
@@ -100,6 +131,11 @@ def _ground_m(place, other):
     return math.hypot(north, east)
 
 
+def probe_nodes(segments, points=PROBE_POINTS):
+    """The nodes the ground is probed under: both ends and evenly between."""
+    return tuple(round(segments * k / (points - 1)) for k in range(points))
+
+
 class LineReading:
     """One frame of what `tow.TowRope` reads, reused frame after frame. Positions are X-Plane's
     local (x, y, z), lists of three."""
@@ -118,13 +154,15 @@ class LineReading:
 class TowStatus:
     """Published as datarefs, for the test pilot."""
 
-    __slots__ = ("state", "frame_us", "sag_m", "span_m")
+    __slots__ = ("state", "frame_us", "sag_m", "span_m", "half_dummy")
 
     def __init__(self):
         self.state = NONE
         self.frame_us = 0.0
         self.sag_m = 0.0  # the farthest node from the straight line between the ends
         self.span_m = 0.0  # between the ends
+        # HALF_DATAREF exists so the object finds it when it loads; its own value is never used.
+        self.half_dummy = 0.0
 
 
 class TowRope:
@@ -140,6 +178,8 @@ class TowRope:
         self.obj = None
         self.loading = False
         self.instances = []
+        self._data = [[0.0] for _ in range(SEGMENTS)]  # each instance's HALF_DATAREF
+        self._want_instances = False
         self.native_hidden = False
         self._poses = None
         self._hook = None  # the tug's hook in its (right, up, forward) axes, seen while towing
@@ -148,10 +188,13 @@ class TowRope:
         self._released_at = None
         self._was_towing = False
         self._spent = None  # the glider's end of the native line as it froze on release
-        self._floor = None  # [under end A, under end B], local y, eased toward the probes
+        self._probe_nodes = probe_nodes(SEGMENTS)
+        self._floor = None  # under each probed node, local y, eased toward the probes
         self._floor_target = None
+        self._floor_nodes = [0.0] * (SEGMENTS + 1)  # every node's, handed to the rope
         self._next_probe = 0.0
         self._air_length = ROPE_LENGTH_M
+        self._paid_out = NATIVE_SLACK_M  # on the runway, the drawn length so far
 
     @property
     def state(self):
@@ -160,9 +203,10 @@ class TowRope:
     @property
     def length_m(self):
         """The drawn length in the air, within LENGTH_RANGE_M (a dataref, to tune the hang). On
-        the ground roll the rope is the native one's length, so that it lies nearly straight
-        between the glider and the tug (Juan Luis, 2026-11-21: all curved on the runway); it
-        grows to this one after lift-off at LENGTH_RATE_MS."""
+        the runway the rope is as long as the hooks are apart, paying out to the native one's
+        length, so that it lies nearly straight between the glider and the tug (Juan Luis,
+        2026-11-21 and 22: all curved on the runway); it grows to this one after lift-off at
+        LENGTH_RATE_MS."""
         return self._air_length
 
     @length_m.setter
@@ -180,17 +224,32 @@ class TowRope:
         step = LENGTH_RATE_MS * dt
         self._set_rope_length(min(now + step, target) if target > now else max(now - step, target))
 
-    # --- per frame -------------------------------------------------------------
+    # --- before the flight model ------------------------------------------------
+
+    def prepare(self, enabled):
+        """Before the flight model, every frame: load the object, make the instances a rope
+        about to be drawn needs, and the terrain probe. Nothing per frame once they are made."""
+        if not enabled:
+            return
+        if self.obj is None:
+            self._load()
+        self.io.prepare()
+        if self._want_instances and not self.instances and self.obj:
+            self.instances = [self.objects.create(self.obj, DATAREFS) for _ in range(SEGMENTS)]
+
+    # --- after the flight model -------------------------------------------------
 
     def update(self, dt, enabled):
         """One frame. enabled: the pilot wants our rope."""
         if not enabled:
             self.clear()
             return
-        if self.obj is None:
-            self._load()
         io = self.io
-        if io.frozen():
+        if io.in_replay():
+            if self.status.state != NONE or self.instances or self.native_hidden:
+                self.clear()
+            return
+        if io.paused():
             return
         t0 = time.perf_counter()
         line = io.read_line()
@@ -230,6 +289,10 @@ class TowRope:
             elif not live:
                 self._drop()
                 state = NONE
+            elif self._ends_jumped(a, b, dt):
+                # The line was set up again where the rope is (a new tow from the same spot):
+                # laid out afresh rather than dragged across.
+                self._attach(a, b, line)
         elif state == RELEASED:
             if live and towing:
                 self._attach(a, b, line)  # a new tow
@@ -245,8 +308,15 @@ class TowRope:
 
         wind = (line.wind_x, -line.wind_z, 0.0)
         dt = min(MAX_DT_S, max(0.0, dt))
-        on_ground = state == TOWING and line.agl_m < GROUND_AGL_M
-        self._length_toward(NATIVE_SLACK_M if on_ground else self._air_length, dt)
+        if state == TOWING and line.agl_m < GROUND_AGL_M:
+            # On the runway: paying out as the tug takes up the slack, never shorter.
+            self._paid_out = max(self._paid_out, self._ground_length(a, b))
+            if self._paid_out > self.rope.length_m:
+                self._set_rope_length(self._paid_out)
+            else:
+                self._length_toward(self._paid_out, dt)
+        else:
+            self._length_toward(self._air_length, dt)
         ground = self._ground_under(line, dt)
         if state == TOWING:
             self._learn_hook(line, b)
@@ -267,34 +337,53 @@ class TowRope:
 
     # --- states ----------------------------------------------------------------
 
+    @staticmethod
+    def _ground_length(a, b):
+        return min(NATIVE_SLACK_M, _dist(a, b) + GROUND_SLACK_M)
+
+    def _ends_jumped(self, a, b, dt):
+        reach = max(END_JUMP_M, END_JUMP_MS * max(0.0, dt))
+        return _dist(a, self.rope.nodes[0]) > reach or _dist(b, self.rope.nodes[-1]) > reach
+
     def _ground_under(self, line, dt):
-        """The runway under the rope's two ends, probed: `y_agl` is not the wheels' height (the
-        ASK 21's hook sat 0.55 m under its reference point while y_agl read 0.03, 2026-11-21).
-        A new probe is followed at FLOOR_RATE_MS: a floor that jumped threw the rope up."""
+        """The runway under the rope, probed under a few nodes and straight between them, lifted
+        so that a rope resting on it lies on it (GROUND_CLEAR_M). `y_agl` is not the wheels'
+        height (the ASK 21's hook sat 0.55 m under its reference point while y_agl read 0.03,
+        2026-11-21). A new probe is followed at FLOOR_RATE_MS: a floor that jumped threw the
+        rope up."""
         now = self.clock()
         fallback = line.glider[1] - line.agl_m
         if now >= self._next_probe or self._floor_target is None:
             self._next_probe = now + PROBE_PERIOD_S
             target = []
-            for node in (self.rope.nodes[0], self.rope.nodes[-1]):
-                e, n, u = node
+            for i in self._probe_nodes:
+                e, n, u = self.rope.nodes[i]
                 y = self.io.ground_y(e, u, -n)
                 target.append(fallback if y is None else y)
             self._floor_target = target
             if self._floor is None:
                 self._floor = list(target)
         step = FLOOR_RATE_MS * dt
-        for i in (0, 1):
-            d = self._floor_target[i] - self._floor[i]
-            self._floor[i] += max(-step, min(step, d))
-        return (self._floor[0], self._floor[1])
+        floor, nodes = self._floor, self._probe_nodes
+        for k, goal in enumerate(self._floor_target):
+            d = goal - floor[k]
+            floor[k] += max(-step, min(step, d))
+        out = self._floor_nodes
+        for k in range(len(nodes) - 1):
+            i0, i1 = nodes[k], nodes[k + 1]
+            y0, y1 = floor[k] + GROUND_CLEAR_M, floor[k + 1] + GROUND_CLEAR_M
+            for i in range(i0, i1 + 1):
+                out[i] = y0 + (y1 - y0) * (i - i0) / (i1 - i0)
+        return out
 
     def _attach(self, a, b, line):
         self._floor = self._floor_target = None
-        self._set_rope_length(NATIVE_SLACK_M if line.agl_m < GROUND_AGL_M else self._air_length)
+        self._paid_out = self._ground_length(a, b)
+        self._set_rope_length(self._paid_out if line.agl_m < GROUND_AGL_M else self._air_length)
         self.rope.reset(a, b)
         self._hook = None
         self._released_at = None
+        self._want_instances = True
         self.log("tow rope: on the tow, ours drawn in place of X-Plane's line")
 
     def _release(self, line):
@@ -303,6 +392,7 @@ class TowRope:
         self.log("tow rope: released" + ("" if self._hook else "; the tug cannot be followed, the rope goes"))
 
     def _drop(self):
+        self._want_instances = False
         self._destroy_instances()
         self._hook = None
         self._released_at = None
@@ -314,12 +404,19 @@ class TowRope:
         self._was_towing = False
         self._hide_native(False)
 
+    def new_flight(self):
+        """A new flight, or the same one restarted: whatever rope there was is gone, even where
+        the glider starts within a jump of where it was."""
+        self.clear()
+        self._spent = None
+        self._prev_glider = self._prev_place = None
+
     def shutdown(self):
         self.clear()
         self.io.release()
-        if self.obj is not None:
+        if self.obj:
             self.objects.unload(self.obj)
-            self.obj = None
+        self.obj = None
 
     # --- the tug ---------------------------------------------------------------
 
@@ -357,14 +454,15 @@ class TowRope:
         self.objects.load_async(OBJECT_NAME, loaded)
 
     def _draw(self):
-        if not self.obj:
-            return
+        """Every segment where it is, at its length. The instances are made before the flight
+        model (`prepare`): the first frame of a rope has none yet, and X-Plane's line shows."""
         if not self.instances:
-            self.instances = [self.objects.create(self.obj) for _ in range(SEGMENTS)]
+            return
         self._poses = self.rope.segment_poses(self._poses)
         set_position = self.objects.set_position
-        for inst, (e, n, u, _length, heading, pitch) in zip(self.instances, self._poses):
-            set_position(inst, e, u, -n, pitch=pitch, heading=heading)
+        for inst, data, (e, n, u, length, heading, pitch) in zip(self.instances, self._data, self._poses):
+            data[0] = min(HALF_MAX_M, 0.5 * length)
+            set_position(inst, e, u, -n, data, pitch=pitch, heading=heading)
 
     def _destroy_instances(self):
         for inst in self.instances:

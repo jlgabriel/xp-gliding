@@ -148,8 +148,9 @@ class XPlaneIO:
 
 
 class TowIO:
-    """The SDK calls behind our tow rope (`tow.py`). Per frame: `frozen` and `read_line`, 21
-    reads, and the kill switch written while our rope is drawn; a terrain probe once a second."""
+    """The SDK calls behind our tow rope (`tow.py`). Per frame: `in_replay`, `paused` and
+    `read_line`, 22 reads, and the kill switch written while our rope is drawn; five terrain
+    probes once a second."""
 
     def __init__(self):
         ref = xp.findDataRef
@@ -172,8 +173,16 @@ class TowIO:
         self._line = LineReading()
         self._probe = None
 
-    def frozen(self):
-        return bool(xp.getDatai(self._paused) or xp.getDatai(self._replay))
+    def paused(self):
+        return bool(xp.getDatai(self._paused))
+
+    def in_replay(self):
+        return bool(xp.getDatai(self._replay))
+
+    def prepare(self):
+        """Before the flight model: the terrain probe is made there, not where it is used."""
+        if self._probe is None:
+            self._probe = xp.createProbe(xp.ProbeY)
 
     def read_line(self):
         r = self._line
@@ -196,10 +205,10 @@ class TowIO:
         xp.setDatai(self._kill, 1 if hide else 0)
 
     def ground_y(self, x, y, z):
-        """The terrain's height (local y) under a local point, None where there is none. Once a
-        second at most: a probe costs more than a read."""
+        """The terrain's height (local y) under a local point, None where there is none or no
+        probe was made yet (`prepare`). A few a second at most: a probe costs more than a read."""
         if self._probe is None:
-            self._probe = xp.createProbe(xp.ProbeY)
+            return None
         info = xp.probeTerrainXYZ(self._probe, x, y, z)
         return info.locationY if info.result == xp.ProbeHitTerrain else None
 

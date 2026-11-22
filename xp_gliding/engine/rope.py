@@ -134,8 +134,9 @@ class Rope:
 
     def step(self, dt, a=None, b=None, wind=(0.0, 0.0, 0.0), ground_up=None, rho=1.2):
         """Advance by dt seconds. a, b: where the pinned ends are now (ignored for a free end).
-        wind: the air's velocity. ground_up: height of the ground, None for none, or a pair
-        (under end A, under end B) for a ground that slopes along the rope."""
+        wind: the air's velocity. ground_up: height of the ground, None for none, a pair
+        (under end A, under end B) for a ground that slopes along the rope, or one height per
+        node."""
         if not dt > 0.0:
             return
         if self._prev_a is None:
@@ -159,6 +160,8 @@ class Rope:
         last = self.segments
         if ground_up is None:
             floor = None
+        elif isinstance(ground_up, (tuple, list)) and len(ground_up) == last + 1:
+            floor = ground_up
         elif isinstance(ground_up, (tuple, list)):
             g0, g1 = ground_up
             floor = [g0 + (g1 - g0) * i / last for i in range(last + 1)]
